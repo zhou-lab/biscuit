@@ -4,6 +4,8 @@ a little tool suite for bisulfite data
 ### Pileup cytosine and SNPs
 The tool `pileup_cytosine` computes 1) methylation (in both CpG and CpH); 2) all the callable SNP mutations. The tool is very similar in function if not superior to the well known BisSNP.
 
+SNP calling philosophy: `pileup_cytosine` tries to minimize false positive methylation call and can be stringent in terms of mutations. If there is a read mapped with high confidence and showing a mutation with high base quality score. `pileup_cytosine` starts its SNP processing and MAY abolish the methylation calling if the SNP interferes the determination of cytosine retention/conversion.
+
 #### Feature
 - de novo infer bisulfite parent strand or from bsmap (ZS) or BWA-meth tags (YD)
 - call ambiguous alternative allele
@@ -38,7 +40,7 @@ The format reads
 8) cytosine retention;
 9) cytosine conversion count.
 
-With `-v`, one may get extra information
+One might wonder why out of 12 reads coverage, one only gets 0 retention and 2 conversion. With `-v`, one may get extra information
 ```
 chr20   47419733        47419734        C       .       ACG     12      0       2
     CCCTT   66677   ;7);<   ++---   74,68,51,44,23  21,19,21,22,18
@@ -56,6 +58,8 @@ chr20   47419733        47419734        C       .       ACG     12      0       
 13) read strand (BSC);
 14) position on read (BSC);
 15) number of retentions in read (BSC);
+
+One can see that in the case above, there are 5 BSW and 7 BSC, out of the 5 BSW that can inform methylation, 2 reads showing retention is of low base quality and the other is the second last base in the read (a tunable filtering option). On the contrary, 2 other reads suggesting conversion are both high qualities. Hence the output of retention and conversion count can be understood. This example shows how pileup_cytosine operates on a low coverage, low quality region. One could filter based on the sum of retention and conversion to constrain the beta value computation. Note that the verbose mode `-v` also prints positions with no SNP or cytosine methylation. This allows for differentiation of "no mutation" from "no coverage".
 
 ##### code for retention-mutation status (field 11 and 17)
 
