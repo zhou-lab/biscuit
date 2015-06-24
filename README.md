@@ -62,22 +62,15 @@ chr20   47419733        47419734        C       .       ACG     12      0       
 
 ##### code for retention-mutation status (field 11 and 17)
 
-0: mutation to A
-
-1: mutation to C
-
-2: mutation to G
-
-3: mutation to T
-
-4: mutation to Y
-
-5: mutation to R
-
-6: retention
-
-7: conversion
-8: reference base
+0: mutation to A;
+1: mutation to C;
+2: mutation to G;
+3: mutation to T;
+4: mutation to Y;
+5: mutation to R;
+6: retention;
+7: conversion;
+8: reference base;
 
 `pileup_cytosine` calls ambiguous alternative allele
 ```Shell
