@@ -1,7 +1,7 @@
 # biscuit
 a little tool suite for bisulfite data
 
-### pileup cytosine and SNPs
+### Pileup cytosine and SNPs
 The tool `pileup_cytosine` computes 1) methylation (in both CpG and CpH); 2) all the callable SNP mutations. The tool is very similar in function if not superior to the well known BisSNP.
 
 #### Feature
@@ -15,12 +15,9 @@ The tool `pileup_cytosine` computes 1) methylation (in both CpG and CpH); 2) all
 
 #### Install
 
-```Shell
-make
-```
-The binary is built into `bin/`.
+Issue a `make` and the binary is built into `bin/`.
 
-#### usage
+#### Usage
 
 For example, to collect methylation and SNP from chr20:1256423-1257433
 ```Shell
