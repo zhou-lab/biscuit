@@ -77,7 +77,6 @@ chr20   47419733        47419734        C       .       ACG     12      0       
 6: retention
 
 7: conversion
-
 8: reference base
 
 `pileup_cytosine` calls ambiguous alternative allele
