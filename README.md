@@ -1,4 +1,4 @@
-# Biscuit
+# biscuit
 a little tool suite for bisulfite data
 
 ### pileup cytosine and SNPs
@@ -60,7 +60,18 @@ chr20   47419733        47419734        C       .       ACG     12      0       
 14) position on read (BSC);
 15) number of retentions in read (BSC);
 
-pileup_cytosine calls ambiguous alternative allele
+##### code for retention-mutation status (field 11 and 17)
+0. mutation to A
+1. mutation to C
+2. mutation to G
+3. mutation to T
+4. mutation to Y
+5. mutation to R
+6. retention
+7. conversion
+8. reference base
+
+`pileup_cytosine` calls ambiguous alternative allele
 ```Shell
 pileup_cytosine -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v
 ```
