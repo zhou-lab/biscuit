@@ -14,8 +14,7 @@ The tool computes 1) methylation (in both CpG and CpH); 2) all the callable SNP 
 - verbose output (cytosine context, all the bases, parent strand etc).
 
 #### install
-```
-#!bash
+```Shell
 make
 ```
 The binary is built into `bin/`.
@@ -23,13 +22,11 @@ The binary is built into `bin/`.
 #### usage
 
 For example, to collect methylation and SNP from chr20:1256423-1257433
-```
-#!bash
+```Shell
 pileup_cytosine -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:47419734-47419734
 ```
 outputs
 ```
-#!text
 chr20   47419733        47419734        C       .       ACG     12      0       2
 ```
 The format reads
@@ -44,8 +41,7 @@ The format reads
 9) cytosine conversion count
 
 with `-v`, one may get extra information
-```
-#!bash
+```Shell
 pileup_cytosine -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:47419734-47419734 -v
 ```
 chr20   47419733        47419734        C       .       ACG     12      0       2       CCCTT   66677   ;7);<   ++---   74,68,51,44,23  21,19,21,22,18  CCCCCCC 8888888 ;;):<<2 +++---- 69,63,63,62,59,20,1     19,19,15,17,19,26,25
@@ -64,13 +60,11 @@ chr20   47419733        47419734        C       .       ACG     12      0       
 15) number of retentions in read (BSC)
 
 pileup_cytosine calls ambiguous alternative allele
-```
-#!bash
+```Shell
 pileup_cytosine -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v
 ```
 outputs
 ```
-#!text
 chr20   29570685        29570686        G       G>G:9,Y:4       TCG     15      4       0       GGTGTTTGGG      8848444888      68<<=<<<<:      --++++-++-      75,70,55,53,46,41,41,35,22,19   16,18,21,21,21,23,19,23,21,21   GGGGG   66666   :*;<<     ++--+   62,58,55,34,30  27,24,24,22,23
 ```
 The outputs show alternative allele Y (IUPAC code for C or T, supported by 4 reads) when BSC does not suggest alternative allele and there is equal chance of T and C (assuming no prior information of methylation and conversion ratio).
