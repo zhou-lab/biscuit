@@ -1,2 +1,2 @@
 # biscuit
-a little tool for bisulfite data
+a little tool suite for bisulfite data
