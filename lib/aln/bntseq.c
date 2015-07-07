@@ -184,7 +184,7 @@ bntseq_t *bns_restore(const char *prefix)
 	/* strcat(strcpy(pac_filename, prefix), ".pac"); */
   strcat(strcpy(ann_filename, prefix), ".bis.ann");
 	strcat(strcpy(amb_filename, prefix), ".bis.amb");
-	strcat(strcpy(pac_filename, prefix), ".pac");
+	strcat(strcpy(pac_filename, prefix), ".bis.pac");
 
 	bns = bns_restore_core(ann_filename, amb_filename, pac_filename);
 	if (bns == 0) return 0;
@@ -582,27 +582,27 @@ static uint8_t *bis_add1(const kseq_t *seq, bntseq_t *bns, uint8_t *pac, int64_t
 
     if (c >= 4) { // N
       if (lasts == seq->seq.s[i]) { // contiguous N
-	++(*q)->len;
+        ++(*q)->len;
       } else {
-	if (bns->n_holes == *m_holes) {
-	  (*m_holes) <<= 1;
-	  bns->ambs = (bntamb1_t*)realloc(bns->ambs, (*m_holes) * sizeof(bntamb1_t));
-	}
-	*q = bns->ambs + bns->n_holes;
-	(*q)->len = 1;
-	(*q)->offset = p->offset + i;
-	(*q)->amb = seq->seq.s[i];
-	++p->n_ambs;
-	++bns->n_holes;
+        if (bns->n_holes == *m_holes) {
+          (*m_holes) <<= 1;
+          bns->ambs = (bntamb1_t*)realloc(bns->ambs, (*m_holes) * sizeof(bntamb1_t));
+        }
+        *q = bns->ambs + bns->n_holes;
+        (*q)->len = 1;
+        (*q)->offset = p->offset + i;
+        (*q)->amb = seq->seq.s[i];
+        ++p->n_ambs;
+        ++bns->n_holes;
       }
     }
     lasts = seq->seq.s[i];
     { // fill buffer
       if (c >= 4) c = lrand48()&3;
       if (bns->l_pac == *m_pac) { // double the pac size
-	*m_pac <<= 1;
-	pac = realloc(pac, *m_pac/4);
-	memset(pac + bns->l_pac/4, 0, (*m_pac - bns->l_pac)/4);
+        *m_pac <<= 1;
+        pac = realloc(pac, *m_pac/4);
+        memset(pac + bns->l_pac/4, 0, (*m_pac - bns->l_pac)/4);
       }
       _set_pac(pac, bns->l_pac, c);
       ++bns->l_pac;
@@ -619,7 +619,9 @@ static void bis_bns_dump(const bntseq_t *bns, const char *prefix){
   { // dump .ann
     strcpy(str, prefix); strcat(str, ".bis.ann");
     fp = xopen(str, "w");
-    err_fprintf(fp, "%lld %d %u\n", (long long)bns->l_pac, bns->n_seqs, bns->seed);
+    /* WZBS */
+    /* err_fprintf(fp, "%lld %d %u\n", (long long)bns->l_pac, bns->n_seqs, bns->seed); */
+    err_fprintf(fp, "%lld %d %u\n", (long long)bns->l_pac>>1, bns->n_seqs, bns->seed);
     for (i = 0; i != bns->n_seqs; ++i) {
       bntann1_t *p = bns->anns + i;
       err_fprintf(fp, "%d %s %"PRIu8, p->gi, p->name, p->bsstrand); /* add bisulfite bsstrand */
@@ -633,7 +635,7 @@ static void bis_bns_dump(const bntseq_t *bns, const char *prefix){
   { // dump .amb
     strcpy(str, prefix); strcat(str, ".bis.amb");
     fp = xopen(str, "w");
-    err_fprintf(fp, "%lld %d %u\n", (long long)bns->l_pac, bns->n_seqs, bns->n_holes);
+    err_fprintf(fp, "%lld %d %u\n", (long long)bns->l_pac>>1, bns->n_seqs, bns->n_holes);
     for (i = 0; i != bns->n_holes; ++i) {
       bntamb1_t *p = bns->ambs + i;
       err_fprintf(fp, "%lld %d %c\n", (long long)p->offset, p->len, p->amb);
@@ -731,7 +733,7 @@ int64_t dump_forward_pac(gzFile fp_fa, const char *prefix)
 	bns->ambs = (bntamb1_t*)calloc(m_holes, sizeof(bntamb1_t));
 	pac = calloc(m_pac/4, 1);
 	q = bns->ambs;
-	strcpy(name, prefix); strcat(name, ".pac");
+	strcpy(name, prefix); strcat(name, ".bis.pac");
 	fp = xopen(name, "wb");
 	// read sequences
 	while (kseq_read(seq) >= 0) pac = add1(seq, bns, pac, &m_pac, &m_seqs, &m_holes, &q);
@@ -751,8 +753,8 @@ int64_t dump_forward_pac(gzFile fp_fa, const char *prefix)
 		err_fclose(fp);
 	}
   /* re-dump forward bis bns, otherwise the .bis.ann and .bis.amb have twice as long pac  */
-  strcpy(name, prefix); strcat(name, ".bis");
-  bis_bns_dump(bns, name);
+  /* strcpy(name, prefix); strcat(name, ".bis"); */
+  /* bis_bns_dump(bns, prefix); */
 
   bns_destroy(bns);
 	kseq_destroy(seq);

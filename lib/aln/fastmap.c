@@ -239,7 +239,7 @@ int main_align(int argc, char *argv[])
 	if (opt->n_threads < 1) opt->n_threads = 1;
 	if (optind + 1 >= argc || optind + 3 < argc) {
 		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage: bwa mem [options] <idxbase> <in1.fq> [in2.fq]\n\n");
+		fprintf(stderr, "Usage: biscuit align [options] <idxbase> <in1.fq> [in2.fq]\n\n");
 		fprintf(stderr, "Algorithm options:\n\n");
 		fprintf(stderr, "       -t INT        number of threads [%d]\n", opt->n_threads);
 		fprintf(stderr, "       -k INT        minimum seed length [%d]\n", opt->min_seed_len);

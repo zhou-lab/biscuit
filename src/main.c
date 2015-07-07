@@ -7,7 +7,7 @@
 #define PACKAGE_VERSION "0.1.0.20150708"
 #endif
 
-int bis_bwa_index(int argc, char *argv[]);
+int main_biscuit_index(int argc, char *argv[]);
 int main_align(int argc, char *argv[]);
 int main_pileup(int argc, char *argv[]);
 
@@ -19,8 +19,10 @@ static int usage()
 	fprintf(stderr, "Contact: Wanding Zhou <wanding.zhou@vai.org>\n\n");
 	fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
 	fprintf(stderr, "Command: index         index sequences in the FASTA format\n");
-	fprintf(stderr, "         align         align bisulfite treated short reads\n");
+	fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
 	fprintf(stderr, "         pileup        pileup cytosine and mutations.\n");
+  /* fprint */
+  /* fprintf(stderr, "         hemi          find hemi-methylated region.\n"); */
 	fprintf(stderr, "\n");
 
 	return 1;
@@ -37,7 +39,7 @@ int main(int argc, char *argv[])
 	for (i = 1; i < argc; ++i) ksprintf(&pg, " %s", argv[i]);
 	bwa_pg = pg.s;
 	if (argc < 2) return usage();
-	if (strcmp(argv[1], "index") == 0) ret = bis_bwa_index(argc-1, argv+1);
+	if (strcmp(argv[1], "index") == 0) ret = main_biscuit_index(argc-1, argv+1);
   else if (strcmp(argv[1], "align") == 0) ret = main_align(argc-1, argv+1);
 	else if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
 	else {
