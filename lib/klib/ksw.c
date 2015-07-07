@@ -491,7 +491,7 @@ int ksw_extend(int qlen, const uint8_t *query, int tlen, const uint8_t *target, 
 
 static inline uint32_t *push_cigar(int *n_cigar, int *m_cigar, uint32_t *cigar, int op, int len)
 {
-	if (*n_cigar == 0 || op != (cigar[(*n_cigar) - 1]&0xf)) {
+	if (*n_cigar == 0 || (unsigned) op != (cigar[(*n_cigar) - 1]&0xf)) {
 		if (*n_cigar == *m_cigar) {
 			*m_cigar = *m_cigar? (*m_cigar)<<1 : 4;
 			cigar = realloc(cigar, (*m_cigar) << 2);

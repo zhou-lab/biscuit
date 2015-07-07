@@ -10,13 +10,10 @@ INCLUDE = include
 LSAM0119D = lib/libsamtools-0.1.19
 LSAM0119 = $(LSAM0119D)/libsam.a
 
-KLIBD = lib/klib
-KLIB = lib/klib/klib.a
-
 LUTILSD = lib/utils
 LUTILS = lib/utils/libutils.a
 
-PROG = pileup_cytosine
+PROG = biscuit
 # PROG = hemifinder correct_bsstrand get_unmapped sample_trinuc
 
 release : CFLAGS += -O3
@@ -29,14 +26,32 @@ $(LSAM0119) :
 	make -C $(LSAM0119D) libsam.a
 
 .PHONY: klib
-klib: $(KLIB)
-KLIBOBJ = $(KLIBD)/kstring.o
-$(KLIB): $(KLIBOBJ)
+klib: lib/klib/klib.a
+KLIBD = lib/klib
+KLIBOBJ = $(KLIBD)/kstring.o $(KLIBD)/kopen.o $(KLIBD)/kthread.o $(KLIBD)/ksw.o
+lib/klib/klib.a: $(KLIBOBJ)
 	ar -csru $@ $(KLIBOBJ)
 $(KLIBD)/%.o: $(KLIBD)/%.c
-	gcc -c $(CFLAGS) -I$(INCLUDE) $< -o $@
+	gcc -c $(CFLAGS) -I$(INCLUDE)/klib $< -o $@
 clean_klib:
-	rm -f $(KLIBD)/*.o $(KLIB)
+	rm -f $(KLIBD)/*.o lib/klib/klib.a
+
+.PHONY: biscuit
+LIBS=lib/aln/libaln.a src/pileup/pileup.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
+biscuit: bin/biscuit
+bin/biscuit: src/main.c $(LIBS)
+		$(CC) $(CFLAGS) src/main.c -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
+
+.PHONY: aln
+aln: lib/aln/libaln.a
+LALND = lib/aln
+LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/fastmap.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o
+lib/aln/libaln.a: $(LALNOBJ)
+	ar -csru $@ $(LALNOBJ)
+$(LALND)/%.o: $(LALND)/%.c
+	gcc -c $(CFLAGS) -I$(INCLUDE)/aln -I$(INCLUDE)/klib $< -o $@
+clean_aln:
+	rm -f $(LALND)/*.o lib/aln/libaln.a
 
 .PHONY: utils
 utils: $(LUTILS)
@@ -47,6 +62,16 @@ $(LUTILSD)/%.o: $(LUTILSD)/%.c
 	gcc -c $(CFLAGS) -I$(INCLUDE) $< -o $@
 clean_utils:
 	rm -f $(LUTILSD)/*.o $(LUTILS)
+
+libaln.a: $(ALNOBJS)
+	$(AR) -csru $@ $(ALNOBJS)
+
+.PHONY: pileup
+pileup: src/pileup/pileup.o
+src/pileup/pileup.o: src/pileup/pileup.c
+	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/pileup/pileup.c
+clean_pileup:
+	rm -f src/pileup/pileup.o
 
 .PHONY: correct_bsstrand
 correct_bsstrand : bin/correct_bsstrand
@@ -68,13 +93,6 @@ bin/sample_trinuc: $(LSAM0119) src/sample_trinuc/sample_trinuc.c
 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/sample_trinuc/sample_trinuc.c -lpthread $(LSAM0119) $(LUTILS) -lz
 clean_sample_trinuc:
 	rm -f bin/sample_trinuc
-
-.PHONY: pileup_cytosine
-pileup_cytosine : bin/pileup_cytosine
-bin/pileup_cytosine: $(LSAM0119) $(LUTILS) src/pileup_cytosine/pileup_cytosine.c
-	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/pileup_cytosine/pileup_cytosine.c $(LSAM0119) $(LUTILS) -lpthread  -lz
-clean_pileup_cytosine:
-	rm -f bin/pileup_cytosine
 
 .PHONY: hemifinder
 hemifinder : bin/hemifinder

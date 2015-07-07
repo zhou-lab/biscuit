@@ -113,7 +113,8 @@ static void update_a(mem_opt_t *opt, const mem_opt_t *opt0)
 	}
 }
 
-int main_mem(int argc, char *argv[])
+/* the old main_mem */
+int main_align(int argc, char *argv[])
 {
 	mem_opt_t *opt, opt0;
 	int fd, fd2, i, c, ignore_alt = 0, no_mt_io = 0;

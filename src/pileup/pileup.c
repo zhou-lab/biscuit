@@ -720,7 +720,7 @@ static int usage() {
   return 1;
 }
 
-int main(int argc, char *argv[]) {
+int main_pileup(int argc, char *argv[]) {
 
   int c;
   char *reffn = 0;
@@ -776,5 +776,5 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  pileup_cytosine_main(reffn, infn, outfn, reg, &conf);
+  return pileup_cytosine_main(reffn, infn, outfn, reg, &conf);
 }
