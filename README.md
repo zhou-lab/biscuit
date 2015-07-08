@@ -16,7 +16,7 @@ Issue a `make` and the binary is built into `bin/`.
 - robust to OS build, read processing and reference processing occur within computing threads of single process.
 
 ### Somatic mutation calling
-`somatic` computes somatic mutations as well as DNA methylation from matched tumor~normal pairs.
+`biscuit somatic` computes somatic mutations as well as DNA methylation from matched tumor~normal pairs.
 
 #### Feature
 - supports VCF output.
