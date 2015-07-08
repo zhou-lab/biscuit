@@ -10,7 +10,7 @@ Issue a `make` and the binary is built into `bin/`.
 #### Feature
 - assymmetric scoring for C to T and G to A in mapping. Production of consistent mapping quality and NM tags.
 - disk space economic indices. No storage of bisulfite converted reference.
-- Strand-specific filtering tightly integrated in mapping, instead of simply labeling output as QC failure.
+- Strand-specific filtering tightly integrated in mapping.
 - exposes all the BWA-mem parameters to the users.
 - no separate install of BWA. Dependencies easily met.
 - robust to OS build, read processing and reference processing occur within computing threads of single process.
