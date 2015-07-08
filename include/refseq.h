@@ -94,4 +94,5 @@ static inline void subseq_refseq2(refseq_t *rs, uint32_t rpos, char *seq, int le
 	for (i=0; i<len; ++i)
 		seq[i] = toupper(rs->seq[rpos-rs->beg+i]);
 }
+
 #endif /* _WZ_REFSEQ_H_ */

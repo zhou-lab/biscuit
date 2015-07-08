@@ -37,7 +37,7 @@ clean_klib:
 	rm -f $(KLIBD)/*.o lib/klib/klib.a
 
 .PHONY: biscuit
-LIBS=lib/aln/libaln.a src/pileup/pileup.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
+LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
 biscuit: bin/biscuit
 bin/biscuit: src/main.c $(LIBS)
 		$(CC) $(CFLAGS) src/main.c -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
@@ -55,7 +55,7 @@ clean_aln:
 
 .PHONY: utils
 utils: $(LUTILS)
-LUTILSOBJ = $(LUTILSD)/encode.o
+LUTILSOBJ = $(LUTILSD)/encode.o $(LUTILSD)/stats.o
 $(LUTILS): $(LUTILSOBJ)
 	ar -csru $@ $(LUTILSOBJ)
 $(LUTILSD)/%.o: $(LUTILSD)/%.c
@@ -67,11 +67,19 @@ libaln.a: $(ALNOBJS)
 	$(AR) -csru $@ $(ALNOBJS)
 
 .PHONY: pileup
-pileup: src/pileup/pileup.o
-src/pileup/pileup.o: src/pileup/pileup.c
-	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/pileup/pileup.c
+pileup: src/pileup.o
+src/pileup.o: src/pileup.c
+	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/pileup.c
 clean_pileup:
-	rm -f src/pileup/pileup.o
+	rm -f src/pileup.o
+
+.PHONY: somatic
+somatic: src/somatic.o
+somatic: src/somatic.o
+src/somatic.o: src/somatic.c
+	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/somatic.c
+clean_somatic:
+	rm -f src/somatic.o
 
 .PHONY: correct_bsstrand
 correct_bsstrand : bin/correct_bsstrand

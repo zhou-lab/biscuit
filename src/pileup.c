@@ -1,21 +1,4 @@
-#include <ctype.h>
-#include <stdlib.h>
-#include "wqueue.h"
-#include "encode.h"
-#include "sam.h"
-#include "refseq.h"
-#include "kstring.h"
-#include "wvec.h"
-
-#define bscall(b, pos) bam_nt16_rev_table[bam1_seqi(bam1_seq(b), pos)]
-
-typedef struct {
-  int64_t block_id;
-  int32_t tid;
-  uint32_t beg, end;
-} window_t;
-
-DEFINE_WQUEUE(window, window_t)
+#include "pileup.h"
 
 typedef struct {
   int step;
@@ -37,21 +20,6 @@ typedef struct {
 /* typedef enum {MCT, MCG, MCA, MGT, MGC, MGA} mutation_t; */
 /* const char alts[] = "TGATCA"; */
 const char nt256int8_to_mutcode[6] = "ACGTYR";
-typedef enum {BSS_MA, BSS_MC, BSS_MG, BSS_MT,
-              BSS_MY, BSS_MR, BSS_RETENTION, BSS_CONVERSION, BSS_N} status_t;
-
-typedef struct {
-  uint8_t bsstrand:1;
-  uint8_t qual:7;
-  uint8_t strand:1;
-  uint16_t qpos;
-  uint8_t cnt_ret;
-  uint16_t rlen;                /* read length */
-  char qb;
-  status_t stat;                  /* code from mut-met status table */
-} __attribute__((__packed__)) pileup_data_t;
-
-DEFINE_VECTOR(pileup_data_v, pileup_data_t)
 
 typedef struct {
   int n;                        /* number of sites */
@@ -74,18 +42,6 @@ void destroy_pileup(pileup_t *p) {
   free(p);
 }
 
-#define RECORD_QUEUE_END -2
-#define RECORD_SLOT_OBSOLETE -1
-
-typedef struct {
-  int64_t block_id;
-  kstring_t s;
-} record_t;
-
-DEFINE_VECTOR(record_v, record_t)
-
-DEFINE_WQUEUE(record, record_t)
-
 typedef struct {
   char *bam_fn;                 /* on stack */
   char *ref_fn;                 /* on stack */
@@ -93,11 +49,6 @@ typedef struct {
   wqueue_t(record) *rq;
   conf_t *conf;
 } result_t;
-
-typedef struct {
-  wqueue_t(record) *q;
-  char *outfn;
-} writer_conf_t;
 
 void remove_record_by_block_id(record_v *records, int64_t block_id, record_t *record) {
   uint64_t i;
@@ -162,7 +113,7 @@ void *write_func(void *data) {
 }
 
 
-uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, conf_t *conf) {
+uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
 
   /* infer bsstrand from nC2T and nG2A on high quality bases */
   
@@ -179,7 +130,7 @@ uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, conf_t *conf) {
       for (j=0; j<oplen; ++j) {
         rb = toupper(getbase_refseq(rs, rpos+j));
         qb = bscall(b, qpos+j);
-        if (bam1_qual(b)[qpos+j] < conf->min_base_qual) continue;
+        if (bam1_qual(b)[qpos+j] < min_base_qual) continue;
         if (rb == 'C' && qb == 'T') nC2T++;
         if (rb == 'G' && qb == 'A') nG2A++;
       }
@@ -207,7 +158,7 @@ uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, conf_t *conf) {
   else return 1;
 }
 
-uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, conf_t *conf) {
+uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
   uint8_t *s = bam_aux_get(b, "ZS");
   if (s) {
     s++;
@@ -223,11 +174,10 @@ uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, conf_t *conf) {
   }
 
   /* otherwise, guess the bsstrand from nCT and nGA */
-  return infer_bsstrand(rs, b, conf);
+  return infer_bsstrand(rs, b, min_base_qual);
 }
 
 void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s) {
-
 
   uint32_t i, nf;
   
@@ -449,7 +399,7 @@ uint32_t cnt_retention(refseq_t *rs, bam1_t *b, uint8_t bsstrand) {
 }
 
 
-void *process_func(void *data) {
+static void *process_func(void *data) {
 
   result_t *res = (result_t*) data;
   conf_t *conf = (conf_t*) res->conf;
@@ -479,7 +429,7 @@ void *process_func(void *data) {
       /* if (!bsstrand) continue; */
       /* bsstrand++; */
 
-      uint8_t bsstrand = get_bsstrand(rs, b, conf);
+      uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
 
       bam1_core_t *c = &b->core;
 
@@ -591,112 +541,9 @@ void *process_func(void *data) {
   return 0;
 }
 
-typedef struct {
-  int32_t tid;
-  char *name;
-  uint32_t len;
-} target_t;
-
-DEFINE_VECTOR(target_v, target_t)
-
-int compare_targets(const void *a, const void *b) {
-  return strcmp(((target_t*)a)->name, ((target_t*)b)->name);
-}
-
-int pileup_cytosine_main(char *reffn, char *infn, char *outfn, char *reg, conf_t *conf) {
-
-  wqueue_t(window) *wq = wqueue_init(window, 100000);
-  pthread_t *processors = calloc(conf->n_threads, sizeof(pthread_t));
-  result_t *results = calloc(conf->n_threads, sizeof(result_t));
-  int i; unsigned j;
-  samfile_t *in = samopen(infn, "rb", 0);
-
-  pthread_t writer;
-  writer_conf_t writer_conf = {
-    .q = wqueue_init(record, 100000),
-    .outfn = outfn,
-  };
-  pthread_create(&writer, NULL, write_func, &writer_conf);
-  for (i=0; i<conf->n_threads; ++i) {
-    results[i].q = wq;
-    results[i].rq = writer_conf.q;
-    results[i].ref_fn = reffn;
-    results[i].bam_fn = infn;
-    results[i].conf = conf;
-    pthread_create(&processors[i], NULL, process_func, &results[i]);
-  }
-
-  window_t w; memset(&w, 0, sizeof(window_t));
-  uint32_t wbeg;
-  int64_t block_id=0;
-  target_v *targets = init_target_v(50);
-  if (reg) {
-    int tid;
-    uint32_t beg, end;
-    bam_parse_region(in->header, reg, &tid, (int*) &beg, (int*) &end);
-    /* chromosome are assumed to be less than 2**29 */
-    beg++; end++;
-    if (beg<=0) beg = 1;
-    if (end>in->header->target_len[tid]) end = in->header->target_len[tid];
-    for (wbeg = beg; wbeg < end; wbeg += conf->step, block_id++) {
-      w.tid = tid;
-      w.block_id = block_id;
-      w.beg = wbeg;
-      w.end = wbeg + conf->step;
-      if (w.end > end) w.end = end;
-      wqueue_put(window, wq, &w);
-    }
-  } else {
-
-    /* sort sequence name by alphabetic order, chr1, chr10, chr11 ... */
-    target_t *t;
-    for (i=0; i<in->header->n_targets; ++i) {
-      t = next_ref_target_v(targets);
-      t->tid = i;
-      t->name = in->header->target_name[i];
-      t->len = in->header->target_len[i];
-    }
-
-    qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
-
-    for (j=0; j<targets->size; ++j) {
-      t = ref_target_v(targets, j);
-      for (wbeg = 1; wbeg < t->len; wbeg += conf->step, block_id++) {
-        w.tid = t->tid;
-        w.block_id = block_id;
-        w.beg = wbeg;
-        w.end = wbeg+conf->step;
-        if (w.end > t->len) w.end = t->len;
-        wqueue_put(window, wq, &w);
-      }
-    }
-  }
-  for (i=0; i<conf->n_threads; ++i) {
-    w.tid = -1;
-    wqueue_put(window, wq, &w);
-  }
-
-  for (i=0; i<conf->n_threads; ++i) {
-    pthread_join(processors[i], NULL);
-  }
-
-  record_t rec = { .block_id = RECORD_QUEUE_END };
-  wqueue_put2(record, writer_conf.q, rec);
-  pthread_join(writer, NULL);
-  wqueue_destroy(record, writer_conf.q);
-
-  free_target_v(targets);
-  free(results);
-  free(processors);
-  wqueue_destroy(window, wq);
-  samclose(in);
-
-  return 0;
-}
-
 static int usage() {
   fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: pileup_cytosine [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
+  fprintf(stderr, "Usage: pileup [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
   fprintf(stderr, "output format: chrm, pos, pos, refbase, mutation, cytosine_context, coverage, filtered_retention, filtered_conversion\n");
   fprintf(stderr, "Input options:\n");
   fprintf(stderr, "     -i        input bam.\n");
@@ -776,5 +623,91 @@ int main_pileup(int argc, char *argv[]) {
     exit(1);
   }
 
-  return pileup_cytosine_main(reffn, infn, outfn, reg, &conf);
+  wqueue_t(window) *wq = wqueue_init(window, 100000);
+  pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
+  result_t *results = calloc(conf.n_threads, sizeof(result_t));
+  int i; unsigned j;
+  samfile_t *in = samopen(infn, "rb", 0);
+
+  pthread_t writer;
+  writer_conf_t writer_conf = {
+    .q = wqueue_init(record, 100000),
+    .outfn = outfn,
+  };
+  pthread_create(&writer, NULL, write_func, &writer_conf);
+  for (i=0; i<conf.n_threads; ++i) {
+    results[i].q = wq;
+    results[i].rq = writer_conf.q;
+    results[i].ref_fn = reffn;
+    results[i].bam_fn = infn;
+    results[i].conf = &conf;
+    pthread_create(&processors[i], NULL, process_func, &results[i]);
+  }
+
+  window_t w; memset(&w, 0, sizeof(window_t));
+  uint32_t wbeg;
+  int64_t block_id=0;
+  target_v *targets = init_target_v(50);
+  if (reg) {
+    int tid;
+    uint32_t beg, end;
+    bam_parse_region(in->header, reg, &tid, (int*) &beg, (int*) &end);
+    /* chromosome are assumed to be less than 2**29 */
+    beg++; end++;
+    if (beg<=0) beg = 1;
+    if (end>in->header->target_len[tid]) end = in->header->target_len[tid];
+    for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
+      w.tid = tid;
+      w.block_id = block_id;
+      w.beg = wbeg;
+      w.end = wbeg + conf.step;
+      if (w.end > end) w.end = end;
+      wqueue_put(window, wq, &w);
+    }
+  } else {
+
+    /* sort sequence name by alphabetic order, chr1, chr10, chr11 ... */
+    target_t *t;
+    for (i=0; i<in->header->n_targets; ++i) {
+      t = next_ref_target_v(targets);
+      t->tid = i;
+      t->name = in->header->target_name[i];
+      t->len = in->header->target_len[i];
+    }
+
+    qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
+
+    for (j=0; j<targets->size; ++j) {
+      t = ref_target_v(targets, j);
+      for (wbeg = 1; wbeg < t->len; wbeg += conf.step, block_id++) {
+        w.tid = t->tid;
+        w.block_id = block_id;
+        w.beg = wbeg;
+        w.end = wbeg+conf.step;
+        if (w.end > t->len) w.end = t->len;
+        wqueue_put(window, wq, &w);
+      }
+    }
+  }
+  for (i=0; i<conf.n_threads; ++i) {
+    w.tid = -1;
+    wqueue_put(window, wq, &w);
+  }
+
+  for (i=0; i<conf.n_threads; ++i) {
+    pthread_join(processors[i], NULL);
+  }
+
+  record_t rec = { .block_id = RECORD_QUEUE_END };
+  wqueue_put2(record, writer_conf.q, rec);
+  pthread_join(writer, NULL);
+  wqueue_destroy(record, writer_conf.q);
+
+  free_target_v(targets);
+  free(results);
+  free(processors);
+  wqueue_destroy(window, wq);
+  samclose(in);
+
+  return 0;
 }

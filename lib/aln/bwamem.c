@@ -81,6 +81,7 @@ mem_opt_t *mem_opt_init()
 	o->min_chain_weight = 0;
 	o->max_chain_extend = 1<<30;
 	o->mapQ_coef_len = 50; o->mapQ_coef_fac = log(o->mapQ_coef_len);
+  o->bsstrand = -1;
 	bwa_fill_scmat(o->a, o->b, o->mat);
   /* WZBS */
   bwa_fill_scmat_ct(o->a, o->b, o->ctmat);
@@ -290,6 +291,9 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			s.score= s.len = slen;
 			rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
 			if (rid < 0) continue; // bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!!
+
+      if ((opt->bsstrand & 1) && bns->anns[rid].bsstrand != opt->bsstrand>>1) continue;
+
 			if (kb_size(tree)) {
 				kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
 				if (!lower || !test_and_merge(opt, l_pac, lower, &s, rid)) to_add = 1;

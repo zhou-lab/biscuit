@@ -1,13 +1,33 @@
 # biscuit
 a little tool suite for bisulfite data
 
-### Pileup cytosine and SNPs
-The tool `pileup_cytosine` computes 1) methylation (in both CpG and CpH); 2) all the callable SNP mutations. The tool is very similar in function if not superior to the well known BisSNP.
+#### Install
+Issue a `make` and the binary is built into `bin/`.
 
-SNP calling philosophy: `pileup_cytosine` tries to minimize false positive methylation call and can be stringent in terms of mutations. If there is a read mapped with high confidence and showing a mutation with high base quality score. `pileup_cytosine` starts its SNP processing and MAY abolish the methylation calling if the SNP interferes the determination of cytosine retention/conversion.
+### Alignment of bisulfite-treated short reads
+`biscuit index` and `biscuit align` adapts the `bwa index` and `bwa mem` for bisulfite-treated short reads.
 
 #### Feature
-- de novo infer bisulfite parent strand or from bsmap (ZS) or BWA-meth tags (YD)
+- assymmetric scoring for C to T and G to A in mapping. Production of consistent mapping quality and NM tags.
+- disk space economic indices. No storage of bisulfite converted reference.
+- Strand-specific filtering tightly integrated in mapping, instead of simply labeling output as QC failure.
+- exposes all the BWA-mem parameters to the users.
+- no separate install of BWA. Dependencies easily met.
+- robust to OS build, read processing and reference processing occur within computing threads of single process.
+
+### Somatic mutation calling
+`somatic` computes somatic mutations as well as DNA methylation from matched tumor~normal pairs.
+
+#### Feature
+- supports VCF output.
+
+### Pileup cytosine and SNPs
+`biscuit pileup` computes 1) methylation (in both CpG and CpH); 2) all the callable SNP mutations. The tool is very similar in function if not superior to the well known BisSNP.
+
+SNP calling philosophy: `pileup` tries to minimize false positive methylation call and can be stringent in terms of mutations. If there is a read mapped with high confidence and showing a mutation with high base quality score. `pileup` starts its SNP processing and MAY abolish the methylation calling if the SNP interferes the determination of cytosine retention/conversion.
+
+#### Feature
+- de novo infer bisulfite parent strand or from bsmap (ZS) or BWA-meth style tags (YD)
 - call ambiguous alternative allele
 - distinguish ambiguous alternative allele and multiple alternative allele
 - coordinate-sorted output for sorted bam input
@@ -15,15 +35,11 @@ SNP calling philosophy: `pileup_cytosine` tries to minimize false positive methy
 - flexible base filtering based on base quality, distance to the read ends.
 - verbose output (cytosine context, all the bases, parent strand etc).
 
-#### Install
-
-Issue a `make` and the binary is built into `bin/`.
-
 #### Usage
 
 For example, to collect methylation and SNP from chr20:1256423-1257433
 ```Shell
-pileup_cytosine -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:47419734-47419734
+pileup -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:47419734-47419734
 ```
 outputs
 ```
@@ -59,7 +75,7 @@ chr20   47419733        47419734        C       .       ACG     12      0       
 14) position on read (BSC);
 15) number of retentions in read (BSC);
 
-One can see that in the case above, there are 5 BSW and 7 BSC, out of the 5 BSW that can inform methylation, 2 reads showing retention is of low base quality and the other is the second last base in the read (a tunable filtering option). On the contrary, 2 other reads suggesting conversion are both high qualities. Hence the output of retention and conversion count can be understood. This example shows how pileup_cytosine operates on a low coverage, low quality region. One could filter based on the sum of retention and conversion to constrain the beta value computation. Note that the verbose mode `-v` also prints positions with no SNP or cytosine methylation. This allows for differentiation of "no mutation" from "no coverage".
+One can see that in the case above, there are 5 BSW and 7 BSC, out of the 5 BSW that can inform methylation, 2 reads showing retention is of low base quality and the other is the second last base in the read (a tunable filtering option). On the contrary, 2 other reads suggesting conversion are both high qualities. Hence the output of retention and conversion count can be understood. This example shows how pileup operates on a low coverage, low quality region. One could filter based on the sum of retention and conversion to constrain the beta value computation. Note that the verbose mode `-v` also prints positions with no SNP or cytosine methylation. This allows for differentiation of "no mutation" from "no coverage".
 
 ##### code for retention-mutation status (field 11 and 17)
 
@@ -73,9 +89,9 @@ One can see that in the case above, there are 5 BSW and 7 BSC, out of the 5 BSW 
 7: conversion;
 8: reference base;
 
-`pileup_cytosine` calls ambiguous alternative allele
+`pileup` calls ambiguous alternative allele
 ```Shell
-pileup_cytosine -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v
+pileup -r hg19.fa -i NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v
 ```
 outputs
 ```
@@ -85,7 +101,7 @@ chr20   29570685        29570686        G       G>G:9,Y:4       TCG     15      
 ```
 The outputs show alternative allele Y (IUPAC code for C or T, supported by 4 reads) when BSC does not suggest alternative allele and there is equal chance of T and C (assuming no prior information of methylation and conversion ratio).
 
-`pileup_cytosine` differentiates methylation-callable and methylation-uncallable (when there is C>T or G>A mutation)
+`pileup` differentiates methylation-callable and methylation-uncallable (when there is C>T or G>A mutation)
 ```
 chr20   26138807        26138808        G       G>G:35,Y:6      TCG     45      13      5
     GGGGGGGGGGGTTGGGGTTTTGGGTG      88888888888448888444488848      :<8<<8<<<<<<:889:9<9988888      --+++++--++----++--+++-+++      61,56,53,51,40,38,37,37,27,20,20,20,19,18,14,11,10,10,10,6,6,3,3,2,1,1    4,6,6,6,8,8,8,8,8,10,10,9,9,10,10,11,11,10,10,10,10,12,12,12,11,20

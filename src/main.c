@@ -10,6 +10,7 @@
 int main_biscuit_index(int argc, char *argv[]);
 int main_align(int argc, char *argv[]);
 int main_pileup(int argc, char *argv[]);
+int main_somatic(int argc, char *argv[]);
 
 static int usage()
 {
@@ -21,6 +22,7 @@ static int usage()
 	fprintf(stderr, "Command: index         index sequences in the FASTA format\n");
 	fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
 	fprintf(stderr, "         pileup        pileup cytosine and mutations.\n");
+  fprintf(stderr, "         somatic       take both tumor and normal and call somatic mutations together with methylation.\n");
   /* fprint */
   /* fprintf(stderr, "         hemi          find hemi-methylated region.\n"); */
 	fprintf(stderr, "\n");
@@ -42,6 +44,7 @@ int main(int argc, char *argv[])
 	if (strcmp(argv[1], "index") == 0) ret = main_biscuit_index(argc-1, argv+1);
   else if (strcmp(argv[1], "align") == 0) ret = main_align(argc-1, argv+1);
 	else if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
+  else if (strcmp(argv[1], "somatic") == 0) ret = main_somatic(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
 		return 1;
