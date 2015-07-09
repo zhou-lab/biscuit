@@ -39,8 +39,11 @@ clean_klib:
 .PHONY: biscuit
 LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
 biscuit: bin/biscuit
-bin/biscuit: src/main.c $(LIBS)
-		$(CC) $(CFLAGS) src/main.c -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
+bin/biscuit: $(LIBS) src/main.o
+		gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
+
+src/main.o: src/main.c
+	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib
 
 .PHONY: aln
 aln: lib/aln/libaln.a
@@ -113,5 +116,5 @@ clean_hemifinder:
 	gcc -c $(CFLAGS) $< -o $@
 
 .PHONY: clean_all
-clean_all : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup_cytosine clean_klib
+clean : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup clean_klib clean_somatic
 	make -C $(LSAM0119D) clean

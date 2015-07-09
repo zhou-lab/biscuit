@@ -108,7 +108,10 @@ void *write_func(void *data) {
   }
 
   free_record_v(records);
-  fclose(out);
+  if (c->outfn) {    /* for stdout, will close at the end of main */
+    fflush(out);
+    fclose(out);
+  }
   return 0;
 }
 
@@ -236,7 +239,31 @@ void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s) {
   }
 }
 
-#define mutcode(a) (nt256char_to_nt256int8_table[(uint8_t)a])
+void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb) {
+  char fivenuc[5];
+  if (rpos == 1) {
+    subseq_refseq2(rs, 1, fivenuc+2, 3);
+    fivenuc[0] = fivenuc[1] = 'N';
+  } else if (rpos == 2) {
+    subseq_refseq2(rs, 1, fivenuc+1, 4);
+    fivenuc[0] = 'N';
+  } else if (rpos == (unsigned) rs->seqlen) {
+    subseq_refseq2(rs, rpos-2, fivenuc, 3);
+    fivenuc[3] = fivenuc[4] = 'N';
+  } else if (rpos == (unsigned) rs->seqlen-1) {
+    subseq_refseq2(rs, rpos-2, fivenuc, 4);
+    fivenuc[4] = 'N';
+  } else {
+    subseq_refseq2(rs, rpos-2, fivenuc, 5);
+  }
+  if (rb == 'G') {
+    char fivenuc_r[5];
+    _nt256char_rev(fivenuc_r, fivenuc, 5);
+    ksprintf(s, ";Context=%.3s", fivenuc_r);
+  } else {                    /* C,A,T context */
+    ksprintf(s, ";Context=%.3s", fivenuc);
+  }
+}
 
 void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf, kstring_t *s) {
   uint32_t i;

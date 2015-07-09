@@ -118,8 +118,6 @@ static void verbose_format(char m, uint8_t bsstrand, pileup_data_v *dv, kstring_
   }
 }
 
-#define mutcode(a) (nt256char_to_nt256int8_table[(uint8_t)a])
-
 void plp_getcnts(pileup_data_v *dv, conf_t *conf, int cnts[9], int *_cm1, int *_cm2) {
 
   uint32_t i;
@@ -151,32 +149,6 @@ void plp_getcnts(pileup_data_v *dv, conf_t *conf, int cnts[9], int *_cm1, int *_
     }
   }
   *_cm1 = cm1; *_cm2 = cm2;
-}
-
-void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb) {
-  char fivenuc[5];
-  if (rpos == 1) {
-    subseq_refseq2(rs, 1, fivenuc+2, 3);
-    fivenuc[0] = fivenuc[1] = 'N';
-  } else if (rpos == 2) {
-    subseq_refseq2(rs, 1, fivenuc+1, 4);
-    fivenuc[0] = 'N';
-  } else if (rpos == (unsigned) rs->seqlen) {
-    subseq_refseq2(rs, rpos-2, fivenuc, 3);
-    fivenuc[3] = fivenuc[4] = 'N';
-  } else if (rpos == (unsigned) rs->seqlen-1) {
-    subseq_refseq2(rs, rpos-2, fivenuc, 4);
-    fivenuc[4] = 'N';
-  } else {
-    subseq_refseq2(rs, rpos-2, fivenuc, 5);
-  }
-  if (rb == 'G') {
-    char fivenuc_r[5];
-    _nt256char_rev(fivenuc_r, fivenuc, 5);
-    ksprintf(s, ";Context=%.3s", fivenuc_r);
-  } else {                    /* C,A,T context */
-    ksprintf(s, ";Context=%.3s", fivenuc);
-  }
 }
 
 void allele_supp(char rb, int cm1, int cm2, int cnts[9], char m, kstring_t *s) {
@@ -554,6 +526,7 @@ int main_somatic(int argc, char *argv[]) {
   for (i=0; i<conf.n_threads; ++i) {
     results[i].q = wq;
     results[i].rq = writer_conf.q;
+    results[i].ref_fn = reffn;
     results[i].tumo_fn = tumo_fn;
     results[i].norm_fn = norm_fn;
     results[i].conf = &conf;
@@ -613,18 +586,17 @@ int main_somatic(int argc, char *argv[]) {
   for (i=0; i<conf.n_threads; ++i) {
     pthread_join(processors[i], NULL);
   }
-
   record_t rec = { .block_id = RECORD_QUEUE_END };
   wqueue_put2(record, writer_conf.q, rec);
   pthread_join(writer, NULL);
   wqueue_destroy(record, writer_conf.q);
-
   free_target_v(targets);
   free(results);
   free(processors);
+
   wqueue_destroy(window, wq);
   samclose(tumo_bam);
-  samclose(norm_bam);
 
+  samclose(norm_bam);
   return 0;
 }

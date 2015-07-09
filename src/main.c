@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
 		return 1;
 	}
+
 	err_fflush(stdout);
 	err_fclose(stdout);
 	if (ret == 0) {
@@ -59,5 +60,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "\n[%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime() - t_real, cputime());
 	}
 	free(bwa_pg);
+
 	return ret;
 }
