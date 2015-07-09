@@ -80,3 +80,4 @@ static inline int compare_targets(const void *a, const void *b) {
 #define mutcode(a) (nt256char_to_nt256int8_table[(uint8_t)a])
 
 void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb);
+

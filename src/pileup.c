@@ -259,9 +259,9 @@ void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb) {
   if (rb == 'G') {
     char fivenuc_r[5];
     _nt256char_rev(fivenuc_r, fivenuc, 5);
-    ksprintf(s, ";Context=%.3s", fivenuc_r);
+    ksprintf(s, ";Context=%.5s", fivenuc_r);
   } else {                    /* C,A,T context */
-    ksprintf(s, ";Context=%.3s", fivenuc);
+    ksprintf(s, ";Context=%.5s", fivenuc);
   }
 }
 
