@@ -13,6 +13,31 @@
 #define bscall(b, pos) bam_nt16_rev_table[bam1_seqi(bam1_seq(b), pos)]
 
 typedef struct {
+  int step;
+  int n_threads;
+  uint32_t min_base_qual;
+  uint32_t max_retention;
+  uint32_t min_read_len;
+  uint8_t min_dist_end;
+  uint8_t min_mapq;
+  uint8_t max_nm;
+  uint8_t filter_ppair:1;       /* filter BAM_FPROPER_PAIR */
+  uint8_t filter_secondary:1;
+  uint8_t filter_duplicate:1;
+  uint8_t filter_qcfail:1;
+  uint8_t noheader:1;
+  double error;
+  double mu;
+  double contam;
+  double prior0;
+  double prior1;
+  double prior2;
+  uint8_t verbose;
+} conf_t;
+
+void conf_init(conf_t *conf);
+
+typedef struct {
   int64_t block_id;
   int32_t tid;
   uint32_t beg, end;
@@ -84,3 +109,14 @@ static inline int compare_targets(const void *a, const void *b) {
 void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb);
 
 #define min(a,b) ((a)<(b)?(a):(b))
+
+void plp_getcnts(pileup_data_v *dv, conf_t *conf, int cnts[9], int *_cm1, int *_cm2);
+void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq);
+int reference_supp(int cnts[9]);
+void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[9], kstring_t *s);
+
+static inline int compare_supp(const void *a, const void *b)
+{
+  return ((*(uint32_t*)b)>>4) - ((*(uint32_t*)a)>>4);
+}
+

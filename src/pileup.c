@@ -1,21 +1,5 @@
 #include "pileup.h"
 
-typedef struct {
-  int step;
-  int n_threads;
-  uint32_t min_base_qual;
-  uint32_t max_retention;
-  uint32_t min_read_len;
-  uint8_t min_dist_end;
-  uint8_t min_mapq;
-  uint8_t max_nm;
-  uint8_t filter_ppair:1;       /* filter BAM_FPROPER_PAIR */
-  uint8_t filter_secondary:1;
-  uint8_t filter_duplicate:1;
-  uint8_t filter_qcfail:1;
-  uint8_t verbose;
-} conf_t;
-
 /* typedef enum {BSS_RETENTION, BSS_CONVERSION, BSS_OTHER} bsstate_t; */
 /* typedef enum {MCT, MCG, MCA, MGT, MGC, MGA} mutation_t; */
 /* const char alts[] = "TGATCA"; */
@@ -180,40 +164,50 @@ uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
   return infer_bsstrand(rs, b, min_base_qual);
 }
 
-void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s) {
+static void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s) {
 
   uint32_t i, nf;
-  
+
+  /* return if no record match the bsstrand */
+  int n=0;
+  for (i=0; i<dv->size; ++i) {
+    pileup_data_t *d = ref_pileup_data_v(dv,i);
+    if (d->bsstrand == bsstrand) ++n;
+  }
+  if (!n) return;
+
+  char b='0'+bsstrand;
+
   /* 1. base */
-  kputc('\t', s);
+  ksprintf(s, ";Bs%c=", b);
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv,i);
     if (d->bsstrand == bsstrand) kputc(d->qb, s);
   }
 
   /* 2. status array */
-  kputc('\t', s);
+  ksprintf(s, ";Sta%c=", b);
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv,i);
     if (d->bsstrand == bsstrand) kputc('0'+d->stat, s);
   }
 
   /* 3. base quality */
-  kputc('\t', s);
+  ksprintf(s, ";Bq%c=", b);
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv,i);
     if (d->bsstrand == bsstrand) kputc(d->qual+33, s);
   }
 
   /* 4. strand */
-  kputc('\t', s);
+  ksprintf(s, ";Str%c=", b);
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv,i);
     if (d->bsstrand == bsstrand) kputc(d->strand?'-':'+', s);
   }
 
   /* 5. position on read */
-  kputc('\t', s);
+  ksprintf(s, ";Pos%c=", b);
   nf = 0;
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv,i);
@@ -227,7 +221,7 @@ void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s) {
   /* 6. retention count 
      retention count, for diagnosing incomplete converted
      reads from CpH sites and mitochondrial sites */
-  kputc('\t', s);
+  ksprintf(s, ";Rret%c=", b);
   nf = 0;
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv,i);
@@ -265,12 +259,14 @@ void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb) {
   }
 }
 
-void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf, kstring_t *s) {
+void plp_getcnts(pileup_data_v *dv, conf_t *conf, int cnts[9], int *_cm1, int *_cm2) {
+
+  if (!dv) {
+    *_cm1 = -1; *_cm2 = -1;
+    return;
+  }
+
   uint32_t i;
-  char rb = toupper(getbase_refseq(rs, rpos));
-
-  int cnts[9] = {0};
-
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv, i);
     /* read-position-based filtering */
@@ -298,6 +294,72 @@ void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf
       }
     }
   }
+  *_cm1 = cm1; *_cm2 = cm2;
+}
+
+int reference_supp(int cnts[9]) {
+  int cref = 0;
+  if (cnts[BSS_N]) cref += cnts[BSS_N];
+  if (cnts[BSS_RETENTION] || cnts[BSS_CONVERSION])
+    cref += cnts[BSS_RETENTION] + cnts[BSS_CONVERSION];
+  return cref;
+}
+
+void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[9], kstring_t *s) {
+
+  if (cref)
+    ksprintf(s, "%c:%d", rb, cref);
+
+  if (cm1 >= 0) {
+    if (cref) kputc(',',s);
+    ksprintf(s, "%c:%d", nt256int8_to_mutcode[cm1], cnts[cm1]);
+    if (cm2 >= 0) {
+      ksprintf(s, ",%c:%d", nt256int8_to_mutcode[cm2], cnts[cm2]);
+      int i;
+      for (i=0; i<6; ++i) {
+        if (cnts[i]>0 && i!= cm1 && i!= cm2) {
+          ksprintf(s, ",%c:%d", nt256int8_to_mutcode[i], cnts[i]);
+        }
+      }
+    }
+  }
+}
+
+void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq) {
+
+  double gl0, gl1, gl2, gq=-1;
+  if (cref >=0 || altsupp >= 0) {
+    gl0 = log(conf->prior0) + genotype_lnlik(HOMOREF, cref, altsupp, conf->error, conf->contam);
+    gl1 = log(conf->prior1) + genotype_lnlik(HET, cref, altsupp, conf->error, conf->contam);
+    gl2 = log(conf->prior2) + genotype_lnlik(HOMOVAR, cref, altsupp, conf->error, conf->contam);
+    if (gl0>gl1) {
+      if (gl0>gl2) {
+        gq = pval2qual(1 - exp(gl0 - ln_sum3(gl0, gl1, gl2)));
+        strcpy(gt, "0/0");
+      } else {
+        gq = pval2qual(1 - exp(gl2 - ln_sum3(gl0, gl1, gl2)));
+        strcpy(gt, "1/1");
+      }
+    } else if (gl1>gl2) {
+      gq = pval2qual(1 - exp(gl1 - ln_sum3(gl0, gl1, gl2)));
+      strcpy(gt, "0/1");
+    } else {
+      gq = pval2qual(1 - exp(gl2 - ln_sum3(gl0, gl1, gl2)));
+      strcpy(gt, "1/1");
+    }
+  }
+  *_gl0 = gl0; *_gl1 = gl1; *_gl2 = gl2; *_gq = gq;
+}
+
+static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
+                       pileup_data_v *dv, conf_t *conf, kstring_t *s) {
+
+  uint32_t i;
+  char rb = toupper(getbase_refseq(rs, rpos));
+
+  int cnts[9] = {0};
+  int cm1, cm2;
+  plp_getcnts(dv, conf, cnts, &cm1, &cm2);
 
   /* if not SNP but no signal for BSS_RETENTION or BSS_CONVERSION,
      skip the print when in non-verbose mode */
@@ -307,66 +369,60 @@ void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf
 
   /* MY and MR do not interfere */
   uint8_t methcallable=0;
-  if (cnts[BSS_MT]==0 && rb == 'C') methcallable = 1;
-  if (cnts[BSS_MA]==0 && rb == 'G') methcallable = 1;
+  if (cnts[BSS_RETENTION] + cnts[BSS_CONVERSION] > 0) {
+    if (cnts[BSS_MT]==0 && rb == 'C') methcallable = 1;
+    if (cnts[BSS_MA]==0 && rb == 'G') methcallable = 1;
+  }
 
-  ksprintf(s, "%s\t%u\t%u\t%c", chrm, rpos-1, rpos, rb);
+  ksprintf(s, "%s\t%u\t.\t%c\t", chrm, rpos, rb);
   
   /* if BSW shows G->A or BSC shows C->T, then a SNP, 
      no methylation information is inferred */
   if (cm1 >= 0) {
-    kputc('\t', s);
-    kputc(rb, s);
-    kputc('>',s);
-    int c = 0;
-    if (cnts[BSS_N]) c += cnts[BSS_N];
-    if (methcallable && (cnts[BSS_RETENTION] || cnts[BSS_CONVERSION]))
-      c += cnts[BSS_RETENTION] + cnts[BSS_CONVERSION];
-    if (c) ksprintf(s, "%c:%d,", rb, c);
-    ksprintf(s, "%c:%d", nt256int8_to_mutcode[cm1], cnts[cm1]);
-    if (cm2 >= 0) {
-      ksprintf(s, ",%c:%d", nt256int8_to_mutcode[cm2], cnts[cm2]);
-      for (i=0; i<6; ++i) {
-        if (cnts[i]>0 && i!=(unsigned) cm1 && i!=(unsigned) cm2) {
-          ksprintf(s, ",%c:%d", nt256int8_to_mutcode[i], cnts[i]);
+    uint32_t supp[6];
+    for (i=0; i<6; ++i) supp[i] = (cnts[i]<<4) | i;
+    qsort(supp, 6, sizeof(uint32_t), compare_supp);
+    int fst = 1;
+    for (i=0; i<6; ++i) {
+      if ((supp[i]>>4) > 0) {
+        char m = nt256int8_to_mutcode[supp[i]&0xf];
+        if (m != rb) {
+          if (!fst) kputc(',', s);
+          kputc(m, s);
+          fst = 0;
         }
       }
     }
   } else {
-    kputs("\t.", s);
+    kputc('.', s);
   }
-    
-  if (methcallable) {
-    /* for methylation output context */
-    char trinuc[3];
-    if (rpos == 1) {
-      subseq_refseq2(rs, 1, trinuc+1, 2);
-      trinuc[0] = 'N';
-    } else if (rpos == (unsigned) rs->seqlen) {
-      subseq_refseq2(rs, rpos-1, trinuc, 2);
-      trinuc[2] = 'N';
-    } else {
-      subseq_refseq2(rs, rpos-1, trinuc, 3);
-    }
-    if (rb == 'G') {
-      char trinuc_r[3];
-      _nt256char_rev(trinuc_r, trinuc, 3);
-      ksprintf(s, "\t%.3s", trinuc_r);
-    } else {                    /* C,A,T context */
-      ksprintf(s, "\t%.3s", trinuc);
-    }
-  } else {
-    kputs("\t.", s);
-  }
-  
-  /* coverage */
-  ksprintf(s, "\t%u", dv->size);
 
-  /* count retention and conversion */
-  if (methcallable) {
-    ksprintf(s, "\t%d\t%d", cnts[BSS_RETENTION], cnts[BSS_CONVERSION]);
+  char gt[4] = "./.";
+  int cref = reference_supp(cnts);
+  int altsupp = cm1 >= 0?cnts[cm1]:0;
+  double gl0, gl1, gl2, gq=-1;
+  pileup_genotype(cref, altsupp, conf, gt, &gl0, &gl1, &gl2, &gq);
+
+  /* QUAL */
+  ksprintf(s, "\t%1.2f", gq);
+  if (gq > 1) {
+    kputs("\tPASS\t", s);
   } else {
-    kputs("\t.\t.", s);
+    kputs("\tLowQual\t", s);
+  }
+
+  /* INFO tags */
+  if (dv) ksprintf(s, "DP=%u", dv->size);
+  else kputs("DP=0", s);
+
+  if (methcallable) {
+    fivenuc_context(rs, rpos, s, rb);
+    ksprintf(s, ";RetnT=%d;ConvT=%d", cnts[BSS_RETENTION], cnts[BSS_CONVERSION]);
+  }
+
+  if (cref || cm1 >=0) {
+    kputs(";SP=", s);
+    allele_supp(rb, cref, cm1, cm2, cnts, s);
   }
 
   /* additional information printed on verbose */
@@ -568,17 +624,35 @@ static void *process_func(void *data) {
   return 0;
 }
 
+static void head_append_verbose(char *pb, char b, kstring_t *s) {
+  ksprintf(s, "##INFO=<ID=Bs%c,Number=1,Type=String,Description=\"base identity, %s\">\n", b, pb);
+  ksprintf(s, "##INFO=<ID=Sta%c,Number=1,Type=String,Description=\"Status code, %s (0,1,2,3 for mutation into A,C,G,T; 4,5 for Y,R; 6,7 for retention and conversion; 8 for other normal;)\">\n", b, pb);
+  ksprintf(s, "##INFO=<ID=Bq%c,Number=1,Type=String,Description=\"base quality, %s\">\n", b, pb);
+  ksprintf(s, "##INFO=<ID=Str%c,Number=1,Type=String;Description=\"strands, %s\">\n", b, pb);
+  ksprintf(s, "##INFO=<ID=Pos%c,Number=1,Type=String;Description=\"position in read, %s\">\n", b, pb);
+  ksprintf(s, "##INFO=<ID=Rret%c,Number=1,Type=String;Description=\"Number of retention in read, %s\">\n", b, pb);
+}
+
 static int usage() {
   fprintf(stderr, "\n");
   fprintf(stderr, "Usage: pileup [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
   fprintf(stderr, "output format: chrm, pos, pos, refbase, mutation, cytosine_context, coverage, filtered_retention, filtered_conversion\n");
-  fprintf(stderr, "Input options:\n");
+  fprintf(stderr, "Input options:\n\n");
   fprintf(stderr, "     -i        input bam.\n");
   fprintf(stderr, "     -r        reference in fasta.\n");
   fprintf(stderr, "     -g        region (optional, if not specified the whole bam will be processed).\n");
-  fprintf(stderr, "     -o        pileup output file\n");
   fprintf(stderr, "     -s        step of window dispatching [100000].\n");
   fprintf(stderr, "     -q        number of threads [3] recommend 20.\n");
+  fprintf(stderr, "\nOutputing format:\n\n");
+  fprintf(stderr, "     -o        pileup output file\n");
+  fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
+  fprintf(stderr, "\nGenotyping parameters:\n\n");
+  fprintf(stderr, "     -E        error rate [1e-3].\n");
+  fprintf(stderr, "     -M        mutation rate [1e-3].\n");
+  fprintf(stderr, "     -C        contamination rate [5e-3].\n");
+  fprintf(stderr, "     -P        prior probability for heterozygous variant [1/3].\n");
+  fprintf(stderr, "     -Q        prior probability for homozygous variant [1/3].\n");
+  fprintf(stderr, "\nPileup filtering:\n\n");
   fprintf(stderr, "     -b        min base quality [20].\n");
   fprintf(stderr, "     -m        minimum mapping quality [40].\n");
   fprintf(stderr, "     -t        max retention in a read [999999].\n");
@@ -588,10 +662,32 @@ static int usage() {
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
   fprintf(stderr, "     -p        NO filtering of improper pair (!BAM_FPROPER_PAIR).\n");
   fprintf(stderr, "     -n        maximum NM tag [255].\n");
-  fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
+
   return 1;
+}
+
+void conf_init(conf_t *conf) {
+  conf->step = 100000;
+  conf->n_threads = 3;
+  conf->min_base_qual = 20;
+  conf->min_mapq = 40;
+  conf->max_retention = 999999;
+  conf->min_read_len = 10;
+  conf->filter_qcfail = 1;
+  conf->filter_secondary = 1;
+  conf->filter_duplicate = 1;
+  conf->filter_ppair = 1;
+  conf->min_dist_end = 3;
+  conf->max_nm = 255;
+  conf->contam = 0.005;
+  conf->error = 0.001;
+  conf->mu = 0.001;
+  conf->prior1 = 0.33333;
+  conf->prior2 = 0.33333;
+  conf->verbose = 0;
+  conf->noheader = 0;
 }
 
 int main_pileup(int argc, char *argv[]) {
@@ -601,25 +697,11 @@ int main_pileup(int argc, char *argv[]) {
   char *reg = 0;
   char *infn = 0;
   char *outfn = 0;
-  conf_t conf = {
-    .step = 100000,
-    .n_threads = 3,
-    .min_base_qual = 20,
-    .min_mapq = 40,
-    .max_retention = 999999,
-    .min_read_len = 10,
-    .filter_qcfail = 1,
-    .filter_secondary = 1,
-    .filter_duplicate = 1,
-    .filter_ppair = 1,
-    .min_dist_end = 3,
-    .max_nm = 255,
-    .verbose = 0,
-  };
-
+  conf_t conf;
+  conf_init(&conf);
 
   if (argc<2) return usage();
-  while ((c=getopt(argc, argv, "i:o:r:g:q:e:b:t:n:m:l:cupvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:o:r:g:q:e:s:b:t:n:m:l:cupvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'r': reffn = optarg; break;
@@ -628,6 +710,11 @@ int main_pileup(int argc, char *argv[]) {
     case 's': conf.step = atoi(optarg); break;
     case 'q': conf.n_threads = atoi(optarg); break;
     case 'b': conf.min_base_qual = atoi(optarg); break;
+    case 'E': conf.error = atof(optarg); break;
+    case 'M': conf.mu = atof(optarg); break;
+    case 'C': conf.contam = atof(optarg); break;
+    case 'P': conf.prior1 = atof(optarg); break;
+    case 'Q': conf.prior2 = atof(optarg); break;
     case 't': conf.max_retention = atoi(optarg); break;
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'e': conf.min_dist_end = atoi(optarg); break;
@@ -656,11 +743,50 @@ int main_pileup(int argc, char *argv[]) {
   int i; unsigned j;
   samfile_t *in = samopen(infn, "rb", 0);
 
+  /* sort sequence name by alphabetic order, chr1, chr10, chr11 ... */
+  kstring_t header; header.l = header.m = 0; header.s = 0;
+  kputs("##fileformat=VCFv4.1\n", &header);
+  ksprintf(&header, "##reference=%s\n", reffn);
+  ksprintf(&header, "##source=biscuitV%s\n", PACKAGE_VERSION);
+  target_v *targets = init_target_v(50);
+  target_t *t;
+  for (i=0; i<in->header->n_targets; ++i) {
+    t = next_ref_target_v(targets);
+    t->tid = i;
+    t->name = in->header->target_name[i];
+    t->len = in->header->target_len[i];
+  }
+  qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
+  for (j=0; j<targets->size; ++j) {
+    t = ref_target_v(targets, j);
+    ksprintf(&header, "##contig=<ID=%s,length=%d>\n", t->name, t->len);
+  }
+  kputs("##program=<cmd=biscuit", &header);
+  for (i=0; i<argc; ++i)
+    ksprintf(&header, " %s", argv[i]);
+  kputs(">\n", &header);
+  kputs("##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Raw read depth\">\n", &header);
+  kputs("##INFO=<ID=SP,Number=1,Type=String,Description=\"Allele support (with filtering)\">\n", &header);
+  kputs("##INFO=<ID=Retn,Number=1,Type=String,Description=\"Retention count (with filtering)\">\n", &header);
+  kputs("##INFO=<ID=Conv,Number=1,Type=String,Description=\"Conversion count (with filtering)\">\n", &header);
+
+  if (conf.verbose) {
+    char plpbsstrand[4];
+    strcpy(plpbsstrand, "BSW");
+    head_append_verbose(plpbsstrand, '0', &header);
+    strcpy(plpbsstrand, "BSC");
+    head_append_verbose(plpbsstrand, '1', &header);
+  }
+
+  kputs("##FORMAT=<ID=GT,Number=1,Type=Integer,Description=\"Genotype from normal\">\n", &header);
+  kputs("##FORMAT=<ID=GL,Number=G,Type=Integer,Description=\"Genotype likelihoods\">\n", &header);
+  kputs("##FORMAT=<ID=GQ,Number=1,Type=Float,Description=\"Genotype quality (phred-scaled)\">\n", &header);
+
   pthread_t writer;
   writer_conf_t writer_conf = {
     .q = wqueue_init(record, 100000),
     .outfn = outfn,
-    .header = 0,
+    .header = conf.noheader?0:header.s,
   };
   pthread_create(&writer, NULL, write_func, &writer_conf);
   for (i=0; i<conf.n_threads; ++i) {
@@ -675,7 +801,7 @@ int main_pileup(int argc, char *argv[]) {
   window_t w; memset(&w, 0, sizeof(window_t));
   uint32_t wbeg;
   int64_t block_id=0;
-  target_v *targets = init_target_v(50);
+
   if (reg) {
     int tid;
     uint32_t beg, end;
@@ -693,18 +819,6 @@ int main_pileup(int argc, char *argv[]) {
       wqueue_put(window, wq, &w);
     }
   } else {
-
-    /* sort sequence name by alphabetic order, chr1, chr10, chr11 ... */
-    target_t *t;
-    for (i=0; i<in->header->n_targets; ++i) {
-      t = next_ref_target_v(targets);
-      t->tid = i;
-      t->name = in->header->target_name[i];
-      t->len = in->header->target_len[i];
-    }
-
-    qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
-
     for (j=0; j<targets->size; ++j) {
       t = ref_target_v(targets, j);
       for (wbeg = 1; wbeg < t->len; wbeg += conf.step, block_id++) {
@@ -734,6 +848,7 @@ int main_pileup(int argc, char *argv[]) {
   free_target_v(targets);
   free(results);
   free(processors);
+  free(header.s);
   wqueue_destroy(window, wq);
   samclose(in);
 

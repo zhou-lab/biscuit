@@ -288,8 +288,6 @@ int main_align(int argc, char *argv[])
 		fprintf(stderr, "                     (4 sigma from the mean if absent) and min of the insert size distribution.\n");
 		fprintf(stderr, "                     FR orientation only. [inferred]\n");
 		fprintf(stderr, "\n");
-		fprintf(stderr, "Note: Please read the man page for detailed description of the command line and options.\n");
-		fprintf(stderr, "\n");
 		free(opt);
 		return 1;
 	}
