@@ -88,7 +88,7 @@ void *write_func(void *data) {
   FILE *out;
   if (c->outfn) out=fopen(c->outfn, "w");
   else out=stdout;
-  fflush(out);
+  if (c->header) fputs(c->header, out);
   int64_t next_block = 0;
   record_v *records = init_record_v(20);
   while (1) {
@@ -660,6 +660,7 @@ int main_pileup(int argc, char *argv[]) {
   writer_conf_t writer_conf = {
     .q = wqueue_init(record, 100000),
     .outfn = outfn,
+    .header = 0,
   };
   pthread_create(&writer, NULL, write_func, &writer_conf);
   for (i=0; i<conf.n_threads; ++i) {

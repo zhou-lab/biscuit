@@ -32,7 +32,6 @@ double ln_sum3(double ln1, double ln2, double ln3);
 
 double ln_substract(double ln1, double ln2);
 
-
 double ln_binom_kernel(double p, int a, int b);
 
 double ln_beta_incdiff_kernel(double p1, double p2, int a, int b);

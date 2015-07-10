@@ -2,10 +2,7 @@
 #include <string.h>
 #include "kstring.h"
 #include "utils.h"
-
-#ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "0.1.0.20150708"
-#endif
+#include "biscuit.h"
 
 int main_biscuit_index(int argc, char *argv[]);
 int main_align(int argc, char *argv[]);

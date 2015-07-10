@@ -1,0 +1,3 @@
+#ifndef PACKAGE_VERSION
+#define PACKAGE_VERSION "0.1.0.20150708"
+#endif

@@ -1,6 +1,5 @@
 #include "stats.h"
 
-
 static double max( double a, double b ) { return a > b ? a : b; }
 
 /* sum of numbers inside ln function,

@@ -43,7 +43,7 @@ bin/biscuit: $(LIBS) src/main.o
 		gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
 
 src/main.o: src/main.c
-	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib
+	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE) -I$(INCLUDE)/aln -I$(INCLUDE)/klib
 
 .PHONY: aln
 aln: lib/aln/libaln.a

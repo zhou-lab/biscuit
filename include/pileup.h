@@ -8,6 +8,7 @@
 #include "kstring.h"
 #include "wvec.h"
 #include "stats.h"
+#include "biscuit.h"
 
 #define bscall(b, pos) bam_nt16_rev_table[bam1_seqi(bam1_seq(b), pos)]
 
@@ -57,6 +58,7 @@ uint32_t cnt_retention(refseq_t *rs, bam1_t *b, uint8_t bsstrand);
 typedef struct {
   wqueue_t(record) *q;
   char *outfn;
+  char *header;
 } writer_conf_t;
 
 void *write_func(void *data);
@@ -81,3 +83,4 @@ static inline int compare_targets(const void *a, const void *b) {
 
 void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb);
 
+#define min(a,b) ((a)<(b)?(a):(b))
