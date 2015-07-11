@@ -55,6 +55,7 @@ typedef struct {
 	int max_XA_hits, max_XA_hits_alt; // if there are max_hits or fewer, output them all
 	int8_t mat[25];         // scoring matrix; mat[0] == 0 if unset
   int8_t bsstrand;  /* to restrict mem chain, reads can only be mapped to the reference with the given bsstrand */
+  uint8_t first2parent;         /* force first read map to parent strand */
   /* bisulfite */
   int8_t ctmat[25];       /* C>T matrix */
   int8_t gamat[25];       /* G>A matrix */
@@ -99,6 +100,8 @@ typedef struct { // This struct is only used for the convenience of API.
 
 	int score, sub, alt_sc;
 } mem_aln_t;
+
+typedef enum {BSS_UNSPEC, BSS_PARENT, BSS_DAUGHTER} bsstrand_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -152,7 +155,7 @@ extern "C" {
 	 *
 	 * @return       list of aligned regions.
 	 */
-	mem_alnreg_v mem_align1(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, const char *seq);
+	mem_alnreg_v mem_align1(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, const char *seq, bsstrand_t bss);
 
 	/**
 	 * Generate CIGAR and forward-strand position from alignment region
