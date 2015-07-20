@@ -625,4 +625,5 @@ nt256int8_rev_ip(int8_t *seq_nt256int8, size_t len) {
 #define TRCODE_NT256INT8(seq, len) nt16_decode_nt256int8(seq, len);
 
 
+
 #endif
