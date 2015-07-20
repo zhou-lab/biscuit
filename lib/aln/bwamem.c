@@ -1056,15 +1056,13 @@ void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, 
 }
 
 /* 3-base space */
-mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, char *seq, void *buf, bsstrand_t bss)
-{
+mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, char *seq, void *buf, bsstrand_t bss) {
 	int i;
 	mem_chain_v chn;
 	mem_alnreg_v regs;
 
 	for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so
 		seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]];
-
 
 	chn = mem_chain(opt, bwt, bns, l_seq, (uint8_t*)seq, buf, bss);
 	chn.n = mem_chain_flt(opt, chn.n, chn.a);

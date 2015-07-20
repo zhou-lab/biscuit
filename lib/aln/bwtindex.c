@@ -228,7 +228,8 @@ int main_biscuit_index(int argc, char *argv[]) {
   str2 = (char*)calloc(strlen(prefix) + 10, 1);
   str3 = (char*)calloc(strlen(prefix) + 10, 1);
 
-  { // nucleotide indexing
+  { /* nucleotide indexing */
+    /* generates .ct.pac, .ct.ann and .ct.amb */
     gzFile fp = xzopen(argv[optind], "r");
     t = clock();
     fprintf(stderr, "[%s] Pack FASTA... ", __func__);
