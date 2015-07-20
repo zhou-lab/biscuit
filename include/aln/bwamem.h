@@ -140,22 +140,24 @@ extern "C" {
 	 */
 	void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0);
 
-	/**
-	 * Find the aligned regions for one query sequence
-	 *
-	 * Note that this routine does not generate CIGAR. CIGAR should be
-	 * generated later by mem_reg2aln() below.
-	 *
-	 * @param opt    alignment parameters
-	 * @param bwt    FM-index of the reference sequence
-	 * @param bns    Information of the reference
-	 * @param pac    2-bit encoded reference
-	 * @param l_seq  length of query sequence
-	 * @param seq    query sequence
-	 *
-	 * @return       list of aligned regions.
-	 */
-	mem_alnreg_v mem_align1(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, const char *seq, bsstrand_t bss);
+  /* Only mem_align1 is kept */
+  
+	/* /\** */
+	/*  * Find the aligned regions for one query sequence */
+	/*  * */
+	/*  * Note that this routine does not generate CIGAR. CIGAR should be */
+	/*  * generated later by mem_reg2aln() below. */
+	/*  * */
+	/*  * @param opt    alignment parameters */
+	/*  * @param bwt    FM-index of the reference sequence */
+	/*  * @param bns    Information of the reference */
+	/*  * @param pac    2-bit encoded reference */
+	/*  * @param l_seq  length of query sequence */
+	/*  * @param seq    query sequence */
+	/*  * */
+	/*  * @return       list of aligned regions. */
+	/*  *\/ */
+	/* mem_alnreg_v mem_align1(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, const char *seq, bsstrand_t bss); */
 
 	/**
 	 * Generate CIGAR and forward-strand position from alignment region
