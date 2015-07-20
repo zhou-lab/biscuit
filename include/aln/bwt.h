@@ -57,6 +57,7 @@ typedef struct {
 	bwtint_t *sa;
 } bwt_t;
 
+/* x: 0 - 1 - ; 2 - occ; info<<32 - beg; (uint32_t) info - end; */
 typedef struct {
 	bwtint_t x[3], info;
 } bwtintv_t;

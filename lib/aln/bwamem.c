@@ -96,6 +96,9 @@ mem_opt_t *mem_opt_init()
 #define intv_lt(a, b) ((a).info < (b).info)
 KSORT_INIT(mem_intv, bwtintv_t, intv_lt)
 
+/* mem is the final product from mem_collect_inv
+   mem1 is raw from bwt_smem1, before filtering from min_seed_len
+*/
 typedef struct {
 	bwtintv_v mem, mem1, *tmpv[2];
 } smem_aux_t;
@@ -117,8 +120,8 @@ static void smem_aux_destroy(smem_aux_t *a)
 	free(a);
 }
 
-static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a)
-{
+/* len is read length */
+static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a) {
 	int i, k, x = 0, old_n;
 	int start_width = (opt->flag & MEM_F_SELF_OVLP)? 2 : 1;
 	int split_len = (int)(opt->min_seed_len * opt->split_factor + .499);
