@@ -13,7 +13,7 @@
 #define BWA_CTL_SIZE 0x10000
 
 typedef struct {
-	bwt_t    *bwt; // FM-index
+	bwt_t    bwt[2]; // FM-index
 	bntseq_t *bns; // information on the reference sequences
 	uint8_t  *pac; // the actual 2-bit encoded reference sequences with 'N' converted to a random base
 
@@ -24,7 +24,7 @@ typedef struct {
 
 typedef struct {
 	int l_seq, id;
-	char *name, *comment, *seq, *qual, *sam, *bisseq;
+	char *name, *comment, *seq, *qual, *sam, *bisseq[2];
 } bseq1_t;
 
 extern int bwa_verbose;
@@ -47,7 +47,7 @@ extern "C" {
   uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM); /* WZBS */
 
 	char *bwa_idx_infer_prefix(const char *hint);
-	bwt_t *bwa_idx_load_bwt(const char *hint);
+	void bwa_idx_load_bwt(const char *hint, uint8_t parent, bwt_t *bwt);
 
 	bwaidx_t *bwa_idx_load_from_shm(const char *hint);
 	bwaidx_t *bwa_idx_load_from_disk(const char *hint, int which);

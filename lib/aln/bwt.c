@@ -461,9 +461,28 @@ bwt_t *bwt_restore_bwt(const char *fn)
 	return bwt;
 }
 
+void bwt_restore_bwt2(const char *fn, bwt_t *bwt) {
+	FILE *fp;
+  memset(bwt, 0, sizeof(bwt_t));
+	/* bwt = (bwt_t*)calloc(1, sizeof(bwt_t)); */
+	fp = xopen(fn, "rb");
+	err_fseek(fp, 0, SEEK_END);
+	bwt->bwt_size = (err_ftell(fp) - sizeof(bwtint_t) * 5) >> 2;
+	bwt->bwt = (uint32_t*)calloc(bwt->bwt_size, 4);
+	err_fseek(fp, 0, SEEK_SET);
+	err_fread_noeof(&bwt->primary, sizeof(bwtint_t), 1, fp);
+	err_fread_noeof(bwt->L2+1, sizeof(bwtint_t), 4, fp);
+	fread_fix(fp, bwt->bwt_size<<2, bwt->bwt);
+	bwt->seq_len = bwt->L2[4];
+	err_fclose(fp);
+	bwt_gen_cnt_table(bwt);
+}
+
 void bwt_destroy(bwt_t *bwt)
 {
 	if (bwt == 0) return;
 	free(bwt->sa); free(bwt->bwt);
 	free(bwt);
 }
+
+

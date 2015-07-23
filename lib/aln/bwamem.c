@@ -80,8 +80,8 @@ mem_opt_t *mem_opt_init()
 	o->min_chain_weight = 0;
 	o->max_chain_extend = 1<<30;
 	o->mapQ_coef_len = 50; o->mapQ_coef_fac = log(o->mapQ_coef_len);
-  o->bsstrand = -1;
-  o->first2parent = 0;          /* WZBS */
+  o->bsstrand = 0;
+  o->parent = 0;
 	bwa_fill_scmat(o->a, o->b, o->mat);
   /* WZBS */
   bwa_fill_scmat_ct(o->a, o->b, o->ctmat);
@@ -122,7 +122,8 @@ static void smem_aux_destroy(smem_aux_t *a)
 
 /* len is read length */
 static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a) {
-	int i, k, x = 0, old_n;
+	int k, x = 0, old_n;
+  uint32_t i;
 	int start_width = (opt->flag & MEM_F_SELF_OVLP)? 2 : 1;
 	int split_len = (int)(opt->min_seed_len * opt->split_factor + .499);
 	a->mem.n = 0;
@@ -143,7 +144,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 	for (k = 0; k < old_n; ++k) {
 		bwtintv_t *p = &a->mem.a[k];
 		int start = p->info>>32, end = (int32_t)p->info;
-		if (end - start < split_len || p->x[2] > opt->split_width) continue;
+		if (end - start < split_len || p->x[2] > (unsigned) opt->split_width) continue;
 		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
 		for (i = 0; i < a->mem1.n; ++i)
 			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= opt->min_seed_len)
@@ -257,8 +258,9 @@ void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn)
 	}
 }
 
-mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, int len, const uint8_t *seq, void *buf, bsstrand_t bss)
-{
+#define mem_getbss(parent, bns, rb) ((rb>bns->l_pac)==(parent)?1:0)
+
+mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, int len, const uint8_t *seq, void *buf) {
 	int i, b, e, l_rep;
 	int64_t l_pac = bns->l_pac;
 	mem_chain_v chain;
@@ -295,20 +297,8 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
 			if (rid < 0) continue; // bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!!
 
-      if ((opt->bsstrand & 1) && bns->anns[rid].bsstrand != opt->bsstrand>>1) continue;
-      if (bss == BSS_PARENT) {
-        if (bns->anns[rid].bsstrand) {
-          if (s.rbeg < l_pac) continue;
-        } else {
-          if (s.rbeg > l_pac) continue;
-        }
-      } else if (bss == BSS_DAUGHTER) {
-        if (bns->anns[rid].bsstrand) {
-          if (s.rbeg > l_pac) continue;
-        } else {
-          if (s.rbeg < l_pac) continue;
-        }
-      }
+      /* force to a certain strand */
+      if ((opt->bsstrand & 1) && mem_getbss(bwt->parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
 
 			if (kb_size(tree)) {
 				kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
@@ -413,10 +403,10 @@ int mem_chain_flt(const mem_opt_t *opt, int n_chn, mem_chain_t *a)
  * De-overlap single-end hits *
  ******************************/
 
-#define alnreg_slt2(a, b) ((a).re < (b).re)
+#define alnreg_slt2(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).re < (b).re)))
 KSORT_INIT(mem_ars2, mem_alnreg_t, alnreg_slt2)
 
-#define alnreg_slt(a, b) ((a).score > (b).score || ((a).score == (b).score && ((a).rb < (b).rb || ((a).rb == (b).rb && (a).qb < (b).qb))))
+#define alnreg_slt(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).score > (b).score || ((a).score == (b).score && ((a).rb < (b).rb || ((a).rb == (b).rb && (a).qb < (b).qb))))))
 KSORT_INIT(mem_ars, mem_alnreg_t, alnreg_slt)
 
 #define alnreg_hlt(a, b)  ((a).score > (b).score || ((a).score == (b).score && ((a).is_alt < (b).is_alt || ((a).is_alt == (b).is_alt && (a).hash < (b).hash))))
@@ -467,8 +457,8 @@ int mem_sort_dedup_patch(const mem_opt_t *opt, const bntseq_t *bns, const uint8_
 	for (i = 0; i < n; ++i) a[i].n_comp = 1;
 	for (i = 1; i < n; ++i) {
 		mem_alnreg_t *p = &a[i];
-		if (p->rid != a[i-1].rid || p->rb >= a[i-1].re + opt->max_chain_gap) continue; // then no need to go into the loop below
-		for (j = i - 1; j >= 0 && p->rid == a[j].rid && p->rb < a[j].re + opt->max_chain_gap; --j) {
+		if (p->bss != a[i-1].bss || p->rid != a[i-1].rid || p->rb >= a[i-1].re + opt->max_chain_gap) continue; // then no need to go into the loop below
+		for (j = i - 1; j >= 0 && p->bss == a[j].bss && p->rid == a[j].rid && p->rb < a[j].re + opt->max_chain_gap; --j) {
 			mem_alnreg_t *q = &a[j];
 			int64_t or, oq, mr, mq;
 			int score, w;
@@ -663,7 +653,7 @@ static inline int cal_max_gap(const mem_opt_t *opt, int qlen)
 
 #define MAX_BAND_TRY  2
 
-void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *av)
+void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *av, uint8_t parent)
 {
 	int i, k, rid, max_off[2], aw[2]; // aw: actual bandwidth used in extension
 	int64_t l_pac = bns->l_pac, rmax[2], tmp, max = 0;
@@ -746,7 +736,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
 		a->w = aw[0] = aw[1] = opt->w;
 		a->score = a->truesc = -1;
 		a->rid = c->rid;
-
+    
 		if (bwa_verbose >= 4) err_printf("** ---> Extending from seed(%d) [%ld;%ld,%ld] @ %s <---\n", k, (long)s->len, (long)s->qbeg, (long)s->rbeg, bns->anns[c->rid].name);
 		if (s->qbeg) { // left extension
 			uint8_t *rs, *qs;
@@ -779,6 +769,8 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
 			free(qs); free(rs);
 		} else a->score = a->truesc = s->len * opt->a, a->qb = 0, a->rb = s->rbeg;
 
+    a->bss = mem_getbss(parent, bns, a->rb); /* set bisulfite strand */
+    
 		if (s->qbeg + s->len != l_query) { // right extension
 			int qle, tle, qe, re, gtle, gscore, sc0 = a->score;
 			qe = s->qbeg + s->len;
@@ -972,8 +964,10 @@ void mem_aln2sam(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq
 			if (str->s[i] == '\t') str->s[i] = ' ';
 	}
   /* WZBS */
-  kputsn("\tYD:Z:", 6, str); kputc(bns->anns[p->rid].bsstrand ? 'r':'f', str);
-  
+  kputsn("\tYD:Z:", 6, str);
+  if (p->bss < 0) kputc('u', str);
+  else kputc(p->bss ? 'r':'f', str);
+
 	kputc('\n', str);
 }
 
@@ -1055,44 +1049,66 @@ void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, 
 	}
 }
 
+uint8_t *bseq_bsconvert(bseq1_t *s, uint8_t parent) {
+  if (s->bisseq[parent]) return s->bisseq[parent];
+  uint32_t i;
+  if (parent) {
+    for (i=0; i<s->l_seq; ++i) {
+      if (s->seq[i] == 1) s->bisseq[1][i] = 3;
+      else s->bisseq[1][i] = s->seq[i];
+    }
+    return s->bisseq[1];
+  } else {
+    for (i=0; i<s->l_seq; ++i) {
+      if (s->seq[i] == 2) s->bisseq[0][i] = 0;
+      else s->bisseq[0][i] = s->seq[i];
+    }
+    return s->bisseq[0];
+  }
+}
+
 /* 3-base space */
-mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int l_seq, char *seq, void *buf, bsstrand_t bss) {
+mem_alnreg_v mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs) {
+  /* int l_seq, char *seq,  */
+  int l_seq = bseq->l_seq; uint8_t *seq = bseq_bsconvert(bseq, bwt->parent);
 	int i;
 	mem_chain_v chn;
-	mem_alnreg_v regs;
 
-	for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so
-		seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]];
+  /* WZ: I think it's always 2-bit encoding */
+	/* for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so */
+	/* 	seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]]; */
 
-	chn = mem_chain(opt, bwt, bns, l_seq, (uint8_t*)seq, buf, bss);
+	chn = mem_chain(opt, bwt, bns, l_seq, (uint8_t*)seq, buf);
 	chn.n = mem_chain_flt(opt, chn.n, chn.a);
 	mem_flt_chained_seeds(opt, bns, pac, l_seq, (uint8_t*)seq, chn.n, chn.a);
 	if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
 
-	kv_init(regs);
 	for (i = 0; i < chn.n; ++i) {
 		mem_chain_t *p = &chn.a[i];
 		if (bwa_verbose >= 4) err_printf("* ---> Processing chain(%d) <---\n", i);
-		mem_chain2aln(opt, bns, pac, l_seq, (uint8_t*)seq, p, &regs);
+		mem_chain2aln(opt, bns, pac, l_seq, (uint8_t*)seq, p, regs, bwt->parent);
 		free(chn.a[i].seeds);
 	}
 	free(chn.a);
-	regs.n = mem_sort_dedup_patch(opt, bns, pac, (uint8_t*)seq, regs.n, regs.a);
+}
+
+void mem_merge_reg1(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_seq, char *seq, mem_alnreg_v *regs) {
+  uint32_t i;
+	regs->n = mem_sort_dedup_patch(opt, bns, pac, (uint8_t*)seq, regs->n, regs->a);
 	if (opt->flag & MEM_F_SELF_OVLP)
-		regs.n = mem_test_and_remove_exact(opt, regs.n, regs.a, l_seq);
+		regs->n = mem_test_and_remove_exact(opt, regs->n, regs->a, l_seq);
 	if (bwa_verbose >= 4) {
-		err_printf("* %ld chains remain after removing duplicated chains\n", regs.n);
-		for (i = 0; i < regs.n; ++i) {
-			mem_alnreg_t *p = &regs.a[i];
+		err_printf("* %ld chains remain after removing duplicated chains\n", regs->n);
+		for (i = 0; i < regs->n; ++i) {
+			mem_alnreg_t *p = &regs->a[i];
 			printf("** %d, [%d,%d) <=> [%ld,%ld)\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re);
 		}
 	}
-	for (i = 0; i < regs.n; ++i) {
-		mem_alnreg_t *p = &regs.a[i];
+	for (i = 0; i < regs->n; ++i) {
+		mem_alnreg_t *p = &regs->a[i];
 		if (p->rid >= 0 && bns->anns[p->rid].is_alt)
 			p->is_alt = 1;
 	}
-	return regs;
 }
 
 mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const char *query_, const mem_alnreg_t *ar)
@@ -1104,7 +1120,7 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 
 	memset(&a, 0, sizeof(mem_aln_t));
 	if (ar == 0 || ar->rb < 0 || ar->re < 0) { // generate an unmapped record
-		a.rid = -1; a.pos = -1; a.flag |= 0x4;
+		a.rid = -1; a.pos = -1; a.flag |= 0x4; a.bss=-1;
 		return a;
 	}
 	qb = ar->qb, qe = ar->qe;
@@ -1125,7 +1141,7 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 		w2 = w2 < opt->w<<2? w2 : opt->w<<2;
     /* WZBS */
     /* ar->rid should be the real rid, see assert below */
-    if (bns->anns[ar->rid].bsstrand) {
+    if (ar->bss) {
       a.cigar = bis_bwa_gen_cigar2(opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w2, bns->l_pac, pac, qe - qb, (uint8_t*)&query[qb], rb, re, &score, &a.n_cigar, &NM);
     } else {
       a.cigar = bis_bwa_gen_cigar2(opt->ctmat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w2, bns->l_pac, pac, qe - qb, (uint8_t*)&query[qb], rb, re, &score, &a.n_cigar, &NM);
@@ -1170,6 +1186,7 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 	a.pos = pos - bns->anns[a.rid].offset;
 	a.score = ar->score; a.sub = ar->sub > ar->csub? ar->sub : ar->csub;
 	a.is_alt = ar->is_alt; a.alt_sc = ar->alt_sc;
+  a.bss = (int) ar->bss;
 	free(query);
 	return a;
 }
@@ -1186,85 +1203,41 @@ typedef struct {
 	int64_t n_processed;
 } worker_t;
 
-/* static void worker1(void *data, int i, int tid) */
-/* { */
-/* 	worker_t *w = (worker_t*)data; */
-/* 	if (!(w->opt->flag&MEM_F_PE)) { */
-/* 		if (bwa_verbose >= 4) printf("=====> Processing read '%s' <=====\n", w->seqs[i].name); */
-/* 		w->regs[i] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i].l_seq, w->seqs[i].seq, w->aux[tid]); */
-/* 	} else { */
-/* 		if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name); */
-/* 		w->regs[i<<1|0] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|0].l_seq, w->seqs[i<<1|0].seq, w->aux[tid]); */
-/* 		if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name); */
-/* 		w->regs[i<<1|1] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|1].l_seq, w->seqs[i<<1|1].seq, w->aux[tid]); */
-/* 	} */
-/* } */
-
-/* static void worker2(void *data, int i, int tid) */
-/* { */
-/* 	extern int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], uint64_t id, bseq1_t s[2], mem_alnreg_v a[2]); */
-/* 	extern void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a); */
-/* 	worker_t *w = (worker_t*)data; */
-/* 	if (!(w->opt->flag&MEM_F_PE)) { */
-/* 		if (bwa_verbose >= 4) printf("=====> Finalizing read '%s' <=====\n", w->seqs[i].name); */
-/* 		if (w->opt->flag & MEM_F_ALN_REG) { */
-/* 			mem_reg2ovlp(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i]); */
-/* 		} else { */
-/* 			mem_mark_primary_se(w->opt, w->regs[i].n, w->regs[i].a, w->n_processed + i); */
-/* 			mem_reg2sam(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], 0, 0); */
-/* 		} */
-/* 		free(w->regs[i].a); */
-/* 	} else { */
-/* 		if (bwa_verbose >= 4) printf("=====> Finalizing read pair '%s' <=====\n", w->seqs[i<<1|0].name); */
-/* 		mem_sam_pe(w->opt, w->bns, w->pac, w->pes, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1]); */
-/* 		free(w->regs[i<<1|0].a); free(w->regs[i<<1|1].a); */
-/* 	} */
-/* } */
-
-/* changed name preprend "original_" */
-/* void original_mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0) */
-/* { */
-/* 	extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n); */
-/* 	worker_t w; */
-/* 	mem_pestat_t pes[4]; */
-/* 	double ctime, rtime; */
-/* 	int i; */
-
-/* 	ctime = cputime(); rtime = realtime(); */
-/* 	global_bns = bns; */
-/* 	w.regs = malloc(n * sizeof(mem_alnreg_v)); */
-/* 	w.opt = opt; w.bwt = bwt; w.bns = bns; w.pac = pac; */
-/* 	w.seqs = seqs; w.n_processed = n_processed; */
-/* 	w.pes = &pes[0]; */
-/* 	w.aux = malloc(opt->n_threads * sizeof(smem_aux_t)); */
-/* 	for (i = 0; i < opt->n_threads; ++i) */
-/* 		w.aux[i] = smem_aux_init(); */
-/* 	kt_for(opt->n_threads, worker1, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // find mapping positions */
-/* 	for (i = 0; i < opt->n_threads; ++i) */
-/* 		smem_aux_destroy(w.aux[i]); */
-/* 	free(w.aux); */
-/* 	if (opt->flag&MEM_F_PE) { // infer insert sizes if not provided */
-/* 		if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0 */
-/* 		else mem_pestat(opt, bns->l_pac, n, w.regs, pes); // otherwise, infer the insert size distribution from data */
-/* 	} */
-/* 	kt_for(opt->n_threads, worker2, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // generate alignment */
-/* 	free(w.regs); */
-/* 	if (bwa_verbose >= 3) */
-/* 		fprintf(stderr, "[M::%s] Processed %d reads in %.3f CPU sec, %.3f real sec\n", __func__, n, cputime() - ctime, realtime() - rtime); */
-/* } */
 
 /***** bisulfite adaptation *****/
 static void bis_worker1(void *data, int i, int tid)
 {
 	worker_t *w = (worker_t*)data;
-	if (!(w->opt->flag&MEM_F_PE)) {
+  mem_alnreg_v *regs; const mem_opt_t *opt=w->opt; bseq1_t *s;
+	if (!(opt->flag&MEM_F_PE)) {
+    
 		if (bwa_verbose >= 4) printf("=====> Processing read '%s' <=====\n", w->seqs[i].name);
-		w->regs[i] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i].l_seq, w->seqs[i].bisseq, w->aux[tid], BSS_UNSPEC);
+
+    regs = &w->regs[i]; kv_init(*regs);
+    if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
+      mem_align1_core(opt, &w->bwt[0], w->bns, w->pac, &w->seqs[i], w->aux[tid], regs);
+    if (!(opt->parent) || opt->parent>>1) /* no restriction or target parent */
+      mem_align1_core(opt, &w->bwt[1], w->bns, w->pac, &w->seqs[i], w->aux[tid], regs);
+
+    mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], w->aux[tid], regs);
+    
 	} else {
-		if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name);
-		w->regs[i<<1|0] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|0].l_seq, w->seqs[i<<1|0].bisseq, w->aux[tid], w->opt->first2parent?BSS_PARENT:BSS_UNSPEC);
-		if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name);
-		w->regs[i<<1|1] = mem_align1_core(w->opt, w->bwt, w->bns, w->pac, w->seqs[i<<1|1].l_seq, w->seqs[i<<1|1].bisseq, w->aux[tid], w->opt->first2parent?BSS_DAUGHTER:BSS_UNSPEC);
+
+    if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name);
+    regs = &w->regs[i<<1|0];
+    kv_init(*regs);
+    mem_align1_core(opt, &w->bwt[1], w->bns, w->pac, &w->seqs[i<<1|0], w->aux[tid], regs);
+    if (opt->parent)            /* align read 1 to daughter */
+      mem_align1_core(opt, &w->bwt[0], w->bns, w->pac, &w->seqs[i<<1|0], w->aux[tid], regs);
+    mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], w->aux[tid], regs);
+
+    if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name);
+    regs = &w->regs[i<<1|1];
+    kv_init(*regs);
+    mem_align1_core(opt, &w->bwt[0], w->bns, w->pac, &w->seqs[i<<1|1], w->aux[tid], regs);
+    if (opt->parent)            /* align read 2 to parent */
+      mem_align1_core(opt, &w->bwt[1], w->bns, w->pac, &w->seqs[i<<1|1], w->aux[tid], regs);
+    mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], w->aux[tid], regs);
 	}
 }
 

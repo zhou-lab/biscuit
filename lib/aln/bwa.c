@@ -366,25 +366,31 @@ char *bwa_idx_infer_prefix(const char *hint)
   /* bisufite adaptation */
   prefix = malloc(l_hint+20);
   strcpy(prefix, hint);
-  strcpy(prefix + l_hint, ".bis.bwt");
+  strcpy(prefix + l_hint, ".par.bwt");
   if ((fp = fopen(prefix, "rb")) == 0) {
     free(prefix);
     return 0;
-  } else {
-    fclose(fp);
-    prefix[l_hint] = 0;
-    return prefix;
   }
+  fclose(fp);
+  strcpy(prefix + l_hint, ".dau.bwt");
+  if ((fp = fopen(prefix, "rb")) == 0) {
+    free(prefix);
+    return 0;
+  }
+  fclose(fp);
+  
+  prefix[l_hint] = 0;
+  return prefix;
 }
 
-bwt_t *bwa_idx_load_bwt(const char *hint)
+void bwa_idx_load_bwt(const char *hint, uint8_t parent, bwt_t *bwt)
 {
 	char *tmp, *prefix;
-	bwt_t *bwt;
 	prefix = bwa_idx_infer_prefix(hint);
 	if (prefix == 0) {
-		if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to locate the index files\n", __func__);
-		return 0;
+		if (bwa_verbose >= 1)
+      fprintf(stderr, "[E::%s] fail to locate the index files\n", __func__);
+    return;
 	}
 
   /*** bisulfite adaptation ***/
@@ -395,13 +401,20 @@ bwt_t *bwa_idx_load_bwt(const char *hint)
 	/* bwt_restore_sa(tmp, bwt); */
 
   tmp = calloc(strlen(prefix) + 20, 1);
-	strcat(strcpy(tmp, prefix), ".bis.bwt"); // FM-index
-	bwt = bwt_restore_bwt(tmp);
-	strcat(strcpy(tmp, prefix), ".bis.sa");  // partial suffix array (SA)
-	bwt_restore_sa(tmp, bwt);
+  if (parent) {
+    strcat(strcpy(tmp, prefix), ".par.bwt"); // FM-index
+    bwt_restore_bwt2(tmp, bwt);
+    strcat(strcpy(tmp, prefix), ".par.sa");  // partial suffix array (SA)
+    bwt_restore_sa(tmp, bwt);
+  } else {
+    strcat(strcpy(tmp, prefix), ".dau.bwt"); // FM-index
+    bwt_restore_bwt2(tmp, bwt);
+    strcat(strcpy(tmp, prefix), ".dau.sa");  // partial suffix array (SA)
+    bwt_restore_sa(tmp, bwt);
+  }
+  bwt->parent = parent;
 
 	free(tmp); free(prefix);
-	return bwt;
 }
 
 bwaidx_t *bwa_idx_load_from_disk(const char *hint, int which)
@@ -414,7 +427,10 @@ bwaidx_t *bwa_idx_load_from_disk(const char *hint, int which)
 		return 0;
 	}
 	idx = calloc(1, sizeof(bwaidx_t));
-	if (which & BWA_IDX_BWT) idx->bwt = bwa_idx_load_bwt(hint);
+	if (which & BWA_IDX_BWT) {
+    bwa_idx_load_bwt(hint, 1, idx->bwt+1); /* parent strand */
+    bwa_idx_load_bwt(hint, 0, idx->bwt);   /* daughter strand */
+  }
 	if (which & BWA_IDX_BNS) {
 		int i, c;
 		idx->bns = bns_restore(prefix);
@@ -442,11 +458,15 @@ void bwa_idx_destroy(bwaidx_t *idx)
 {
 	if (idx == 0) return;
 	if (idx->mem == 0) {
-		if (idx->bwt) bwt_destroy(idx->bwt);
+    free(idx->bwt[0].sa); free(idx->bwt[0].bwt);
+    free(idx->bwt[1].sa); free(idx->bwt[1].bwt);
+		/* if (idx->bwt_par) bwt_destroy(idx->bwt_par); */
+    /* if (idx->bwt_dau) bwt_destroy(idx->bwt_dau); */
 		if (idx->bns) bns_destroy(idx->bns);
 		if (idx->pac) free(idx->pac);
 	} else {
-		free(idx->bwt); free(idx->bns->anns); free(idx->bns);
+		/* free(idx->bwt_par); free(idx->bwt_dau); */
+    free(idx->bns->anns); free(idx->bns);
 		if (!idx->is_shm) free(idx->mem);
 	}
 	free(idx);
@@ -458,9 +478,13 @@ int bwa_mem2idx(int64_t l_mem, uint8_t *mem, bwaidx_t *idx)
 	int i;
 
 	// generate idx->bwt
-	x = sizeof(bwt_t); idx->bwt = malloc(x); memcpy(idx->bwt, mem + k, x); k += x;
-	x = idx->bwt->bwt_size * 4; idx->bwt->bwt = (uint32_t*)(mem + k); k += x;
-	x = idx->bwt->n_sa * sizeof(bwtint_t); idx->bwt->sa = (bwtint_t*)(mem + k); k += x;
+  /* biscuit shared memory might not work */
+	x = sizeof(bwt_t); memcpy(idx->bwt, mem + k, x); k += x;
+	x = idx->bwt[0].bwt_size * 4; idx->bwt[0].bwt = (uint32_t*)(mem + k); k += x;
+	x = idx->bwt[0].n_sa * sizeof(bwtint_t); idx->bwt[0].sa = (bwtint_t*)(mem + k); k += x;
+  x = sizeof(bwt_t); memcpy(idx->bwt, mem + k, x); k += x;
+  x = idx->bwt[1].bwt_size * 4; idx->bwt[1].bwt = (uint32_t*)(mem + k); k += x;
+	x = idx->bwt[1].n_sa * sizeof(bwtint_t); idx->bwt[1].sa = (bwtint_t*)(mem + k); k += x;
 
 	// generate idx->bns and idx->pac
 	x = sizeof(bntseq_t); idx->bns = malloc(x); memcpy(idx->bns, mem + k, x); k += x;
@@ -483,6 +507,7 @@ int bwa_idx2mem(bwaidx_t *idx)
 	int64_t k, x, tmp;
 	uint8_t *mem;
 
+  /* TODO: not quite sure how this should adapt for biscuit */
 	// copy idx->bwt
 	x = idx->bwt->bwt_size * 4;
 	mem = realloc(idx->bwt->bwt, sizeof(bwt_t) + x); idx->bwt->bwt = 0;
@@ -490,7 +515,7 @@ int bwa_idx2mem(bwaidx_t *idx)
 	memcpy(mem, idx->bwt, sizeof(bwt_t)); k = sizeof(bwt_t) + x;
 	x = idx->bwt->n_sa * sizeof(bwtint_t); mem = realloc(mem, k + x); memcpy(mem + k, idx->bwt->sa, x); k += x;
 	free(idx->bwt->sa);
-	free(idx->bwt); idx->bwt = 0;
+	/* free(idx->bwt); idx->bwt = 0; */
 
 	// copy idx->bns
 	tmp = idx->bns->n_seqs * sizeof(bntann1_t) + idx->bns->n_holes * sizeof(bntamb1_t);
@@ -535,8 +560,8 @@ void bwa_print_sam_hdr(const bntseq_t *bns, const char *hdr_line)
 	}
 	if (n_SQ == 0) {
 		for (i = 0; i < bns->n_seqs; ++i) {
-      if (!bns->anns[i].bsstrand)       /* bisulfite adaption */
-        err_printf("@SQ\tSN:%s\tLN:%d\n", bns->anns[i].name, bns->anns[i].len);
+      /* if (!bns->anns[i].bsstrand)       /\* bisulfite adaption *\/ */
+      err_printf("@SQ\tSN:%s\tLN:%d\n", bns->anns[i].name, bns->anns[i].len);
     }
 	} else if (n_SQ != bns->n_seqs && bwa_verbose >= 2)
 		fprintf(stderr, "[W::%s] %d @SQ lines provided with -H; %d sequences in the index. Continue anyway.\n", __func__, n_SQ, bns->n_seqs);
@@ -603,8 +628,7 @@ char *bwa_insert_header(const char *s, char *hdr)
 	return hdr;
 }
 
-
-static inline void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s, uint8_t bsstrand)
+static inline void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
 { // TODO: it would be better to allocate one chunk of memory, but probably it does not matter in practice
   s->name = strdup(ks->name.s);
   s->comment = ks->comment.l? strdup(ks->comment.s) : 0;
@@ -613,20 +637,13 @@ static inline void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s, uint8_t bsstrand
   s->l_seq = strlen(s->seq);
 
   /* bisulfite note: here I convert all base to nst_nt4 */
-  s->bisseq = calloc(s->l_seq, sizeof(char)); /* no sentinel \0 */
+  /* s->bisseq = calloc(s->l_seq, sizeof(char)); /\* no sentinel \0 *\/ */
+  s->bisseq[0] = 0;
+  s->bisseq[1] = 0;
+  
   uint32_t i;
-  if (bsstrand) {
-    for (i=0; i<s->l_seq; ++i) {
-      s->seq[i] = nst_nt4_table[(int)s->seq[i]];
-      if (s->seq[i] == 2) s->bisseq[i] = 0; /* G->A */
-      else s->bisseq[i] = s->seq[i];
-    }
-  } else {
-    for (i=0; i<s->l_seq; ++i) {
-      s->seq[i] = nst_nt4_table[(int)s->seq[i]];
-      if (s->seq[i] == 1) s->bisseq[i] = 3; /* C->T */
-      else s->bisseq[i] = s->seq[i];
-    }
+  for (i=0; i<s->l_seq; ++i) {
+    s->seq[i] = nst_nt4_table[(int)s->seq[i]];
   }
 }
 
@@ -646,11 +663,11 @@ bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_)
       seqs = realloc(seqs, m * sizeof(bseq1_t));
     }
     trim_readno(&ks->name);
-    bis_kseq2bseq1(ks, &seqs[n], 0);
+    bis_kseq2bseq1(ks, &seqs[n]);
     size += seqs[n++].l_seq;
     if (ks2) {
       trim_readno(&ks2->name);
-      bis_kseq2bseq1(ks2, &seqs[n], 1);
+      bis_kseq2bseq1(ks2, &seqs[n]);
       size += seqs[n++].l_seq;
     }
     if (size >= chunk_size && (n&1) == 0) break;

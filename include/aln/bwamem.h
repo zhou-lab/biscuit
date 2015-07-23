@@ -54,9 +54,19 @@ typedef struct {
 	int max_matesw;         // perform maximally max_matesw rounds of mate-SW for each end
 	int max_XA_hits, max_XA_hits_alt; // if there are max_hits or fewer, output them all
 	int8_t mat[25];         // scoring matrix; mat[0] == 0 if unset
-  int8_t bsstrand;  /* to restrict mem chain, reads can only be mapped to the reference with the given bsstrand */
-  uint8_t first2parent;         /* force first read map to parent strand */
-  /* bisulfite */
+  
+  /* reads can only be mapped to parent or daughter strands
+   * opt->parent&1: is restricted
+   * opt->parent>>1: restricted strand */
+  uint8_t parent;
+
+  /* the following would almost be impossible unless some kind of sequence context capture
+   * reads can only be mapped to BSW or BSC strands
+   * bsstrand&1: is restricted
+   * bsstrand>>1: restricted strand */
+  uint8_t bsstrand;
+
+  /* bisulfite scoring matrix */
   int8_t ctmat[25];       /* C>T matrix */
   int8_t gamat[25];       /* G>A matrix */
 } mem_opt_t;
@@ -79,6 +89,7 @@ typedef struct {
 	int n_comp:30, is_alt:2; // number of sub-alignments chained together
 	float frac_rep;
 	uint64_t hash;
+  uint8_t bss:1;
 } mem_alnreg_t;
 
 typedef struct { size_t n, m; mem_alnreg_t *a; } mem_alnreg_v;
@@ -94,6 +105,7 @@ typedef struct { // This struct is only used for the convenience of API.
 	int rid;         // reference sequence index in bntseq_t; <0 for unmapped
 	int flag;        // extra flag
 	uint32_t is_rev:1, is_alt:1, mapq:8, NM:22; // is_rev: whether on the reverse strand; mapq: mapping quality; NM: edit distance
+  int bss;                      /* -1: unmapped, 0: BSW, 1: BSC */
 	int n_cigar;     // number of CIGAR operations
 	uint32_t *cigar; // CIGAR in the BAM encoding: opLen<<4|op; op to integer mapping: MIDSH=>01234
 	char *XA;        // alternative mappings

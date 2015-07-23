@@ -7,10 +7,12 @@ Issue a `make` and the binary is built into `bin/`.
 ### Alignment of bisulfite-treated short reads
 `biscuit index` and `biscuit align` adapts the `bwa index` and `bwa mem` for bisulfite-treated short reads.
 
-#### Feature
+#### Design
 - assymmetric scoring for C to T and G to A in mapping. Production of consistent mapping quality and NM tags.
+- separate seeding for parent and daughter strands.
+- Optional BSW/top/BSC/bottom strand restriction, tightly integrated in mapping.
+- Optional parent strand and daughter strand restriction for both single-end and pair-end reads.
 - disk space economic indices. No storage of bisulfite converted reference.
-- Strand-specific filtering tightly integrated in mapping.
 - exposes all the BWA-mem parameters to the users.
 - no separate install of BWA. Dependencies easily met.
 - robust to OS build, read processing and reference processing occur within computing threads of single process.

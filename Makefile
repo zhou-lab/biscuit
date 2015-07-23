@@ -52,7 +52,7 @@ LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen
 lib/aln/libaln.a: $(LALNOBJ)
 	ar -csru $@ $(LALNOBJ)
 $(LALND)/%.o: $(LALND)/%.c
-	gcc -c $(CFLAGS) -I$(INCLUDE)/aln -I$(INCLUDE)/klib $< -o $@
+	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/aln -I$(INCLUDE)/klib $< -o $@
 clean_aln:
 	rm -f $(LALND)/*.o lib/aln/libaln.a
 

@@ -55,6 +55,7 @@ typedef struct {
 	int sa_intv;
 	bwtint_t n_sa;
 	bwtint_t *sa;
+  uint8_t parent;               /* parent or daughter */
 } bwt_t;
 
 /* x: 0 - 1 - ; 2 - occ; info<<32 - beg; (uint32_t) info - end; */
@@ -88,6 +89,7 @@ extern "C" {
 	void bwt_dump_sa(const char *fn, const bwt_t *bwt);
 
 	bwt_t *bwt_restore_bwt(const char *fn);
+  void bwt_restore_bwt2(const char *fn, bwt_t *bwt);
 	void bwt_restore_sa(const char *fn, bwt_t *bwt);
 
 	void bwt_destroy(bwt_t *bwt);

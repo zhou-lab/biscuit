@@ -89,7 +89,9 @@ static void *process(void *shared, int step, void *_data)
 			if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
 			free(data->seqs[i].name); free(data->seqs[i].comment);
 			free(data->seqs[i].seq); free(data->seqs[i].qual); free(data->seqs[i].sam);
-      free(data->seqs[i].bisseq); /* bisulfite free */
+      /* bisulfite free, the pointers can be NULL */
+      free(data->seqs[i].bisseq[0]);
+      free(data->seqs[i].bisseq[1]);
 		}
 		free(data->seqs); free(data);
 		return 0;
@@ -133,12 +135,12 @@ int main_align(int argc, char *argv[])
 	aux.opt = opt = mem_opt_init();
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
 	memset(&opt0, 0, sizeof(mem_opt_t));
-	while ((c = getopt(argc, argv, "1epafFMCSPVYjb:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
+	while ((c = getopt(argc, argv, "1epaFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
 		if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
 		else if (c == '1') no_mt_io = 1;
 		else if (c == 'x') mode = optarg;
-    else if (c == 'b') opt->bsstrand = atoi(optarg); /* WZBS */
-    else if (c == 'f') opt->first2parent = 1;        /* WZBS */
+    else if (c == 'b') opt->parent = atoi(optarg);   /* targeting parent or daughter */
+    else if (c == 'f') opt->bsstrand = atoi(optarg); /* targeting BSW or BSC */
 		else if (c == 'w') opt->w = atoi(optarg), opt0.w = 1;
 		else if (c == 'A') opt->a = atoi(optarg), opt0.a = 1;
 		else if (c == 'B') opt->b = atoi(optarg), opt0.b = 1;
@@ -244,8 +246,8 @@ int main_align(int argc, char *argv[])
 		fprintf(stderr, "Usage: biscuit align [options] <idxbase> <in1.fq> [in2.fq]\n\n");
 		fprintf(stderr, "Algorithm options:\n\n");
 		fprintf(stderr, "       -t INT        number of threads [%d]\n", opt->n_threads);
-    fprintf(stderr, "       -b INT        1: target BSW/C>T strand; 3: target BSC/G>A strand; 0 (default): target both;\n");
-    fprintf(stderr, "       -f INT        force first read map to parent strand and second to daughter strand;\n");
+    fprintf(stderr, "       -b INT        For PE, read1 to parent, read2 to daughter (0, default); read1 and read2 to both (1); For SE, parent (3); daughter (1); both (0, default); Def: parent (bisulfite treated strand), daughter (synthesized strand)\n");
+    fprintf(stderr, "       -f INT        1: BSW strand; 3: BSC strand; 0 (default): both; (libraries targeting either BSW or BSC are unseen so far!)\n");
 		fprintf(stderr, "       -k INT        minimum seed length [%d]\n", opt->min_seed_len);
 		fprintf(stderr, "       -w INT        band width for banded alignment [%d]\n", opt->w);
 		fprintf(stderr, "       -d INT        off-diagonal X-dropoff [%d]\n", opt->zdrop);
