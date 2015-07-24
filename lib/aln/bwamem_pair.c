@@ -110,18 +110,18 @@ void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *
 
 int mem_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], const mem_alnreg_t *a, int l_ms, const uint8_t *ms, mem_alnreg_v *ma)
 {
-	extern int mem_sort_dedup_patch(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, int n, mem_alnreg_t *a);
 	int64_t l_pac = bns->l_pac;
 	int i, r, skip[4], n = 0, rid;
 	for (r = 0; r < 4; ++r)
 		skip[r] = pes[r].failed? 1 : 0;
-	for (i = 0; i < ma->n; ++i) { // check which orinentation has been found
+	for (i = 0; i < ma->n; ++i) { // check which orientation has been found
 		int64_t dist;
 		r = mem_infer_dir(l_pac, a->rb, ma->a[i].rb, &dist);
 		if (dist >= pes[r].low && dist <= pes[r].high)
 			skip[r] = 1;
 	}
-	if (skip[0] + skip[1] + skip[2] + skip[3] == 4) return 0; // consistent pair exist; no need to perform SW
+  /* either consistent pair exist or failed insert size estimate; no need to perform SW */
+	if (skip[0] + skip[1] + skip[2] + skip[3] == 4) return 0;
 	for (r = 0; r < 4; ++r) {
 		int is_rev, is_larger;
 		uint8_t *seq, *rev = 0, *ref = 0;
@@ -129,11 +129,14 @@ int mem_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
 		if (skip[r]) continue;
 		is_rev = (r>>1 != (r&1)); // whether to reverse complement the mate
 		is_larger = !(r>>1); // whether the mate has larger coordinate
+
+    /* make the mate read sequence the direction of the primary read */
 		if (is_rev) {
 			rev = malloc(l_ms); // this is the reverse complement of $ms
 			for (i = 0; i < l_ms; ++i) rev[l_ms - 1 - i] = ms[i] < 4? 3 - ms[i] : 4;
 			seq = rev;
 		} else seq = (uint8_t*)ms;
+
 		if (!is_rev) {
 			rb = is_larger? a->rb + pes[r].low : a->rb - pes[r].high;
 			re = (is_larger? a->rb + pes[r].high: a->rb - pes[r].low) + l_ms; // if on the same strand, end position should be larger to make room for the seq length
@@ -143,19 +146,29 @@ int mem_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
 		}
 		if (rb < 0) rb = 0;
 		if (re > l_pac<<1) re = l_pac<<1;
-    /* WZBS */
-		/* if (rb < re) ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid); */
-		if (rb < re) ref = bis_bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid, 0);
+
+    /* ref is in the direction of the primary read */
+		if (rb < re) ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
 		if (a->rid == rid && re - rb >= opt->min_seed_len) { // no funny things happening
+
+			int xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
 			kswr_t aln;
-			mem_alnreg_t b;
-			int tmp, xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
-			aln = ksw_align2(l_ms, seq, re - rb, ref, 5, opt->mat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
+      /* bss !rev parent
+       * 0   1    1
+       * 1   1    0
+       * 0   0    0
+       * 1   0    1
+       **/
+      uint8_t parent = a->bss ^ (a->rb < l_pac);
+			aln = ksw_align2(l_ms, seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
+      
+      /* make mate mem_alnreg_t b */
+      mem_alnreg_t b;
 			memset(&b, 0, sizeof(mem_alnreg_t));
 			if (aln.score >= opt->min_seed_len && aln.qb >= 0) { // something goes wrong if aln.qb < 0
 				b.rid = a->rid;
 				b.is_alt = a->is_alt;
-				b.qb = is_rev? l_ms - (aln.qe + 1) : aln.qb;                                                                                                                                                                              
+				b.qb = is_rev? l_ms - (aln.qe + 1) : aln.qb;
 				b.qe = is_rev? l_ms - aln.qb : aln.qe + 1; 
 				b.rb = is_rev? (l_pac<<1) - (rb + aln.te + 1) : rb + aln.tb;
 				b.re = is_rev? (l_pac<<1) - (rb + aln.tb) : rb + aln.te + 1;
@@ -163,12 +176,14 @@ int mem_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
 				b.csub = aln.score2;
 				b.secondary = -1;
 				b.seedcov = (b.re - b.rb < b.qe - b.qb? b.re - b.rb : b.qe - b.qb) >> 1;
-//				printf("*** %d, [%lld,%lld], %d:%d, (%lld,%lld), (%lld,%lld) == (%lld,%lld)\n", aln.score, rb, re, is_rev, is_larger, a->rb, a->re, ma->a[0].rb, ma->a[0].re, b.rb, b.re);
-				kv_push(mem_alnreg_t, *ma, b); // make room for a new element
-				// move b s.t. ma is sorted
-				for (i = 0; i < ma->n - 1; ++i) // find the insertion point
+        b.bss = a->bss;
+        // printf("*** %d, [%lld,%lld], %d:%d, (%lld,%lld), (%lld,%lld) == (%lld,%lld)\n", aln.score, rb, re, is_rev, is_larger, a->rb, a->re, ma->a[0].rb, ma->a[0].re, b.rb, b.re);
+
+				kv_push(mem_alnreg_t, *ma, b); /* make room for a new element */
+				/* move b s.t. ma is sorted */
+				for (i = 0; i < ma->n - 1; ++i) /* find the insertion point */
 					if (ma->a[i].score < b.score) break;
-				tmp = i;
+				int tmp = i;
 				for (i = ma->n - 1; i > tmp; --i) ma->a[i] = ma->a[i-1];
 				ma->a[i] = b;
 			}

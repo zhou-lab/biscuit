@@ -237,7 +237,7 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
 	if (l_query <= 0 || rb >= re || (rb < l_pac && re > l_pac)) return 0; // reject if negative length or bridging the forward and reverse strand
 
   uint8_t bsstrand;
-	rseq = bis_bns_get_seq(l_pac, pac, rb, re, &rlen);
+	rseq = bns_get_seq(l_pac, pac, rb, re, &rlen);
 
 	if (re - rb != rlen) goto ret_gen_cigar; // possible if out of range
 	if (rb >= l_pac) { // then reverse both query and rseq; this is to ensure indels to be placed at the leftmost position

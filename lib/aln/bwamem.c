@@ -592,7 +592,7 @@ int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id
 #define MEM_MINSC_COEF 5.5f
 #define MEM_SEEDSW_COEF 0.05f
 
-int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_seed_t *s)
+int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_seed_t *s, uint8_t parent)
 {
 	int qb, qe, rid;
 	int64_t rb, re, mid, l_pac = bns->l_pac;
@@ -615,13 +615,13 @@ int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, i
 
   /* WZBS */
 	/* rseq = bns_fetch_seq(bns, pac, &rb, mid, &re, &rid); */
-  rseq = bis_bns_fetch_seq(bns, pac, &rb, mid, &re, &rid);
-	x = ksw_align2(qe - qb, (uint8_t*)query + qb, re - rb, rseq, 5, opt->mat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, KSW_XSTART, 0);
+  rseq = bns_fetch_seq(bns, pac, &rb, mid, &re, &rid);
+	x = ksw_align2(qe - qb, (uint8_t*)query + qb, re - rb, rseq, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, KSW_XSTART, 0);
 	free(rseq);
 	return x.score;
 }
 
-void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, int n_chn, mem_chain_t *a)
+void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, int n_chn, mem_chain_t *a, uint8_t parent)
 {
 	double min_l = opt->min_chain_weight? MEM_HSP_COEF * opt->min_chain_weight : MEM_MINSC_COEF * log(l_query);
 	int i, j, k, min_HSP_score = (int)(opt->a * min_l + .499);
@@ -630,7 +630,7 @@ void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint
 		mem_chain_t *c = &a[i];
 		for (j = k = 0; j < c->n; ++j) {
 			mem_seed_t *s = &c->seeds[j];
-			s->score = mem_seed_sw(opt, bns, pac, l_query, query, s);
+			s->score = mem_seed_sw(opt, bns, pac, l_query, query, s, parent);
 			if (s->score < 0 || s->score >= min_HSP_score) {
 				s->score = s->score < 0? s->len * opt->a : s->score;
 				c->seeds[k++] = *s;
@@ -685,7 +685,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
 	// retrieve the reference sequence
   /* WZBS */
 	/* rseq = bns_fetch_seq(bns, pac, &rmax[0], c->seeds[0].rbeg, &rmax[1], &rid); */
-  rseq = bis_bns_fetch_seq(bns, pac, &rmax[0], c->seeds[0].rbeg, &rmax[1], &rid);
+  rseq = bns_fetch_seq(bns, pac, &rmax[0], c->seeds[0].rbeg, &rmax[1], &rid);
 	assert(c->rid == rid);
 
 	srt = malloc(c->n * 8);
@@ -1084,7 +1084,7 @@ static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq
 
 	chn = mem_chain(opt, bwt, bns, l_seq, bisseq, buf); /* use bisseq here */
 	chn.n = mem_chain_flt(opt, chn.n, chn.a);
-	mem_flt_chained_seeds(opt, bns, pac, l_seq, bseq->seq, chn.n, chn.a);
+	mem_flt_chained_seeds(opt, bns, pac, l_seq, bseq->seq, chn.n, chn.a, bwt->parent);
 	if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
 
 	uint32_t i;
