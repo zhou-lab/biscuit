@@ -222,7 +222,7 @@ ret_gen_cigar:
 	return cigar;
 }
 
-/* WZBS */
+/* mat is dependent on bss not parent, that is BSW should use ctmat and BSC should use gamat */
 uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM)
 {
 	uint32_t *cigar = 0;
@@ -237,7 +237,7 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
 	if (l_query <= 0 || rb >= re || (rb < l_pac && re > l_pac)) return 0; // reject if negative length or bridging the forward and reverse strand
 
   uint8_t bsstrand;
-	rseq = bis_bns_get_seq(l_pac, pac, rb, re, &rlen, 0, &bsstrand);
+	rseq = bis_bns_get_seq(l_pac, pac, rb, re, &rlen);
 
 	if (re - rb != rlen) goto ret_gen_cigar; // possible if out of range
 	if (rb >= l_pac) { // then reverse both query and rseq; this is to ensure indels to be placed at the leftmost position
@@ -285,7 +285,7 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
 			if (op == 0) { // match
 				for (i = 0; i < len; ++i) {
 
-          /* WZBS */
+          /* to allow assymmetric CT and GA */
           unsigned char _q = query[x+i];
           unsigned char _r = rseq[y+i];
           if (_q == _r ||

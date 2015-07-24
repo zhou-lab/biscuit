@@ -10,8 +10,9 @@ Issue a `make` and the binary is built into `bin/`.
 #### Design
 - assymmetric scoring for C to T and G to A in mapping. Production of consistent mapping quality and NM tags.
 - separate seeding for parent and daughter strands.
-- Optional BSW/top/BSC/bottom strand restriction, tightly integrated in mapping.
 - Optional parent strand and daughter strand restriction for both single-end and pair-end reads.
+- Consistent mapping quality calculation with destination strand specification.
+- Optional BSW/top/BSC/bottom strand restriction, tightly integrated in mapping.
 - disk space economic indices. No storage of bisulfite converted reference.
 - exposes all the BWA-mem parameters to the users.
 - no separate install of BWA. Dependencies easily met.

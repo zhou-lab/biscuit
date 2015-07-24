@@ -120,10 +120,10 @@ bntseq_t *bns_restore_core(const char *ann_filename, const char* amb_filename, c
 			// read gi and sequence name
 
       /*** bisulfite adaptation ***/
-      /* scanres = fscanf(fp, "%u%s%u", &p->gi, str); */
+      /* scanres = fscanf(fp, "%u%s", &p->gi, str); */
 			/* if (scanres != 2) goto badread; */
       scanres = fscanf(fp, "%u%s", &p->gi, str);
-			if (scanres != 3) goto badread;
+			if (scanres != 2) goto badread;
       
 			p->name = strdup(str);
 			// read fasta comments 
@@ -464,8 +464,8 @@ uint8_t *bns_fetch_seq(const bntseq_t *bns, const uint8_t *pac, int64_t *beg, in
 #define bsC2T(x) ((x)==1?3:(x))
 #define bsG2A(x) ((x)==2?0:(x))
 
-uint8_t *bis_bns_get_seq(int64_t l_pac, const uint8_t *pac, int64_t beg, int64_t end, int64_t *len, uint8_t bs, uint8_t *bsstrand)
-{
+/* get reference sequence */
+uint8_t *bis_bns_get_seq(int64_t l_pac, const uint8_t *pac, int64_t beg, int64_t end, int64_t *len) {
 	uint8_t *seq = 0;
 	if (end < beg) end ^= beg, beg ^= end, end ^= beg; // if end is smaller, swap
 	if (end > l_pac<<1) end = l_pac<<1;
@@ -474,63 +474,38 @@ uint8_t *bis_bns_get_seq(int64_t l_pac, const uint8_t *pac, int64_t beg, int64_t
 		int64_t k, l = 0;
 		*len = end - beg;
 		seq = malloc(end - beg);
-		if (beg >= l_pac) { // reverse strand
+		if (beg >= l_pac) { /* reverse strand */
 			int64_t beg_f = (l_pac<<1) - 1 - end;
 			int64_t end_f = (l_pac<<1) - 1 - beg;
-      if (beg_f > (l_pac>>1)) {
-        *bsstrand = 1;
-        beg_f -= (l_pac>>1);
-        end_f -= (l_pac>>1);
-      } else {
-        *bsstrand = 0;
-      }
-
-      if (bs) {
-        if (*bsstrand) {
-          for (k = end_f; k > beg_f; --k) {
-            /* printf("%c\t%c\t%c\t%c\n", "ACGTN"[_get_pac(pac,k)], "ACGTN"[bsG2A(_get_pac(pac,k))], "ACGTN"[3-_get_pac(pac,k)], "ACGTN"[3-bsG2A(_get_pac(pac,k))]); */
-            seq[l++] = 3 - bsG2A(_get_pac(pac, k));
-          }
-          /* int j; */
-          /* printf("***seqee1: "); for (j=end_f; j>beg_f; --j) putchar("ACGTN"[3-_get_pac(pac,j)]); putchar('\n'); */
-          /* printf("***seqee2: "); for (j=0; j<l; ++j) putchar("ACGTN"[(int)seq[j]]); putchar('\n'); */
-        } else {
-          for (k = end_f; k > beg_f; --k)
-            seq[l++] = 3 - bsC2T(_get_pac(pac, k));
-        }
-      } else {
-        for (k = end_f; k > beg_f; --k)
-          seq[l++] = 3 - _get_pac(pac, k);
-      }
-
-		} else { // forward strand
-      if (beg >= (l_pac>>1)) {
-        *bsstrand = 1;
-        beg -= (l_pac>>1);
-        end -= (l_pac>>1);
-      } else {
-        *bsstrand = 0;
-      }
-
-      if (bs) {
-        if (*bsstrand) {
-          for (k = beg; k < end; ++k)
-            seq[l++] = bsG2A(_get_pac(pac, k));
-        } else {
-          for (k = beg; k < end; ++k)
-            seq[l++] = bsC2T(_get_pac(pac, k));
-        }
-      } else {
-        for (k = beg; k < end; ++k)
-          seq[l++] = _get_pac(pac, k);
-      }
+      /* if (parent>1) { */
+      for (k = end_f; k > beg_f; --k)
+        seq[l++] = 3 - _get_pac(pac, k);
+      /* } else if (parent) { */
+      /*   for (k = end_f; k > beg_f; --k) */
+      /*     seq[l++] = bsC2T(3-_get_pac(pac, k)); */
+      /*   /\* printf("%c\t%c\t%c\t%c\n", "ACGTN"[_get_pac(pac,k)], "ACGTN"[bsG2A(_get_pac(pac,k))], "ACGTN"[3-_get_pac(pac,k)], "ACGTN"[3-bsG2A(_get_pac(pac,k))]); *\/ */
+      /* } else { */
+      /*   for (k = end_f; k > beg_f; --k) */
+      /*     seq[l++] = bsG2A(3-_get_pac(pac, k)); */
+      /*   /\* printf("%c\t%c\t%c\t%c\n", "ACGTN"[_get_pac(pac,k)], "ACGTN"[bsG2A(_get_pac(pac,k))], "ACGTN"[3-_get_pac(pac,k)], "ACGTN"[3-bsG2A(_get_pac(pac,k))]); *\/ */
+      /* } */
+		} else { /* forward strand */
+      /* if (parent>1) { */
+      for (k = beg; k < end; ++k)
+        seq[l++] = _get_pac(pac, k);
+      /* } else if (parent) { */
+      /*   for (k = beg; k < end; ++k) */
+      /*     seq[l++] = bsC2T(_get_pac(pac, k)); */
+      /* } else { */
+      /*   for (k = beg; k < end; ++k) */
+      /*       seq[l++] = bsG2A(_get_pac(pac, k)); */
+      /* } */
 		}
 	} else *len = 0; // if bridging the forward-reverse boundary, return nothing
 	return seq;
 }
 
-uint8_t *bis_bns_fetch_seq(const bntseq_t *bns, const uint8_t *pac, int64_t *beg, int64_t mid, int64_t *end, int *rid, uint8_t bs)
-{
+uint8_t *bis_bns_fetch_seq(const bntseq_t *bns, const uint8_t *pac, int64_t *beg, int64_t mid, int64_t *end, int *rid) {
 	int64_t far_beg, far_end, len;
 	int is_rev;
 	uint8_t *seq;
@@ -547,8 +522,7 @@ uint8_t *bis_bns_fetch_seq(const bntseq_t *bns, const uint8_t *pac, int64_t *beg
 	}
 	*beg = *beg > far_beg? *beg : far_beg;
 	*end = *end < far_end? *end : far_end;
-  uint8_t bsstrand;
-	seq = bis_bns_get_seq(bns->l_pac, pac, *beg, *end, &len, bs, &bsstrand);
+	seq = bis_bns_get_seq(bns->l_pac, pac, *beg, *end, &len);
 	if (seq == 0 || *end - *beg != len) {
 		fprintf(stderr, "[E::%s] begin=%ld, mid=%ld, end=%ld, len=%ld, seq=%p, rid=%d, far_beg=%ld, far_end=%ld\n",
 				__func__, (long)*beg, (long)mid, (long)*end, (long)len, seq, *rid, (long)far_beg, (long)far_end);
@@ -609,16 +583,13 @@ static uint8_t *bis_add1(const kseq_t *seq, bntseq_t *bns, uint8_t *pac, int64_t
   return pac;
 }
 
-static void bis_bns_dump(const bntseq_t *bns, const char *prefix, uint8_t parent){
+static void bis_bns_dump(const bntseq_t *bns, const char *prefix){
   char str[1024];
   FILE *fp;
   int i;
+
   { /* dump .ann */
-    if (parent) {
-      strcpy(str, prefix); strcat(str, ".par.ann");
-    } else {
-      strcpy(str, prefix); strcat(str, ".dau.ann");
-    }
+    strcpy(str, prefix); strcat(str, ".bis.ann");
     fp = xopen(str, "w");
     /* WZBS */
     err_fprintf(fp, "%lld %d %u\n", (long long)bns->l_pac, bns->n_seqs, bns->seed);
@@ -633,11 +604,7 @@ static void bis_bns_dump(const bntseq_t *bns, const char *prefix, uint8_t parent
     err_fclose(fp);
   }
   { /* dump .amb */
-    if (parent) {
-      strcpy(str, prefix); strcat(str, ".par.amb");
-    } else {
-      strcpy(str, prefix); strcat(str, ".dau.amb");
-    }
+    strcpy(str, prefix); strcat(str, ".bis.amb");
     fp = xopen(str, "w");
     err_fprintf(fp, "%lld %d %u\n", (long long)bns->l_pac, bns->n_seqs, bns->n_holes);
     for (i = 0; i != bns->n_holes; ++i) {
@@ -719,26 +686,27 @@ int64_t bis_bns_fasta2bntseq(gzFile fp_fa, const char *prefix, uint8_t parent) {
   /*   for (l = bns->l_pac - 1; l >= 0; --l, ++bns->l_pac) */
   /*     _set_pac(pac, bns->l_pac, 3-_get_pac(pac, l)); */
   /* } */
-  ret = bns->l_pac;
+
+  assert(bns->l_pac<<1 == l);
   { // finalize .pac file
     ubyte_t ct;
-    err_fwrite(pac, 1, (bns->l_pac>>2) + ((bns->l_pac&3) == 0? 0 : 1), fp);
+    err_fwrite(pac, 1, (l>>2) + ((l&3) == 0? 0 : 1), fp);
     // the following codes make the pac file size always (l_pac/4+1+1)
-    if (bns->l_pac % 4 == 0) {
+    if (l % 4 == 0) {
       ct = 0;
       err_fwrite(&ct, 1, 1, fp);
     }
-    ct = bns->l_pac % 4;
+    ct = l % 4;
     err_fwrite(&ct, 1, 1, fp);
     // close .pac file
     err_fflush(fp);
     err_fclose(fp);
   }
-  bis_bns_dump(bns, prefix, parent);
+  if (parent) bis_bns_dump(bns, prefix);
   bns_destroy(bns);
   kseq_destroy(seq);
-  free(pac); 
-  return ret;
+  free(pac);
+  return l;
 }
 
 int64_t dump_forward_pac(gzFile fp_fa, const char *prefix)

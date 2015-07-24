@@ -23,8 +23,9 @@ typedef struct {
 } bwaidx_t;
 
 typedef struct {
-	int l_seq, id;
-	char *name, *comment, *seq, *qual, *sam, *bisseq[2];
+	int l_seq, id;                /* check if l_seq can be unsigned? */
+	char *name, *comment, *qual, *sam;
+  uint8_t *seq, *bisseq[2];
 } bseq1_t;
 
 extern int bwa_verbose;

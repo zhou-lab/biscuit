@@ -87,9 +87,10 @@ const bwtintv_v *smem_next(smem_i *itr)
 /* 	return ar; */
 /* } */
 
-void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a)
+void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a)
 {
-	int i;
+	uint32_t i;
+
 	kstring_t str = {0,0,0};
 	for (i = 0; i < a->n; ++i) {
 		const mem_alnreg_t *p = &a->a[i];
@@ -120,9 +121,10 @@ static inline int get_pri_idx(double XA_drop_ratio, const mem_alnreg_t *a, int i
 }
 
 // Okay, returning strings is bad, but this has happened a lot elsewhere. If I have time, I need serious code cleanup.
-char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const char *query) // ONLY work after mem_mark_primary_se()
+char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const uint8_t *query) // ONLY work after mem_mark_primary_se()
 {
-	int i, k, r, *cnt, tot;
+  uint32_t i;
+	int k, r, *cnt, tot;
 	kstring_t *aln = 0, str = {0,0,0};
 	char **XA = 0, *has_alt;
 

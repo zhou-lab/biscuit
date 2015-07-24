@@ -37,10 +37,10 @@ typedef struct {
 	int flag;               // see MEM_F_* macros
 	int min_seed_len;       // minimum seed length
 	int min_chain_weight;
-	int max_chain_extend;
+	uint32_t max_chain_extend;
 	float split_factor;     // split into a seed if MEM is longer than min_seed_len*split_factor
 	int split_width;        // split into a seed if its occurence is smaller than this value
-	int max_occ;            // skip a seed if its occurence is larger than this value
+	uint32_t max_occ;            // skip a seed if its occurence is larger than this value
 	int max_chain_gap;      // do not chain seed if it is max_chain_gap-bp away from the closest seed
 	int n_threads;          // number of threads
 	int chunk_size;         // process chunk_size-bp sequences in a batch
@@ -106,7 +106,7 @@ typedef struct { // This struct is only used for the convenience of API.
 	int flag;        // extra flag
 	uint32_t is_rev:1, is_alt:1, mapq:8, NM:22; // is_rev: whether on the reverse strand; mapq: mapping quality; NM: edit distance
   int bss;                      /* -1: unmapped, 0: BSW, 1: BSC */
-	int n_cigar;     // number of CIGAR operations
+	int n_cigar;                  /* can this be unsigned? number of CIGAR operations */
 	uint32_t *cigar; // CIGAR in the BAM encoding: opLen<<4|op; op to integer mapping: MIDSH=>01234
 	char *XA;        // alternative mappings
 
@@ -183,8 +183,7 @@ extern "C" {
 	 *
 	 * @return       CIGAR, strand, mapping quality and forward-strand position
 	 */
-	mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_seq, const char *seq, const mem_alnreg_t *ar);
-	mem_aln_t mem_reg2aln2(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_seq, const char *seq, const mem_alnreg_t *ar, const char *name);
+	mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_seq, const uint8_t *seq, const mem_alnreg_t *ar);
 
 	/**
 	 * Infer the insert size distribution from interleaved alignment regions
@@ -199,6 +198,14 @@ extern "C" {
 	 * @param pes    inferred insert size distribution (output)
 	 */
 	void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *regs, mem_pestat_t pes[4]);
+
+
+  void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a);
+  int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], uint64_t id, bseq1_t s[2], mem_alnreg_v a[2]);
+  char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const uint8_t *query);
+  void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a, int extra_flag, const mem_aln_t *m);
+  int mem_approx_mapq_se(const mem_opt_t *opt, const mem_alnreg_t *a);
+  int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id);
 
 #ifdef __cplusplus
 }

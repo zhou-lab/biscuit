@@ -83,8 +83,8 @@ extern "C" {
   /* WZBS */
   int64_t dump_forward_pac(gzFile fp_fa, const char *prefix);
   int64_t bis_bns_fasta2bntseq(gzFile fp_fa, const char *prefix, uint8_t parent);
-  uint8_t *bis_bns_get_seq(int64_t l_pac, const uint8_t *pac, int64_t beg, int64_t end, int64_t *len, uint8_t bs, uint8_t *bsstrand);
-  uint8_t *bis_bns_fetch_seq(const bntseq_t *bns, const uint8_t *pac, int64_t *beg, int64_t mid, int64_t *end, int *rid, uint8_t bs);
+  uint8_t *bis_bns_get_seq(int64_t l_pac, const uint8_t *pac, int64_t beg, int64_t end, int64_t *len);
+  uint8_t *bis_bns_fetch_seq(const bntseq_t *bns, const uint8_t *pac, int64_t *beg, int64_t mid, int64_t *end, int *rid);
 
 #ifdef __cplusplus
 }
