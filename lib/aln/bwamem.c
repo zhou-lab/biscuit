@@ -121,7 +121,7 @@ static void smem_aux_destroy(smem_aux_t *a)
 }
 
 /* len is read length */
-static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, const uint8_t *seq, smem_aux_t *a) {
+static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *seq, smem_aux_t *a) {
 	int k, x = 0, old_n;
   uint32_t i;
 	int start_width = (opt->flag & MEM_F_SELF_OVLP)? 2 : 1;
@@ -130,7 +130,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 	// first pass: find all SMEMs
 	while (x < len) {
 		if (seq[x] < 4) {
-			x = bwt_smem1(bwt, len, seq, x, start_width, &a->mem1, a->tmpv);
+			x = bwt_smem1(bwt, bwtc, len, seq, x, start_width, &a->mem1, a->tmpv);
 			for (i = 0; i < a->mem1.n; ++i) {
 				bwtintv_t *p = &a->mem1.a[i];
 				int slen = (uint32_t)p->info - (p->info>>32); // seed length
@@ -145,7 +145,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 		bwtintv_t *p = &a->mem.a[k];
 		int start = p->info>>32, end = (int32_t)p->info;
 		if (end - start < split_len || p->x[2] > (unsigned) opt->split_width) continue;
-		bwt_smem1(bwt, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
+		bwt_smem1(bwt, bwtc, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
 		for (i = 0; i < a->mem1.n; ++i)
 			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= (unsigned) opt->min_seed_len)
 				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
@@ -157,10 +157,10 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, int len, co
 			if (seq[x] < 4) {
 				if (1) {
 					bwtintv_t m;
-					x = bwt_seed_strategy1(bwt, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
+					x = bwt_seed_strategy1(bwt, bwtc, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
 					if (m.x[2] > 0) kv_push(bwtintv_t, a->mem, m);
 				} else { // for now, we never come to this block which is slower
-					x = bwt_smem1a(bwt, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
+					x = bwt_smem1a(bwt, bwtc, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
 					for (i = 0; i < a->mem1.n; ++i)
 						kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
 				}
@@ -260,7 +260,7 @@ void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn)
 
 #define mem_getbss(parent, bns, rb) ((rb>bns->l_pac)==(parent)?1:0)
 
-mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, int len, const uint8_t *seq, void *buf) {
+mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, int len, const uint8_t *seq, void *buf, uint8_t parent) {
   uint32_t i;
 	int b, e, l_rep;
 	int64_t l_pac = bns->l_pac;
@@ -273,7 +273,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	tree = kb_init(chn, KB_DEFAULT_SIZE);
 
 	aux = buf? (smem_aux_t*)buf : smem_aux_init();
-	mem_collect_intv(opt, bwt, len, seq, aux);
+	mem_collect_intv(opt, &bwt[parent], &bwt[!parent], len, seq, aux);
 	for (i = 0, b = e = l_rep = 0; i < aux->mem.n; ++i) { // compute frac_rep
 		bwtintv_t *p = &aux->mem.a[i];
 		int sb = (p->info>>32), se = (uint32_t)p->info;
@@ -287,19 +287,23 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 		int step, slen = (uint32_t)p->info - (p->info>>32); // seed length
     uint32_t count; uint64_t k;
 		// if (slen < opt->min_seed_len) continue; // ignore if too short or too repetitive
+    /* if the interval is small (small p->x[2])
+     * record every position in the interval
+     * otherwise, record max_occ positions as seeds.
+     * This is to avoid highly repetitive regions. lowering max_occ increase sensitivity. */
 		step = p->x[2] > opt->max_occ? p->x[2] / opt->max_occ : 1;
 		for (k = count = 0; k < p->x[2] && count < opt->max_occ; k += step, ++count) {
 			mem_chain_t tmp, *lower, *upper;
 			mem_seed_t s;
 			int rid, to_add = 0;
-			s.rbeg = tmp.pos = bwt_sa(bwt, p->x[0] + k); // this is the base coordinate in the forward-reverse reference
+			s.rbeg = tmp.pos = bwt_sa(&bwt[parent], p->x[0] + k); // this is the base coordinate in the forward-reverse reference
 			s.qbeg = p->info>>32;
 			s.score= s.len = slen;
 			rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
 			if (rid < 0) continue; // bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!!
 
       /* force to a certain strand */
-      if ((opt->bsstrand & 1) && mem_getbss(bwt->parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
+      if ((opt->bsstrand & 1) && mem_getbss(parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
 
 			if (kb_size(tree)) {
 				kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
@@ -1073,25 +1077,25 @@ uint8_t *bseq_bsconvert(bseq1_t *s, uint8_t parent) {
 }
 
 /* 3-base space */
-static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs) {
+static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs, uint8_t parent) {
   /* int l_seq, char *seq,  */
-  int l_seq = bseq->l_seq; uint8_t *bisseq = bseq_bsconvert(bseq, bwt->parent);
+  int l_seq = bseq->l_seq; uint8_t *bisseq = bseq_bsconvert(bseq, parent);
 	mem_chain_v chn;
 
   /* WZ: I think it's always 2-bit encoding */
 	/* for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so */
 	/* 	seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]]; */
 
-	chn = mem_chain(opt, bwt, bns, l_seq, bisseq, buf); /* use bisseq here */
+	chn = mem_chain(opt, bwt, bns, l_seq, bisseq, buf, parent); /* use bisseq here */
 	chn.n = mem_chain_flt(opt, chn.n, chn.a);
-	mem_flt_chained_seeds(opt, bns, pac, l_seq, bseq->seq, chn.n, chn.a, bwt->parent);
+	mem_flt_chained_seeds(opt, bns, pac, l_seq, bseq->seq, chn.n, chn.a, parent);
 	if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
 
 	uint32_t i;
 	for (i = 0; i < chn.n; ++i) {
 		mem_chain_t *p = &chn.a[i];
 		if (bwa_verbose >= 4) err_printf("* ---> Processing chain(%d) <---\n", i);
-		mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, bwt->parent);
+		mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, parent);
 		free(chn.a[i].seeds);
 	}
 	free(chn.a);
@@ -1216,9 +1220,9 @@ static void bis_worker1(void *data, int i, int tid)
 
     regs = &w->regs[i]; kv_init(*regs);
     if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
-      mem_align1_core(opt, &w->bwt[0], w->bns, w->pac, &w->seqs[i], w->aux[tid], regs);
+      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->aux[tid], regs, 0);
     if (!(opt->parent) || opt->parent>>1) /* no restriction or target parent */
-      mem_align1_core(opt, &w->bwt[1], w->bns, w->pac, &w->seqs[i], w->aux[tid], regs);
+      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->aux[tid], regs, 1);
 
     mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], regs);
     
@@ -1227,17 +1231,17 @@ static void bis_worker1(void *data, int i, int tid)
     if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name);
     regs = &w->regs[i<<1|0];
     kv_init(*regs);
-    mem_align1_core(opt, &w->bwt[1], w->bns, w->pac, &w->seqs[i<<1|0], w->aux[tid], regs);
+    mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->aux[tid], regs, 1);
     if (opt->parent)            /* align read 1 to daughter */
-      mem_align1_core(opt, &w->bwt[0], w->bns, w->pac, &w->seqs[i<<1|0], w->aux[tid], regs);
+      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->aux[tid], regs, 0);
     mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], regs);
 
     if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name);
     regs = &w->regs[i<<1|1];
     kv_init(*regs);
-    mem_align1_core(opt, &w->bwt[0], w->bns, w->pac, &w->seqs[i<<1|1], w->aux[tid], regs);
+    mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->aux[tid], regs, 0);
     if (opt->parent)            /* align read 2 to parent */
-      mem_align1_core(opt, &w->bwt[1], w->bns, w->pac, &w->seqs[i<<1|1], w->aux[tid], regs);
+      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->aux[tid], regs, 1);
     mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], regs);
 	}
 }
