@@ -90,6 +90,7 @@ typedef struct {
 	float frac_rep;
 	uint64_t hash;
   uint8_t bss:1;
+  uint8_t parent:1;
 } mem_alnreg_t;
 
 typedef struct { size_t n, m; mem_alnreg_t *a; } mem_alnreg_v;

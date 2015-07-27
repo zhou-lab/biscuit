@@ -347,10 +347,6 @@ int main_align(int argc, char *argv[])
 		for (i = 0; i < aux.idx->bns->n_seqs; ++i)
 			aux.idx->bns->anns[i].is_alt = 0;
 
-  /* uint8_t *rseq; int rlen; */
-  /* rseq = bns_get_seq(aux.idx->bns->l_pac, aux.idx->pac, 2864736050, 2864736125, &rlen); */
-  /* for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n'); */
-
 	ko = kopen(argv[optind + 1], &fd);
 	if (ko == 0) {
 		if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);

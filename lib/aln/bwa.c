@@ -223,7 +223,7 @@ ret_gen_cigar:
 }
 
 /* mat is dependent on bss not parent, that is BSW should use ctmat and BSC should use gamat */
-uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM)
+uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM, uint8_t parent)
 {
 	uint32_t *cigar = 0;
 	uint8_t tmp, *rseq;
@@ -236,15 +236,7 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
 	if (NM) *NM = -1;
 	if (l_query <= 0 || rb >= re || (rb < l_pac && re > l_pac)) return 0; // reject if negative length or bridging the forward and reverse strand
 
-  uint8_t bsstrand;
 	rseq = bns_get_seq(l_pac, pac, rb, re, &rlen);
-
-  rseq = bns_get_seq(l_pac, pac, 1000000, 1000100, &rlen);
-  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
-  for (i=0; i<rlen; ++i) putchar("ACGT"[query[i]]); putchar('\n');
-
-  rseq = bns_get_seq(l_pac, pac, rb, re, &rlen);
-  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
 
 	if (re - rb != rlen) goto ret_gen_cigar; // possible if out of range
 	if (rb >= l_pac) { // then reverse both query and rseq; this is to ensure indels to be placed at the leftmost position
@@ -296,8 +288,8 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
           unsigned char _q = query[x+i];
           unsigned char _r = rseq[y+i];
           if (_q == _r ||
-              ((((rb < l_pac) && !bsstrand) || ((rb >= l_pac) && bsstrand)) && _q == 3 && _r == 1) ||
-              ((((rb < l_pac) && bsstrand) || ((rb >= l_pac) && !bsstrand)) && _q == 0 && _r == 2)) {
+              (parent && _q == 3 && _r == 1) ||
+              (!parent && _q == 0 && _r == 2)) {
             ++u;
           } else {
             kputw(u, &str);

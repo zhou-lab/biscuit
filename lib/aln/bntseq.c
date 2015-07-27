@@ -668,12 +668,7 @@ int64_t dump_forward_pac(gzFile fp_fa, const char *prefix)
 	// read sequences
 	while (kseq_read(seq) >= 0) pac = add1(seq, bns, pac, &m_pac, &m_seqs, &m_holes, &q);
 
-  uint8_t *rseq; int i; int rlen;
-  rseq = bns_get_seq(bns->l_pac, pac, 2864736050, 2864736125, &rlen);
-  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
-  
 	ret = bns->l_pac;
-  printf("%"PRIu64"\n", bns->l_pac);
 	{ // finalize .pac file
 		ubyte_t ct;
 		err_fwrite(pac, 1, (bns->l_pac>>2) + ((bns->l_pac&3) == 0? 0 : 1), fp);
