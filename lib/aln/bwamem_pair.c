@@ -49,6 +49,7 @@ void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *
 	uint64_v isize[4];
 	memset(pes, 0, 4 * sizeof(mem_pestat_t));
 	memset(isize, 0, sizeof(kvec_t(int)) * 4);
+  /* infer based on the first reg from the two reads */
 	for (i = 0; i < n>>1; ++i) {
 		int dir;
 		int64_t is;
@@ -59,6 +60,7 @@ void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *
 		if (cal_sub(opt, r[0]) > MIN_RATIO * r[0]->a[0].score) continue;
 		if (cal_sub(opt, r[1]) > MIN_RATIO * r[1]->a[0].score) continue;
 		if (r[0]->a[0].rid != r[1]->a[0].rid) continue; // not on the same chr
+    if (r[0]->a[0].bss != r[1]->a[0].bss) continue; /* not on the same bisulfite strand */
 		dir = mem_infer_dir(l_pac, r[0]->a[0].rb, r[1]->a[0].rb, &is);
 		if (is && is <= opt->max_ins) kv_push(uint64_t, isize[dir], is);
 	}
@@ -207,7 +209,9 @@ int mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, cons
 			pair64_t key;
 			mem_alnreg_t *e = &a[r].a[i];
 			key.x = e->rb < l_pac? e->rb : (l_pac<<1) - 1 - e->rb; // forward position
-			key.x = (uint64_t)e->rid<<32 | (key.x - bns->anns[e->rid].offset);
+			/* key.x = (uint64_t)e->rid<<32 | (key.x - bns->anns[e->rid].offset); */
+      /* current fix, bss is the highest bit which restrict dist, not the most efficient solution TODO */
+      key.x = (uint64_t)e->bss<<63 | (uint64_t)e->rid<<32 | (key.x - bns->anns[e->rid].offset);
 			key.y = (uint64_t)e->score << 32 | i << 2 | (e->rb >= l_pac)<<1 | r;
 			kv_push(pair64_t, v, key);
 		}
@@ -216,11 +220,19 @@ int mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, cons
 	y[0] = y[1] = y[2] = y[3] = -1;
 	//for (i = 0; i < v.n; ++i) printf("[%d]\t%d\t%c%ld\n", i, (int)(v.a[i].y&1)+1, "+-"[v.a[i].y>>1&1], (long)v.a[i].x);
 	for (i = 0; i < v.n; ++i) {
-		for (r = 0; r < 2; ++r) { // loop through direction
-			int dir = r<<1 | (v.a[i].y>>1&1), which;
+    
+		for (r = 0; r < 2; ++r) { /* direction of the mate */
+
+      /* typically, should see pes[0].failed (00) == pes[3].failed (11) == 1
+       * and allow 01 and 10. */
+			int dir = r<<1 | (v.a[i].y>>1&1);
 			if (pes[dir].failed) continue; // invalid orientation
-			which = r<<1 | ((v.a[i].y&1)^1);
+
+      /* mate direction and mate read number (1 or 2) */
+			int which = r<<1 | ((v.a[i].y&1)^1);
 			if (y[which] < 0) continue; // no previous hits
+
+      /* loop over mate read index */
 			for (k = y[which]; k >= 0; --k) { // TODO: this is a O(n^2) solution in the worst case; remember to check if this loop takes a lot of time (I doubt)
 				int64_t dist;
 				int q;
@@ -232,6 +244,8 @@ int mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, cons
 				if (dist > pes[dir].high) break;
 				if (dist < pes[dir].low)  continue;
 				ns = (dist - pes[dir].avg) / pes[dir].std;
+        /* score of the insert by merging score of the two 
+         * and the insertion properness */
 				q = (int)((v.a[i].y>>32) + (v.a[k].y>>32) + .721 * log(2. * erfc(fabs(ns) * M_SQRT1_2)) * opt->a + .499); // .721 = 1/log(4)
 				if (q < 0) q = 0;
 				p = kv_pushp(pair64_t, u);
@@ -247,9 +261,15 @@ int mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, cons
 		tmp = tmp > opt->o_del + opt->e_del? tmp : opt->o_del + opt->e_del;
 		tmp = tmp > opt->o_ins + opt->e_ins? tmp : opt->o_ins + opt->e_ins;
 		ks_introsort_128(u.n, u.a);
-		i = u.a[u.n-1].y >> 32; k = u.a[u.n-1].y << 32 >> 32;
+
+    /* a[i] and a[k] form the best pair */
+		i = u.a[u.n-1].y >> 32;
+    k = u.a[u.n-1].y << 32 >> 32;
+
+    /* indices of the best pair in a */
 		z[v.a[i].y&1] = v.a[i].y<<32>>34; // index of the best pair
 		z[v.a[k].y&1] = v.a[k].y<<32>>34;
+    
 		ret = u.a[u.n-1].x >> 32;
 		*sub = u.n > 1? u.a[u.n-2].x>>32 : 0;
 		for (i = (long)u.n - 2, *n_sub = 0; i >= 0; --i)

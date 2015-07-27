@@ -347,6 +347,10 @@ int main_align(int argc, char *argv[])
 		for (i = 0; i < aux.idx->bns->n_seqs; ++i)
 			aux.idx->bns->anns[i].is_alt = 0;
 
+  /* uint8_t *rseq; int rlen; */
+  /* rseq = bns_get_seq(aux.idx->bns->l_pac, aux.idx->pac, 2864736050, 2864736125, &rlen); */
+  /* for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n'); */
+
 	ko = kopen(argv[optind + 1], &fd);
 	if (ko == 0) {
 		if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
@@ -385,79 +389,79 @@ int main_align(int argc, char *argv[])
 	return 0;
 }
 
-int main_fastmap(int argc, char *argv[])
-{
-	int c, i, min_iwidth = 20, min_len = 17, print_seq = 0, min_intv = 1, max_len = INT_MAX;
-	uint64_t max_intv = 0;
-	kseq_t *seq;
-	bwtint_t k;
-	gzFile fp;
-	smem_i *itr;
-	const bwtintv_v *a;
-	bwaidx_t *idx;
+/* int main_fastmap(int argc, char *argv[]) */
+/* { */
+/* 	int c, i, min_iwidth = 20, min_len = 17, print_seq = 0, min_intv = 1, max_len = INT_MAX; */
+/* 	uint64_t max_intv = 0; */
+/* 	kseq_t *seq; */
+/* 	bwtint_t k; */
+/* 	gzFile fp; */
+/* 	smem_i *itr; */
+/* 	const bwtintv_v *a; */
+/* 	bwaidx_t *idx; */
 
-	while ((c = getopt(argc, argv, "w:l:pi:I:L:")) >= 0) {
-		switch (c) {
-			case 'p': print_seq = 1; break;
-			case 'w': min_iwidth = atoi(optarg); break;
-			case 'l': min_len = atoi(optarg); break;
-			case 'i': min_intv = atoi(optarg); break;
-			case 'I': max_intv = atol(optarg); break;
-			case 'L': max_len  = atoi(optarg); break;
-		    default: return 1;
-		}
-	}
-	if (optind + 1 >= argc) {
-		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   bwa fastmap [options] <idxbase> <in.fq>\n\n");
-		fprintf(stderr, "Options: -l INT    min SMEM length to output [%d]\n", min_len);
-		fprintf(stderr, "         -w INT    max interval size to find coordiantes [%d]\n", min_iwidth);
-		fprintf(stderr, "         -i INT    min SMEM interval size [%d]\n", min_intv);
-		fprintf(stderr, "         -l INT    max MEM length [%d]\n", max_len);
-		fprintf(stderr, "         -I INT    stop if MEM is longer than -l with a size less than INT [%ld]\n", (long)max_intv);
-		fprintf(stderr, "\n");
-		return 1;
-	}
+/* 	while ((c = getopt(argc, argv, "w:l:pi:I:L:")) >= 0) { */
+/* 		switch (c) { */
+/* 			case 'p': print_seq = 1; break; */
+/* 			case 'w': min_iwidth = atoi(optarg); break; */
+/* 			case 'l': min_len = atoi(optarg); break; */
+/* 			case 'i': min_intv = atoi(optarg); break; */
+/* 			case 'I': max_intv = atol(optarg); break; */
+/* 			case 'L': max_len  = atoi(optarg); break; */
+/* 		    default: return 1; */
+/* 		} */
+/* 	} */
+/* 	if (optind + 1 >= argc) { */
+/* 		fprintf(stderr, "\n"); */
+/* 		fprintf(stderr, "Usage:   bwa fastmap [options] <idxbase> <in.fq>\n\n"); */
+/* 		fprintf(stderr, "Options: -l INT    min SMEM length to output [%d]\n", min_len); */
+/* 		fprintf(stderr, "         -w INT    max interval size to find coordiantes [%d]\n", min_iwidth); */
+/* 		fprintf(stderr, "         -i INT    min SMEM interval size [%d]\n", min_intv); */
+/* 		fprintf(stderr, "         -l INT    max MEM length [%d]\n", max_len); */
+/* 		fprintf(stderr, "         -I INT    stop if MEM is longer than -l with a size less than INT [%ld]\n", (long)max_intv); */
+/* 		fprintf(stderr, "\n"); */
+/* 		return 1; */
+/* 	} */
 
-	fp = xzopen(argv[optind + 1], "r");
-	seq = kseq_init(fp);
-	if ((idx = bwa_idx_load(argv[optind], BWA_IDX_BWT|BWA_IDX_BNS)) == 0) return 1;
-	itr = smem_itr_init(idx->bwt);
-	smem_config(itr, min_intv, max_len, max_intv);
-	while (kseq_read(seq) >= 0) {
-		err_printf("SQ\t%s\t%ld", seq->name.s, seq->seq.l);
-		if (print_seq) {
-			err_putchar('\t');
-			err_puts(seq->seq.s);
-		} else err_putchar('\n');
-		for (i = 0; i < seq->seq.l; ++i)
-			seq->seq.s[i] = nst_nt4_table[(int)seq->seq.s[i]];
-		smem_set_query(itr, seq->seq.l, (uint8_t*)seq->seq.s);
-		while ((a = smem_next(itr)) != 0) {
-			for (i = 0; i < a->n; ++i) {
-				bwtintv_t *p = &a->a[i];
-				if ((uint32_t)p->info - (p->info>>32) < min_len) continue;
-				err_printf("EM\t%d\t%d\t%ld", (uint32_t)(p->info>>32), (uint32_t)p->info, (long)p->x[2]);
-				if (p->x[2] <= min_iwidth) {
-					for (k = 0; k < p->x[2]; ++k) {
-						bwtint_t pos;
-						int len, is_rev, ref_id;
-						len  = (uint32_t)p->info - (p->info>>32);
-						pos = bns_depos(idx->bns, bwt_sa(idx->bwt, p->x[0] + k), &is_rev);
-						if (is_rev) pos -= len - 1;
-						bns_cnt_ambi(idx->bns, pos, len, &ref_id);
-						err_printf("\t%s:%c%ld", idx->bns->anns[ref_id].name, "+-"[is_rev], (long)(pos - idx->bns->anns[ref_id].offset) + 1);
-					}
-				} else err_puts("\t*");
-				err_putchar('\n');
-			}
-		}
-		err_puts("//");
-	}
+/* 	fp = xzopen(argv[optind + 1], "r"); */
+/* 	seq = kseq_init(fp); */
+/* 	if ((idx = bwa_idx_load(argv[optind], BWA_IDX_BWT|BWA_IDX_BNS)) == 0) return 1; */
+/* 	itr = smem_itr_init(idx->bwt); */
+/* 	smem_config(itr, min_intv, max_len, max_intv); */
+/* 	while (kseq_read(seq) >= 0) { */
+/* 		err_printf("SQ\t%s\t%ld", seq->name.s, seq->seq.l); */
+/* 		if (print_seq) { */
+/* 			err_putchar('\t'); */
+/* 			err_puts(seq->seq.s); */
+/* 		} else err_putchar('\n'); */
+/* 		for (i = 0; i < seq->seq.l; ++i) */
+/* 			seq->seq.s[i] = nst_nt4_table[(int)seq->seq.s[i]]; */
+/* 		smem_set_query(itr, seq->seq.l, (uint8_t*)seq->seq.s); */
+/* 		while ((a = smem_next(itr)) != 0) { */
+/* 			for (i = 0; i < a->n; ++i) { */
+/* 				bwtintv_t *p = &a->a[i]; */
+/* 				if ((uint32_t)p->info - (p->info>>32) < min_len) continue; */
+/* 				err_printf("EM\t%d\t%d\t%ld", (uint32_t)(p->info>>32), (uint32_t)p->info, (long)p->x[2]); */
+/* 				if (p->x[2] <= min_iwidth) { */
+/* 					for (k = 0; k < p->x[2]; ++k) { */
+/* 						bwtint_t pos; */
+/* 						int len, is_rev, ref_id; */
+/* 						len  = (uint32_t)p->info - (p->info>>32); */
+/* 						pos = bns_depos(idx->bns, bwt_sa(idx->bwt, p->x[0] + k), &is_rev); */
+/* 						if (is_rev) pos -= len - 1; */
+/* 						bns_cnt_ambi(idx->bns, pos, len, &ref_id); */
+/* 						err_printf("\t%s:%c%ld", idx->bns->anns[ref_id].name, "+-"[is_rev], (long)(pos - idx->bns->anns[ref_id].offset) + 1); */
+/* 					} */
+/* 				} else err_puts("\t*"); */
+/* 				err_putchar('\n'); */
+/* 			} */
+/* 		} */
+/* 		err_puts("//"); */
+/* 	} */
 
-	smem_itr_destroy(itr);
-	bwa_idx_destroy(idx);
-	kseq_destroy(seq);
-	err_gzclose(fp);
-	return 0;
-}
+/* 	smem_itr_destroy(itr); */
+/* 	bwa_idx_destroy(idx); */
+/* 	kseq_destroy(seq); */
+/* 	err_gzclose(fp); */
+/* 	return 0; */
+/* } */

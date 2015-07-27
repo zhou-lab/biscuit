@@ -239,6 +239,13 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
   uint8_t bsstrand;
 	rseq = bns_get_seq(l_pac, pac, rb, re, &rlen);
 
+  rseq = bns_get_seq(l_pac, pac, 1000000, 1000100, &rlen);
+  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
+  for (i=0; i<rlen; ++i) putchar("ACGT"[query[i]]); putchar('\n');
+
+  rseq = bns_get_seq(l_pac, pac, rb, re, &rlen);
+  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
+
 	if (re - rb != rlen) goto ret_gen_cigar; // possible if out of range
 	if (rb >= l_pac) { // then reverse both query and rseq; this is to ensure indels to be placed at the leftmost position
 		for (i = 0; i < l_query>>1; ++i)
@@ -439,8 +446,8 @@ bwaidx_t *bwa_idx_load_from_disk(const char *hint, int which)
 		if (bwa_verbose >= 3)
 			fprintf(stderr, "[M::%s] read %d ALT contigs\n", __func__, c);
 		if (which & BWA_IDX_PAC) {
-			idx->pac = calloc(idx->bns->l_pac/8+1, 1);
-			err_fread_noeof(idx->pac, 1, idx->bns->l_pac/8+1, idx->bns->fp_pac); // concatenated 2-bit encoded sequence
+			idx->pac = calloc(idx->bns->l_pac/4+1, 1);
+			err_fread_noeof(idx->pac, 1, idx->bns->l_pac/4+1, idx->bns->fp_pac); // concatenated 2-bit encoded sequence
 			err_fclose(idx->bns->fp_pac);
 			idx->bns->fp_pac = 0;
 		}

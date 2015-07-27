@@ -445,6 +445,15 @@ int mem_patch_reg(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
 	w += a->w + b->w;
 	w = w < opt->w<<2? w : opt->w<<2;
 	if (bwa_verbose >= 4) printf("* test potential hit merge with global alignment; w=%d\n", w);
+
+  int i;
+  int rlen;
+  uint8_t *rseq = bns_get_seq(bns->l_pac, pac, 1000000, 1000100, &rlen);
+  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
+
+  rseq = bns_get_seq(bns->l_pac, pac, a->rb, b->re, &rlen);
+  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
+
 	bis_bwa_gen_cigar2(a->bss?opt->gamat:opt->ctmat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, b->qe - a->qb, query + a->qb, a->rb, b->re, &score, 0, 0);
 	q_s = (int)((double)(b->qe - a->qb) / ((b->qe - b->qb) + (a->qe - a->qb)) * (b->score + a->score) + .499); // predicted score from query
 	r_s = (int)((double)(b->re - a->rb) / ((b->re - b->rb) + (a->re - a->rb)) * (b->score + a->score) + .499); // predicted score from ref
@@ -1214,10 +1223,11 @@ static void bis_worker1(void *data, int i, int tid)
 {
 	worker_t *w = (worker_t*)data;
   mem_alnreg_v *regs; const mem_opt_t *opt=w->opt;
-	if (!(opt->flag&MEM_F_PE)) {
+
+  if (!(opt->flag&MEM_F_PE)) {
     
 		if (bwa_verbose >= 4) printf("=====> Processing read '%s' <=====\n", w->seqs[i].name);
-
+    
     regs = &w->regs[i]; kv_init(*regs);
     if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->aux[tid], regs, 0);
