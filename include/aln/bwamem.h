@@ -106,6 +106,7 @@ typedef struct { // This struct is only used for the convenience of API.
 	int rid;         // reference sequence index in bntseq_t; <0 for unmapped
 	int flag;        // extra flag
 	uint32_t is_rev:1, is_alt:1, mapq:8, NM:22; // is_rev: whether on the reverse strand; mapq: mapping quality; NM: edit distance
+  uint32_t ZC, ZR;
   int bss;                      /* -1: unmapped, 0: BSW, 1: BSC */
 	int n_cigar;                  /* can this be unsigned? number of CIGAR operations */
 	uint32_t *cigar; // CIGAR in the BAM encoding: opLen<<4|op; op to integer mapping: MIDSH=>01234

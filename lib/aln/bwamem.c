@@ -454,7 +454,7 @@ int mem_patch_reg(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
   rseq = bns_get_seq(bns->l_pac, pac, a->rb, b->re, &rlen);
   for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
 
-	bis_bwa_gen_cigar2(a->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, b->qe - a->qb, query + a->qb, a->rb, b->re, &score, 0, 0, a->parent);
+	bis_bwa_gen_cigar2(a->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, b->qe - a->qb, query + a->qb, a->rb, b->re, &score, 0, 0, 0, 0, a->parent);
 	q_s = (int)((double)(b->qe - a->qb) / ((b->qe - b->qb) + (a->qe - a->qb)) * (b->score + a->score) + .499); // predicted score from query
 	r_s = (int)((double)(b->re - a->rb) / ((b->re - b->rb) + (a->re - a->rb)) * (b->score + a->score) + .499); // predicted score from ref
 	if (bwa_verbose >= 4) printf("* score=%d;(%d,%d)\n", score, q_s, r_s);
@@ -944,6 +944,8 @@ void mem_aln2sam(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq
 	if (p->n_cigar) {
 		kputsn("\tNM:i:", 6, str); kputw(p->NM, str);
 		kputsn("\tMD:Z:", 6, str); kputs((char*)(p->cigar + p->n_cigar), str);
+    kputsn("\tZC:i:", 6, str); kputw(p->ZC, str);
+    kputsn("\tZR:i:", 6, str); kputw(p->ZR, str);
 	}
 	if (p->score >= 0) { kputsn("\tAS:i:", 6, str); kputw(p->score, str); }
 	if (p->sub >= 0) { kputsn("\tXS:i:", 6, str); kputw(p->sub, str); }
@@ -982,7 +984,7 @@ void mem_aln2sam(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq
 			if (str->s[i] == '\t') str->s[i] = ' ';
 	}
   /* WZBS */
-  kputsn("\tYD:Z:", 6, str);
+  kputsn("\tYD:A:", 6, str);
   if (p->bss < 0) kputc('u', str);
   else kputc("fr"[p->bss], str);
 
@@ -1136,6 +1138,7 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 	int i, w2, tmp, qb, qe, NM, score, is_rev, last_sc = -(1<<30), l_MD;
 	int64_t pos, rb, re;
 	uint8_t *query;
+  uint32_t ZC, ZR;
 
 	memset(&a, 0, sizeof(mem_aln_t));
 	if (ar == 0 || ar->rb < 0 || ar->re < 0) { // generate an unmapped record
@@ -1160,7 +1163,7 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 		w2 = w2 < opt->w<<2? w2 : opt->w<<2;
     /* WZBS */
     /* ar->rid should be the real rid, see assert below */
-    a.cigar = bis_bwa_gen_cigar2(ar->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w2, bns->l_pac, pac, qe - qb, (uint8_t*)&query[qb], rb, re, &score, &a.n_cigar, &NM, ar->parent);
+    a.cigar = bis_bwa_gen_cigar2(ar->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w2, bns->l_pac, pac, qe - qb, (uint8_t*)&query[qb], rb, re, &score, &a.n_cigar, &NM, &ZC, &ZR, ar->parent);
     
 		if (bwa_verbose >= 4) printf("* Final alignment: w2=%d, global_sc=%d, local_sc=%d\n", w2, score, ar->truesc);
 		if (score == last_sc || w2 == opt->w<<2) break; // it is possible that global alignment and local alignment give different scores
@@ -1169,6 +1172,8 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
 	} while (++i < 3 && score < ar->truesc - opt->a);
 	l_MD = strlen((char*)(a.cigar + a.n_cigar)) + 1;
 	a.NM = NM;
+  a.ZC = ZC;
+  a.ZR = ZR;
 	pos = bns_depos(bns, rb < bns->l_pac? rb : re - 1, &is_rev);
 	a.is_rev = is_rev;
 	if (a.n_cigar > 0) { // squeeze out leading or trailing deletions

@@ -223,7 +223,7 @@ ret_gen_cigar:
 }
 
 /* mat is dependent on bss not parent, that is BSW should use ctmat and BSC should use gamat */
-uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM, uint8_t parent)
+uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM, uint32_t *ZC, uint32_t *ZR, uint8_t parent)
 {
 	uint32_t *cigar = 0;
 	uint8_t tmp, *rseq;
@@ -274,7 +274,7 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
 		*score = ksw_global2(l_query, query, rlen, rseq, 5, mat, o_del, e_del, o_ins, e_ins, w, n_cigar, &cigar);
 	}
 	if (NM && n_cigar) {// compute NM and MD
-		int k, x, y, u, n_mm = 0, n_gap = 0;
+		int k, x, y, u, n_mm = 0, n_gap = 0, n_conv = 0, n_ret = 0;
 		str.l = str.m = *n_cigar * 4; str.s = (char*)cigar; // append MD to CIGAR
 		int2base = rb < l_pac? "ACGTN" : "TGCAN";
 		for (k = 0, x = y = u = 0; k < *n_cigar; ++k) {
@@ -287,10 +287,14 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
           /* to allow assymmetric CT and GA */
           unsigned char _q = query[x+i];
           unsigned char _r = rseq[y+i];
-          if (_q == _r ||
-              (parent && _q == 3 && _r == 1) ||
-              (!parent && _q == 0 && _r == 2)) {
+          if (_q == _r) {
+            if (parent && _q == 1) ++n_ret;
+            if (!parent && _q == 2) ++n_ret;
             ++u;
+          } else if (parent && _q == 3 && _r == 1) {
+            ++n_conv; ++u;
+          } else if (!parent && _q == 0 && _r == 2) {
+            ++n_conv; ++u;
           } else {
             kputw(u, &str);
             kputc(int2base[_r], &str);
@@ -316,6 +320,8 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
 		}
 		kputw(u, &str); kputc(0, &str);
 		*NM = n_mm + n_gap;
+    *ZC = n_conv;
+    *ZR = n_ret;
 		cigar = (uint32_t*)str.s;
 	}
 	if (rb >= l_pac) // reverse back query
