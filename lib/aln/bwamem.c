@@ -446,13 +446,13 @@ int mem_patch_reg(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
 	w = w < opt->w<<2? w : opt->w<<2;
 	if (bwa_verbose >= 4) printf("* test potential hit merge with global alignment; w=%d\n", w);
 
-  int i;
-  int rlen;
-  uint8_t *rseq = bns_get_seq(bns->l_pac, pac, 1000000, 1000100, &rlen);
-  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
+  /* int i; */
+  /* int rlen; */
+  /* uint8_t *rseq = bns_get_seq(bns->l_pac, pac, 1000000, 1000100, &rlen); */
+  /* for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n'); */
 
-  rseq = bns_get_seq(bns->l_pac, pac, a->rb, b->re, &rlen);
-  for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n');
+  /* rseq = bns_get_seq(bns->l_pac, pac, a->rb, b->re, &rlen); */
+  /* for (i=0; i<rlen; ++i) putchar("ACGT"[rseq[i]]); putchar('\n'); */
 
 	bis_bwa_gen_cigar2(a->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, b->qe - a->qb, query + a->qb, a->rb, b->re, &score, 0, 0, 0, 0, a->parent);
 	q_s = (int)((double)(b->qe - a->qb) / ((b->qe - b->qb) + (a->qe - a->qb)) * (b->score + a->score) + .499); // predicted score from query
