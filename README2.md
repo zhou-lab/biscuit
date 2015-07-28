@@ -8,15 +8,18 @@ Issue a `make` and the binary is built into `bin/`.
 `biscuit index` and `biscuit align` adapts the `bwa index` and `bwa mem` for bisulfite-treated short reads.
 
 #### Design
-- assymmetric scoring for C to T and G to A in mapping. Production of consistent mapping quality and NM tags.
-- separate seeding for parent and daughter strands.
-- Optional parent strand and daughter strand restriction for both single-end and pair-end reads.
-- Consistent mapping quality calculation with destination strand specification.
-- Optional BSW/top/BSC/bottom strand restriction, tightly integrated in mapping.
+- assymmetric scoring for C to T and G to A in mapping.
+- produce consistent mapping quality calculation with destination strand specification.
+- produce consistent NM and MD tags under assymmetric scoring.
+- produce ZR and ZC tag for retention count and conversion count
+- separate seeding for parent and daughter strands for mapping efficiency
 - disk space economic indices. No storage of bisulfite converted reference.
 - exposes all the BWA-mem parameters to the users.
 - no separate install of BWA. Dependencies easily met.
 - robust to OS build, read processing and reference processing occur within computing threads of single process.
+- support single and pair-end reads
+- Optional parent strand and daughter strand restriction for both single-end and pair-end reads.
+- Optional BSW/top/BSC/bottom strand restriction, tightly integrated in mapping.
 
 ### Somatic mutation calling
 `biscuit somatic` computes somatic mutations as well as DNA methylation from matched tumor~normal pairs.

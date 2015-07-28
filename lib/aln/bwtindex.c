@@ -273,7 +273,7 @@ int main_biscuit_index(int argc, char *argv[]) {
     bwt_t *bwt;
     strcpy(str, prefix); strcat(str, ".par.bwt");
     t = clock();
-    fprintf(stderr, "[%s] Update parent BWT... ", __func__);
+    fprintf(stderr, "[%s] Update parent BWT... \n", __func__);
     bwt = bwt_restore_bwt(str);
     bwt_bwtupdate_core(bwt);
     bwt_dump_bwt(str, bwt);
@@ -284,7 +284,7 @@ int main_biscuit_index(int argc, char *argv[]) {
     bwt_t *bwt;
     strcpy(str, prefix); strcat(str, ".dau.bwt");
     t = clock();
-    fprintf(stderr, "[%s] Update daughter BWT... ", __func__);
+    fprintf(stderr, "[%s] Update daughter BWT... \n", __func__);
     bwt = bwt_restore_bwt(str);
     bwt_bwtupdate_core(bwt);
     bwt_dump_bwt(str, bwt);
