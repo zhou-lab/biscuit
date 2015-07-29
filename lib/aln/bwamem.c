@@ -983,6 +983,93 @@ void mem_aln2sam(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq
 	kputc('\n', str);
 }
 
+
+bam1_t *mem_aln2bam(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, int n, const mem_aln_t *list, int which, const mem_aln_t *m_) {
+
+  int l_name;
+  uint32_t i;
+  mem_aln_t ptmp = list[which], *p = &ptmp, mtmp, *m = 0; // make a copy of the alignment to convert
+
+	if (m_) mtmp = *m_, m = &mtmp;
+	/** set FlAG **/
+  /* is paired in sequencing */
+	p->flag |= m? BAM_FPAIRED : 0;
+  /* is mapped */
+	p->flag |= p->rid < 0? BAM_FUNMAP : 0;
+  /* is mate mapped */
+	p->flag |= m && m->rid < 0? BAM_FMUNMAP : 0;
+  /* copy mate to alignment */
+	if (p->rid < 0 && m && m->rid >= 0)
+		p->rid = m->rid, p->pos = m->pos, p->is_rev = m->is_rev, p->n_cigar = 0;
+  /* copy alignment to mate */
+	if (m && m->rid < 0 && p->rid >= 0)
+		m->rid = p->rid, m->pos = p->pos, m->is_rev = p->is_rev, m->n_cigar = 0;
+  /* is read on the reverse strand */
+	p->flag |= p->is_rev? BAM_FREVERSE : 0;
+  /* is mate on the reverse strand */
+	p->flag |= m && m->is_rev? BAM_FMREVERSE : 0;
+
+  bam1_t *b = calloc(sizeof(bam1_t));
+  bam1_core_t *c = &b1->core;
+  c->flag = p->flag;
+  if (p->rid >= 0) {
+    c->tid = p->rid;
+    c->pos = p->pos;              /* both are 0-based */
+    c->qual = p->mapq;
+  } else {
+    c->tid = -1;
+    c->pos = -1;
+    c->qual = -1;
+  }
+
+  /* data length */
+  c->l_qname = strlen(s->name);
+  c->n_cigar = p->n_cigar?p->n_cigar:0;
+  c->l_qseq = p->flag&0x100 ? qe - qb : 0;
+  b->data_len = c->l_qname + c->n_cigar*4 + (c->l_qseq+1)>>1 + c->l_qseq;
+  b->mdata = kroundup32(b->data_len);
+  b->data = malloc(b->mdata);
+  
+  /* QNAME */
+  strcpy(bam1_qname(b1), s->name);
+
+  /* CIGAR */
+  if (p->n_cigar) {
+    for (i=0; i<p->n_cigar; ++i) {
+      int c = p->cigar[i]&0xf;
+      /* modify the cigar string s.t. 
+         1. secondary alignments are hard-clipped
+         2. bam flags are consistent, MIDRSH rather than MIDSH */
+      if (c==3 || c==4) {
+        if (!(opt->flag & MEM_F_SOFTCLIP) && !p->is_alt)
+          c = which ? BAM_CHARD_CLIP : BAM_CSOFT_CLIP;
+        else if (c==3) c = BAM_CSOFT_CLIP;
+        else c = BAM_CHARD_CLIP;
+        p->cigar[i] = (p->cigar[i]>>4<<4)&c;
+      }
+    }
+  }
+
+  /* SEQ and QUAL */
+  /* trimming hard clip */
+  if (p->flag&0x100) {
+    kputsn("*\t*", 3, str);
+  } else if (!p->is_rev) {
+    int i, qb = 0, qe = s->l_seq;
+    /* optionally hard-clip
+       when have cigar and not the primary alignment and not soft-clip-all */
+    if (p->n_cigar && which && !(opt->flag&MEM_F_SOFTCLIP) && !p->is_alt) {
+			if ((p->cigar[0]&0xf) == 4 || (p->cigar[0]&0xf) == 3)
+        qb += p->cigar[0]>>4;
+			if ((p->cigar[p->n_cigar-1]&0xf) == 4 || (p->cigar[p->n_cigar-1]&0xf) == 3)
+        qe -= p->cigar[p->n_cigar-1]>>4;
+
+      _ENCODE(bam1_seq(b1), s->seq+qb, qe-qb);
+		} else {
+      
+    }
+}
+
 /************************
  * Integrated interface *
  ************************/

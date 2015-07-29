@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include "bam.h"
 #include "ksort.h"
+#include "bwa.h"
 
 static int g_is_by_qname = 0;
 
@@ -89,7 +90,7 @@ static void swap_header_text(bam_header_t *h1, bam_header_t *h2)
   @discussion Padding information may NOT correctly maintained. This
   function is NOT thread safe.
  */
-int bam_merge_core2(int by_qname, const char *out, const char *headers, int n, char * const *fn, int flag, const char *reg, int n_threads, int level)
+static int bam_merge_core2(int by_qname, const char *out, const char *headers, int n, char * const *fn, int flag, const char *reg, int n_threads, int level)
 {
 	bamFile fpout, *fp;
 	heap1_t *heap;
@@ -257,60 +258,6 @@ int bam_merge_core2(int by_qname, const char *out, const char *headers, int n, c
 	return 0;
 }
 
-int bam_merge_core(int by_qname, const char *out, const char *headers, int n, char * const *fn, int flag, const char *reg)
-{
-	return bam_merge_core2(by_qname, out, headers, n, fn, flag, reg, 0, -1);
-}
-
-int bam_merge(int argc, char *argv[])
-{
-	int c, is_by_qname = 0, flag = 0, ret = 0, n_threads = 0, level = -1;
-	char *fn_headers = NULL, *reg = 0;
-
-	while ((c = getopt(argc, argv, "h:nru1R:f@:l:")) >= 0) {
-		switch (c) {
-		case 'r': flag |= MERGE_RG; break;
-		case 'f': flag |= MERGE_FORCE; break;
-		case 'h': fn_headers = strdup(optarg); break;
-		case 'n': is_by_qname = 1; break;
-		case '1': flag |= MERGE_LEVEL1; break;
-		case 'u': flag |= MERGE_UNCOMP; break;
-		case 'R': reg = strdup(optarg); break;
-		case 'l': level = atoi(optarg); break;
-		case '@': n_threads = atoi(optarg); break;
-		}
-	}
-	if (optind + 2 >= argc) {
-		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   samtools merge [-nr] [-h inh.sam] <out.bam> <in1.bam> <in2.bam> [...]\n\n");
-		fprintf(stderr, "Options: -n       sort by read names\n");
-		fprintf(stderr, "         -r       attach RG tag (inferred from file names)\n");
-		fprintf(stderr, "         -u       uncompressed BAM output\n");
-		fprintf(stderr, "         -f       overwrite the output BAM if exist\n");
-		fprintf(stderr, "         -1       compress level 1\n");
-		fprintf(stderr, "         -l INT   compression level, from 0 to 9 [-1]\n");
-		fprintf(stderr, "         -@ INT   number of BAM compression threads [0]\n");
-		fprintf(stderr, "         -R STR   merge file in the specified region STR [all]\n");
-		fprintf(stderr, "         -h FILE  copy the header in FILE to <out.bam> [in1.bam]\n\n");
-		fprintf(stderr, "Note: Samtools' merge does not reconstruct the @RG dictionary in the header. Users\n");
-		fprintf(stderr, "      must provide the correct header with -h, or uses Picard which properly maintains\n");
-		fprintf(stderr, "      the header dictionary in merging.\n\n");
-		return 1;
-	}
-	if (!(flag & MERGE_FORCE) && strcmp(argv[optind], "-")) {
-		FILE *fp = fopen(argv[optind], "rb");
-		if (fp != NULL) {
-			fclose(fp);
-			fprintf(stderr, "[%s] File '%s' exists. Please apply '-f' to overwrite. Abort.\n", __func__, argv[optind]);
-			return 1;
-		}
-	}
-	if (bam_merge_core2(is_by_qname, argv[optind], fn_headers, argc - optind - 1, argv + optind + 1, flag, reg, n_threads, level) < 0) ret = 1;
-	free(reg);
-	free(fn_headers);
-	return ret;
-}
-
 /***************
  * BAM sorting *
  ***************/
@@ -425,94 +372,84 @@ static int sort_blocks(int n_files, size_t k, bam1_p *buf, const char *prefix, c
 	return n_files + n_threads;
 }
 
-/*!
-  @abstract Sort an unsorted BAM file based on the chromosome order
-  and the leftmost position of an alignment
+void *bwa_bam_sort(void *_data) {
+  sorter_conf_t *c = (sorter_conf_t *)_data;
+  size_t max_mem = (768<<20) * c->n_threads; /* 512MB per thread */
+  int is_by_qname, level=-1;
 
-  @param  is_by_qname whether to sort by query name
-  @param  fn       name of the file to be sorted
-  @param  prefix   prefix of the output and the temporary files; upon
-	                   sucessess, prefix.bam will be written.
-  @param  max_mem  approxiate maximum memory (very inaccurate)
-  @param full_path the given output path is the full path and not just the prefix
-
-  @discussion It may create multiple temporary subalignment files
-  and then merge them by calling bam_merge_core(). This function is
-  NOT thread safe.
- */
-void bam_sort_core_ext(int is_by_qname, const char *fn, const char *prefix, size_t _max_mem, int is_stdout, int n_threads, int level, int full_path)
-{
-	int ret, i, n_files = 0;
-	size_t mem, max_k, k, max_mem;
-	bam_header_t *header;
-	bamFile fp;
-	bam1_t *b, **buf;
-	char *fnout = 0;
-	char const *suffix = ".bam";
-	if (full_path) suffix += 4;
-
-	/* fprintf(stderr, "prefix: %s\n", prefix); */
-
-	if (n_threads < 2) n_threads = 1;
-	g_is_by_qname = is_by_qname;
-	max_k = k = 0; mem = 0;
-	max_mem = _max_mem * n_threads;
-	buf = 0;
-	fp = strcmp(fn, "-")? bam_open(fn, "r") : bam_dopen(fileno(stdin), "r");
-	if (fp == 0) {
-		fprintf(stderr, "[bam_sort_core] fail to open file %s\n", fn);
-		return;
-	}
-	header = bam_header_read(fp);
-	if (is_by_qname) change_SO(header, "queryname");
-	else change_SO(header, "coordinate");
-	// write sub files
-	for (;;) {
-		if (k == max_k) {
-			size_t old_max = max_k;
-			max_k = max_k? max_k<<1 : 0x10000;
+  
+  /* sort reads into sub-blocks */
+  bam1_p *buf = 0;
+  size_t k, max_k;              /* size of buf */
+  size_t mem;                   /* current memory usage */
+  max_k = k = 0; mem = 0;
+  while (1) {
+    bam1_t *b;
+    wqueue_get(bam1_p, c->q, &b);
+    if (!b) break;
+    if (k == max_k) {
+      size_t old_max = max_k;
+      max_k = max_k? max_k<<1 : 0x10000;
 			buf = realloc(buf, max_k * sizeof(void*));
 			memset(buf + old_max, 0, sizeof(void*) * (max_k - old_max));
 		}
-		if (buf[k] == 0) buf[k] = (bam1_t*)calloc(1, sizeof(bam1_t));
-		b = buf[k];
-		if ((ret = bam_read1(fp, b)) < 0) break;
-		if (b->data_len < b->m_data>>2) { // shrink
+    buf[k] = b;
+    
+    /* shrink for over-sized bam1_t */
+		if (b->data_len < b->m_data>>2) {
 			b->m_data = b->data_len;
 			kroundup32(b->m_data);
 			b->data = realloc(b->data, b->m_data);
 		}
-		mem += sizeof(bam1_t) + b->m_data + sizeof(void*) + sizeof(void*); // two sizeof(void*) for the data allocated to pointer arrays
+
+    /* two sizeof(void*) for the data allocated to pointer arrays */
+		mem += sizeof(bam1_t) + b->m_data + sizeof(void*) + sizeof(void*);
 		++k;
 		if (mem >= max_mem) {
-			n_files = sort_blocks(n_files, k, buf, prefix, header, n_threads);
+			n_files = sort_blocks(n_files, k, buf, prefix, c->header, n_threads);
+      for (k = 0; k < max_k; ++k) {
+        if (!buf[k]) continue;
+        /* note that these object are allocated during alignment */
+        free(buf[k]->data);     /* free bam1_t data */
+        free(buf[k]);           /* free bam1_t */
+      }
 			mem = k = 0;
 		}
-	}
-	if (ret != -1)
-		fprintf(stderr, "[bam_sort_core] truncated file. Continue anyway.\n");
-	// output file name
-	fnout = calloc(strlen(prefix) + 20, 1);
-	if (is_stdout) sprintf(fnout, "-");
-	else sprintf(fnout, "%s%s", prefix, suffix);
-	// write the final output
-	if (n_files == 0) { // a single block
+  }
+
+  /*** flush buffer and merge sort ***/
+  char *fnout = calloc(strlen(c->prefix) + 20, 1);
+  if (c->prefix) sprintf(fnout, "%s.bam", c->prefix);
+  else sprintf(fnout, "tmp.bam");
+
+	/* write the final output */
+	if (n_files == 0) { /* a single block */
+    
 		char mode[8];
 		strcpy(mode, "w");
 		if (level >= 0) sprintf(mode + 1, "%d", level < 9? level : 9);
 		ks_mergesort(sort, k, buf, 0);
-		write_buffer(fnout, mode, k, buf, header, n_threads);
-	} else { // then merge
-		char **fns;
-		n_files = sort_blocks(n_files, k, buf, prefix, header, n_threads);
+		write_buffer(fnout, mode, k, buf, c->header, n_threads);
+    
+	} else { /* then merge if multiple files */
+
+    /* sort remaining reads in buffer */
+		n_files = sort_blocks(n_files, k, buf, prefix, c->header, n_threads);
+
 		fprintf(stderr, "[bam_sort_core] merging from %d files...\n", n_files);
+    
+    /* infer filenames */
+		char **fns;
 		fns = (char**)calloc(n_files, sizeof(char*));
 		for (i = 0; i < n_files; ++i) {
 			fns[i] = (char*)calloc(strlen(prefix) + 20, 1);
 			sprintf(fns[i], "%s.%.4d", prefix, i);
-			/* fprintf(stderr, "fn: %s\tsuf: %s\n", fns[i], suffix); */
 		}
+    
+    /* each temporary sub-sort file has its own header  */
 		bam_merge_core2(is_by_qname, fnout, 0, n_files, fns, 0, 0, n_threads, level);
+
+    /* clean up files from disk and free filenames */
 		for (i = 0; i < n_files; ++i) {
 			unlink(fns[i]);
 			free(fns[i]);
@@ -520,56 +457,12 @@ void bam_sort_core_ext(int is_by_qname, const char *fn, const char *prefix, size
 		free(fns);
 	}
 	free(fnout);
-	// free
+  
+  /* clean buffer */
 	for (k = 0; k < max_k; ++k) {
 		if (!buf[k]) continue;
 		free(buf[k]->data);
 		free(buf[k]);
 	}
 	free(buf);
-	bam_header_destroy(header);
-	bam_close(fp);
 }
-
-void bam_sort_core(int is_by_qname, const char *fn, const char *prefix, size_t max_mem)
-{
-	bam_sort_core_ext(is_by_qname, fn, prefix, max_mem, 0, 0, -1, 0);
-}
-
-int bam_sort(int argc, char *argv[])
-{
-	size_t max_mem = 768<<20; // 512MB
-	int c, is_by_qname = 0, is_stdout = 0, n_threads = 0, level = -1, full_path = 0;
-	while ((c = getopt(argc, argv, "fnom:@:l:")) >= 0) {
-		switch (c) {
-		case 'f': full_path = 1; break;
-		case 'o': is_stdout = 1; break;
-		case 'n': is_by_qname = 1; break;
-		case 'm': {
-				char *q;
-				max_mem = strtol(optarg, &q, 0);
-				if (*q == 'k' || *q == 'K') max_mem <<= 10;
-				else if (*q == 'm' || *q == 'M') max_mem <<= 20;
-				else if (*q == 'g' || *q == 'G') max_mem <<= 30;
-				break;
-			}
-		case '@': n_threads = atoi(optarg); break;
-		case 'l': level = atoi(optarg); break;
-		}
-	}
-	if (optind + 2 > argc) {
-		fprintf(stderr, "\n");
-		fprintf(stderr, "Usage:   samtools sort [options] <in.bam> <out.prefix>\n\n");
-		fprintf(stderr, "Options: -n        sort by read name\n");
-		fprintf(stderr, "         -f        use <out.prefix> as full file name instead of prefix\n");
-		fprintf(stderr, "         -o        final output to stdout\n");
-		fprintf(stderr, "         -l INT    compression level, from 0 to 9 [-1]\n");
-		fprintf(stderr, "         -@ INT    number of sorting and compression threads [1]\n");
-		fprintf(stderr, "         -m INT    max memory per thread; suffix K/M/G recognized [768M]\n");
-		fprintf(stderr, "\n");
-		return 1;
-	}
-	bam_sort_core_ext(is_by_qname, argv[optind], argv[optind+1], max_mem, is_stdout, n_threads, level, full_path);
-	return 0;
-}
-
