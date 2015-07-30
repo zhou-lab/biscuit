@@ -443,7 +443,6 @@ int main() {
     if (((i+1) & 0xf) == 0) printf("\n");
   }
 
-
   puts("\n\nnt16 rev");
   for (i=0; i<256; i++) {
     j=i;
