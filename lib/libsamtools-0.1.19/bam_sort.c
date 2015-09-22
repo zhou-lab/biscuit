@@ -572,4 +572,3 @@ int bam_sort(int argc, char *argv[])
 	bam_sort_core_ext(is_by_qname, argv[optind], argv[optind+1], max_mem, is_stdout, n_threads, level, full_path);
 	return 0;
 }
-
