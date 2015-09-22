@@ -7,6 +7,7 @@
 #include "ksw.h"
 #include "utils.h"
 #include "kstring.h"
+#include "ksort.h"
 #include "kvec.h"
 
 #ifdef USE_MALLOC_WRAPPERS
@@ -551,11 +552,15 @@ int bwa_idx2mem(bwaidx_t *idx)
 /***********************
  * SAM header routines *
  ***********************/
+#define bntann1_lt(a,b) (strcmp((a)->name,(b)->name)<0)
+typedef const bntann1_t *ksbntann1_t; /* because pointer will get confused */
+KSORT_INIT(bntann1, ksbntann1_t, bntann1_lt);
 
 void bwa_print_sam_hdr(const bntseq_t *bns, const char *hdr_line)
 {
 	int i, n_SQ = 0;
 	extern char *bwa_pg;
+  /* header line may contain the sequence information */
 	if (hdr_line) {
 		const char *p = hdr_line;
 		while ((p = strstr(p, "@SQ\t")) != 0) {
@@ -564,11 +569,21 @@ void bwa_print_sam_hdr(const bntseq_t *bns, const char *hdr_line)
 		}
 	}
 	if (n_SQ == 0) {
+
+    /* print sequence info from index */
+    bntann1_t **annps = malloc(bns->n_seqs*sizeof(bntann1_t*));
+    for (i=0; i<bns->n_seqs; ++i) annps[i] = bns->anns+i;
+    ks_introsort(bntann1, bns->n_seqs, annps);
+    for (i=0; i<bns->n_seqs; ++i) {
+      err_printf("@SQ\tSN:%s\tLN:%d\n", annps[i]->name, annps[i]->len);
+    }
+    free(annps);
+    
 		for (i = 0; i < bns->n_seqs; ++i) {
       /* if (!bns->anns[i].bsstrand)       /\* bisulfite adaption *\/ */
       err_printf("@SQ\tSN:%s\tLN:%d\n", bns->anns[i].name, bns->anns[i].len);
     }
-	} else if (n_SQ != bns->n_seqs && bwa_verbose >= 2)
+	} else if (n_SQ != bns->n_seqs && bwa_verbose >= 2) /* sequences in the header line on command option does not match index */
 		fprintf(stderr, "[W::%s] %d @SQ lines provided with -H; %d sequences in the index. Continue anyway.\n", __func__, n_SQ, bns->n_seqs);
 	if (hdr_line) err_printf("%s\n", hdr_line);
 	if (bwa_pg) err_printf("%s\n", bwa_pg);

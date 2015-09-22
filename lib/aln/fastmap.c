@@ -333,11 +333,13 @@ int main_align(int argc, char *argv[])
 			return 1; // FIXME memory leak
 		}
 	} else update_a(opt, &opt0);
+
+  /* setup scoring */
 	bwa_fill_scmat(opt->a, opt->b, opt->mat);
-  /* bisulfite */
   bwa_fill_scmat_ct(opt->a, opt->b, opt->ctmat);
   bwa_fill_scmat_ga(opt->a, opt->b, opt->gamat);
 
+  /* load bwt index */
 	aux.idx = bwa_idx_load_from_shm(argv[optind]);
 	if (aux.idx == 0) {
 		if ((aux.idx = bwa_idx_load(argv[optind], BWA_IDX_ALL)) == 0) return 1; // FIXME: memory leak
@@ -347,6 +349,7 @@ int main_align(int argc, char *argv[])
 		for (i = 0; i < aux.idx->bns->n_seqs; ++i)
 			aux.idx->bns->anns[i].is_alt = 0;
 
+  /* setup fastq input */
 	ko = kopen(argv[optind + 1], &fd);
 	if (ko == 0) {
 		if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
@@ -369,6 +372,8 @@ int main_align(int argc, char *argv[])
 			opt->flag |= MEM_F_PE;
 		}
 	}
+
+  /* print header */
 	if (!(opt->flag & MEM_F_ALN_REG))
 		bwa_print_sam_hdr(aux.idx->bns, hdr_line);
 	aux.actual_chunk_size = fixed_chunk_size > 0? fixed_chunk_size : opt->chunk_size * opt->n_threads;
