@@ -1010,8 +1010,8 @@ bam1_t *mem_aln2bam(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, int n
   /* is mate on the reverse strand */
   p->flag |= m && m->is_rev? BAM_FMREVERSE : 0;
 
-  bam1_t *b = calloc(sizeof(bam1_t));
-  bam1_core_t *c = &b1->core;
+  bam1_t *b = calloc(1,sizeof(bam1_t));
+  bam1_core_t *c = &b->core;
   c->flag = p->flag;
   if (p->rid >= 0) {
 	c->tid = p->rid;
@@ -1026,13 +1026,13 @@ bam1_t *mem_aln2bam(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, int n
   /* data length */
   c->l_qname = strlen(s->name);
   c->n_cigar = p->n_cigar?p->n_cigar:0;
-  c->l_qseq = p->flag&0x100 ? qe - qb : 0;
+  c->l_qseq = p->flag&0x100 ? s->l_seq : 0;
   b->data_len = c->l_qname + c->n_cigar*4 + (c->l_qseq+1)>>1 + s->qual?c->l_qseq:0;
   b->mdata = kroundup32(b->data_len);
   b->data = malloc(b->mdata);
   
   /* QNAME */
-  strcpy(bam1_qname(b1), s->name);
+  strcpy(bam1_qname(b), s->name);
 
   /* CIGAR */
   if (p->n_cigar) {
@@ -1068,9 +1068,9 @@ bam1_t *mem_aln2bam(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, int n
         qe -= p->cigar[p->n_cigar-1]>>4;
 	}
 
-	_nt256int8_encode_nt16(bam1_seq(b1), s->seq+qb, qe-qb);
+	_nt256int8_encode_nt16(bam1_seq(b), s->seq+qb, qe-qb);
 
-	q = bam1_qual(b1); 
+	q = bam1_qual(b); 
 	if (s->qual) {
 	  q2 = s->qual+qb;
 	  for (i=0; i<c->l_qseq; ++i) q[i]=q2[i]-33;
@@ -1088,10 +1088,10 @@ bam1_t *mem_aln2bam(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, int n
 		qb += p->cigar[p->n_cigar-1]>>4;
 	}
 
-	_nt256int8_encode_nt16(bam1_seq(b1), s->seq+qb, qe-qb);
-	nt16_rev_ip(bam1_seq(b1), c->l_qseq);
+	_nt256int8_encode_nt16(bam1_seq(b), s->seq+qb, qe-qb);
+	nt16_rev_ip(bam1_seq(b), c->l_qseq);
 
-	q = bam1_qual(b1); 
+	q = bam1_qual(b); 
 	if (s->qual) {
 	  q2 = s->qual+qb;
 	  for (i=0; i<c->l_qseq; ++i) q[i]=q2[c->l_qseq-i]-33;
@@ -1221,10 +1221,13 @@ void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, 
 		mem_aln_t t;
 		t = mem_reg2aln(opt, bns, pac, s->l_seq, s->seq, 0);
 		t.flag |= extra_flag;
-		mem_aln2sam(opt, bns, &str, s, 1, &t, 0, m);
+		/* mem_aln2sam(opt, bns, &str, s, 1, &t, 0, m); */
+    mem_aln2bam(opt, bns, s, 1, &t, 0, m);
+
 	} else {
 		for (k = 0; k < aa.n; ++k)
-			mem_aln2sam(opt, bns, &str, s, aa.n, aa.a, k, m);
+			/* mem_aln2sam(opt, bns, &str, s, aa.n, aa.a, k, m); */
+      mem_aln2bam(opt, bns, s, aa.n, aa.a, k, m);
 		for (k = 0; k < aa.n; ++k) free(aa.a[k].cigar);
 		free(aa.a);
 	}

@@ -135,6 +135,8 @@ int main_align(int argc, char *argv[])
 	mem_pestat_t pes[4];
 	ktp_aux_t aux;
 
+  char *prefix=0;
+
 	memset(&aux, 0, sizeof(ktp_aux_t));
 	memset(pes, 0, 4 * sizeof(mem_pestat_t));
 	for (i = 0; i < 4; ++i) pes[i].failed = 1;
@@ -142,7 +144,7 @@ int main_align(int argc, char *argv[])
 	aux.opt = opt = mem_opt_init();
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
 	memset(&opt0, 0, sizeof(mem_opt_t));
-	while ((c = getopt(argc, argv, "1epaFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
+	while ((c = getopt(argc, argv, "1epaFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:o:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
 		if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
 		else if (c == '1') no_mt_io = 1;
 		else if (c == 'x') mode = optarg;
@@ -340,11 +342,13 @@ int main_align(int argc, char *argv[])
 			return 1; // FIXME memory leak
 		}
 	} else update_a(opt, &opt0);
+
+  /* set up scoring matrix */
 	bwa_fill_scmat(opt->a, opt->b, opt->mat);
-  /* bisulfite */
   bwa_fill_scmat_ct(opt->a, opt->b, opt->ctmat);
   bwa_fill_scmat_ga(opt->a, opt->b, opt->gamat);
 
+  /* load BWT index */
 	aux.idx = bwa_idx_load_from_shm(argv[optind]);
 	if (aux.idx == 0) {
 		if ((aux.idx = bwa_idx_load(argv[optind], BWA_IDX_ALL)) == 0) return 1; // FIXME: memory leak
@@ -354,6 +358,7 @@ int main_align(int argc, char *argv[])
 		for (i = 0; i < aux.idx->bns->n_seqs; ++i)
 			aux.idx->bns->anns[i].is_alt = 0;
 
+  /* set up kseq input */
 	ko = kopen(argv[optind + 1], &fd);
 	if (ko == 0) {
 		if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
@@ -388,8 +393,9 @@ int main_align(int argc, char *argv[])
   header->text = hdr_line;
   header->l_text = strlen(hdr_line);
 
-  aux.q = wqueue_init(bam1_p, 100000);
+  aux.q = wqueue_init(bam1_p, 100000);/* TODO: fix queue location */
 
+  /* set up sorting thread */
   pthread_t sorter;
   sorter_conf_t sorter_conf = {
     .q = aux.q,
@@ -398,22 +404,24 @@ int main_align(int argc, char *argv[])
   };
   pthread_create(&sorter, NULL, bwa_bam_sort, &sorter_conf);
 
+  /* actual mapping */
 	aux.actual_chunk_size = fixed_chunk_size > 0? fixed_chunk_size : opt->chunk_size * opt->n_threads;
 	kt_pipeline(no_mt_io? 1 : 2, process, &aux, 3);
 
+  /* wait for bam output and sorting to finish */
   wqueue_put2(bam1_p, aux.q, NULL);
   pthead_join(sorter, NULL);
   wqueue_destroy(bam1_p, aux.q);
 
-  /* build index */
+  /* index bam */
   char *bamfn = calloc(1, strlen(prefix)+20);
   if (prefix) sprintf(bamfn, "%s.bam", prefix);
   else sprintf(bamfn, "tmp.bam");
   bam_index_build(bamfn);
-  
+
 	free(hdr_line);
 	free(opt);
-  
+
   bam_header_destroy(header);
 	bwa_idx_destroy(aux.idx);
 	kseq_destroy(aux.ks);

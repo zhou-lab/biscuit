@@ -5,6 +5,8 @@
 #include "bntseq.h"
 #include "bwa.h"
 
+#include "bam.h"
+
 #define MEM_MAPQ_COEF 30.0
 #define MEM_MAPQ_MAX  60
 
