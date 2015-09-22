@@ -389,14 +389,6 @@ nt16_decode_cstr(const uint8_t *seq_nt16, size_t len) {
 }
 
 static inline void
-_nt256int8_encode_nt16(uint8_t *seq_nt16, int8_t *seq_nt256int8, size_t len) {
-  size_t i;
-  for (i=0; i<len>>1; ++i)
-	seq_nt16[i] = (seq_nt256int8[i<<1]<<4) | seq_nt256int8[i<<1];
-  if (len&1) seq_nt16[len>>1] = seq_nt256int8[len-1]<<4;
-}
-
-static inline void
 _nt16_decode_nt256int8(int8_t *seq_nt256int8, const uint8_t *seq_nt16, size_t len) {
   size_t i;
   for (i=0; i<len; ++i) {

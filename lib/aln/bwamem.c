@@ -45,49 +45,48 @@
 
 static const bntseq_t *global_bns = 0; // for debugging only
 
-mem_opt_t *mem_opt_init() {
-  mem_opt_t *o;
-  o = calloc(1, sizeof(mem_opt_t));
-  o->flag = 0;
-  o->a = 1;
+mem_opt_t *mem_opt_init()
+{
+	mem_opt_t *o;
+	o = calloc(1, sizeof(mem_opt_t));
+	o->flag = 0;
+	o->a = 1;
   o->b = 2;                     /* WZBS */
   /* o->b = 4; */
-  o->o_del = o->o_ins = 6;
-  o->e_del = o->e_ins = 1;
-  o->w = 100;
-  o->T = 30;
-  o->zdrop = 100;
-  o->pen_unpaired = 17;
-  /* o->pen_clip5 = o->pen_clip3 = 5; */
-  o->pen_clip5 = o->pen_clip3 = 10; /* WZBS */
-  o->max_mem_intv = 20;
-  o->min_seed_len = 19;
-  o->split_width = 10;
-  o->max_occ = 500;
-  o->max_chain_gap = 10000;
-  o->max_ins = 10000;
-  o->mask_level = 0.50;
-  o->drop_ratio = 0.50;
-  o->XA_drop_ratio = 0.80;
-  o->split_factor = 1.5;
-  o->chunk_size = 10000000;
-  o->n_threads = 1;
-  o->max_XA_hits = 5;
-  o->max_XA_hits_alt = 200;
-  o->max_matesw = 50;
-  o->mask_level_redun = 0.95;
-  o->min_chain_weight = 0;
-  o->max_chain_extend = 1<<30;
-  o->mapQ_coef_len = 50; o->mapQ_coef_fac = log(o->mapQ_coef_len);
+	o->o_del = o->o_ins = 6;
+	o->e_del = o->e_ins = 1;
+	o->w = 100;
+	o->T = 30;
+	o->zdrop = 100;
+	o->pen_unpaired = 17;
+	/* o->pen_clip5 = o->pen_clip3 = 5; */
+	o->pen_clip5 = o->pen_clip3 = 10; /* WZBS */
+	o->max_mem_intv = 20;
+	o->min_seed_len = 19;
+	o->split_width = 10;
+	o->max_occ = 500;
+	o->max_chain_gap = 10000;
+	o->max_ins = 10000;
+	o->mask_level = 0.50;
+	o->drop_ratio = 0.50;
+	o->XA_drop_ratio = 0.80;
+	o->split_factor = 1.5;
+	o->chunk_size = 10000000;
+	o->n_threads = 1;
+	o->max_XA_hits = 5;
+	o->max_XA_hits_alt = 200;
+	o->max_matesw = 50;
+	o->mask_level_redun = 0.95;
+	o->min_chain_weight = 0;
+	o->max_chain_extend = 1<<30;
+	o->mapQ_coef_len = 50; o->mapQ_coef_fac = log(o->mapQ_coef_len);
   o->bsstrand = 0;
   o->parent = 0;
-  
-  bwa_fill_scmat(o->a, o->b, o->mat);
-  /* assymetric scoring matrix tolerating C to T */
+	bwa_fill_scmat(o->a, o->b, o->mat);
+  /* WZBS */
   bwa_fill_scmat_ct(o->a, o->b, o->ctmat);
-  /* assymetric scoring matrix tolerating G to A */
   bwa_fill_scmat_ga(o->a, o->b, o->gamat);
-  return o;
+	return o;
 }
 
 /***************************
@@ -101,75 +100,75 @@ KSORT_INIT(mem_intv, bwtintv_t, intv_lt)
    mem1 is raw from bwt_smem1, before filtering from min_seed_len
 */
 typedef struct {
-  bwtintv_v mem, mem1, *tmpv[2];
+	bwtintv_v mem, mem1, *tmpv[2];
 } smem_aux_t;
 
 static smem_aux_t *smem_aux_init()
 {
-  smem_aux_t *a;
-  a = calloc(1, sizeof(smem_aux_t));
-  a->tmpv[0] = calloc(1, sizeof(bwtintv_v));
-  a->tmpv[1] = calloc(1, sizeof(bwtintv_v));
-  return a;
+	smem_aux_t *a;
+	a = calloc(1, sizeof(smem_aux_t));
+	a->tmpv[0] = calloc(1, sizeof(bwtintv_v));
+	a->tmpv[1] = calloc(1, sizeof(bwtintv_v));
+	return a;
 }
 
 static void smem_aux_destroy(smem_aux_t *a)
 {	
-  free(a->tmpv[0]->a); free(a->tmpv[0]);
-  free(a->tmpv[1]->a); free(a->tmpv[1]);
-  free(a->mem.a); free(a->mem1.a);
-  free(a);
+	free(a->tmpv[0]->a); free(a->tmpv[0]);
+	free(a->tmpv[1]->a); free(a->tmpv[1]);
+	free(a->mem.a); free(a->mem1.a);
+	free(a);
 }
 
 /* len is read length */
 static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *seq, smem_aux_t *a) {
-  int k, x = 0, old_n;
+	int k, x = 0, old_n;
   uint32_t i;
-  int start_width = (opt->flag & MEM_F_SELF_OVLP)? 2 : 1;
-  int split_len = (int)(opt->min_seed_len * opt->split_factor + .499);
-  a->mem.n = 0;
-  // first pass: find all SMEMs
-  while (x < len) {
-	if (seq[x] < 4) {
-	  x = bwt_smem1(bwt, bwtc, len, seq, x, start_width, &a->mem1, a->tmpv);
-	  for (i = 0; i < a->mem1.n; ++i) {
-		bwtintv_t *p = &a->mem1.a[i];
-		int slen = (uint32_t)p->info - (p->info>>32); // seed length
-		if (slen >= opt->min_seed_len)
-		  kv_push(bwtintv_t, a->mem, *p);
-	  }
-	} else ++x;
-  }
-  // second pass: find MEMs inside a long SMEM
-  old_n = a->mem.n;
-  for (k = 0; k < old_n; ++k) {
-	bwtintv_t *p = &a->mem.a[k];
-	int start = p->info>>32, end = (int32_t)p->info;
-	if (end - start < split_len || p->x[2] > (unsigned) opt->split_width) continue;
-	bwt_smem1(bwt, bwtc, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
-	for (i = 0; i < a->mem1.n; ++i)
-	  if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= (unsigned) opt->min_seed_len)
-		kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
-  }
-  // third pass: LAST-like
-  if (opt->max_mem_intv > 0) {
-	x = 0;
+	int start_width = (opt->flag & MEM_F_SELF_OVLP)? 2 : 1;
+	int split_len = (int)(opt->min_seed_len * opt->split_factor + .499);
+	a->mem.n = 0;
+	// first pass: find all SMEMs
 	while (x < len) {
-	  if (seq[x] < 4) {
-		if (1) {
-		  bwtintv_t m;
-		  x = bwt_seed_strategy1(bwt, bwtc, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
-		  if (m.x[2] > 0) kv_push(bwtintv_t, a->mem, m);
-		} else { // for now, we never come to this block which is slower
-		  x = bwt_smem1a(bwt, bwtc, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
-		  for (i = 0; i < a->mem1.n; ++i)
-			kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
-		}
-	  } else ++x;
+		if (seq[x] < 4) {
+			x = bwt_smem1(bwt, bwtc, len, seq, x, start_width, &a->mem1, a->tmpv);
+			for (i = 0; i < a->mem1.n; ++i) {
+				bwtintv_t *p = &a->mem1.a[i];
+				int slen = (uint32_t)p->info - (p->info>>32); // seed length
+				if (slen >= opt->min_seed_len)
+					kv_push(bwtintv_t, a->mem, *p);
+			}
+		} else ++x;
 	}
-  }
-  // sort
-  ks_introsort(mem_intv, a->mem.n, a->mem.a);
+	// second pass: find MEMs inside a long SMEM
+	old_n = a->mem.n;
+	for (k = 0; k < old_n; ++k) {
+		bwtintv_t *p = &a->mem.a[k];
+		int start = p->info>>32, end = (int32_t)p->info;
+		if (end - start < split_len || p->x[2] > (unsigned) opt->split_width) continue;
+		bwt_smem1(bwt, bwtc, len, seq, (start + end)>>1, p->x[2]+1, &a->mem1, a->tmpv);
+		for (i = 0; i < a->mem1.n; ++i)
+			if ((uint32_t)a->mem1.a[i].info - (a->mem1.a[i].info>>32) >= (unsigned) opt->min_seed_len)
+				kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
+	}
+	// third pass: LAST-like
+	if (opt->max_mem_intv > 0) {
+		x = 0;
+		while (x < len) {
+			if (seq[x] < 4) {
+				if (1) {
+					bwtintv_t m;
+					x = bwt_seed_strategy1(bwt, bwtc, len, seq, x, opt->min_seed_len, opt->max_mem_intv, &m);
+					if (m.x[2] > 0) kv_push(bwtintv_t, a->mem, m);
+				} else { // for now, we never come to this block which is slower
+					x = bwt_smem1a(bwt, bwtc, len, seq, x, start_width, opt->max_mem_intv, &a->mem1, a->tmpv);
+					for (i = 0; i < a->mem1.n; ++i)
+						kv_push(bwtintv_t, a->mem, a->mem1.a[i]);
+				}
+			} else ++x;
+		}
+	}
+	// sort
+	ks_introsort(mem_intv, a->mem.n, a->mem.a);
 }
 
 /************
@@ -986,48 +985,48 @@ void mem_aln2sam(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq
 
 
 bam1_t *mem_aln2bam(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, int n, const mem_aln_t *list, int which, const mem_aln_t *m_) {
-   
+
   int l_name;
   uint32_t i;
   mem_aln_t ptmp = list[which], *p = &ptmp, mtmp, *m = 0; // make a copy of the alignment to convert
 
-  if (m_) mtmp = *m_, m = &mtmp;
-  /** set FlAG **/
+	if (m_) mtmp = *m_, m = &mtmp;
+	/** set FlAG **/
   /* is paired in sequencing */
-  p->flag |= m? BAM_FPAIRED : 0;
+	p->flag |= m? BAM_FPAIRED : 0;
   /* is mapped */
-  p->flag |= p->rid < 0? BAM_FUNMAP : 0;
+	p->flag |= p->rid < 0? BAM_FUNMAP : 0;
   /* is mate mapped */
-  p->flag |= m && m->rid < 0? BAM_FMUNMAP : 0;
+	p->flag |= m && m->rid < 0? BAM_FMUNMAP : 0;
   /* copy mate to alignment */
-  if (p->rid < 0 && m && m->rid >= 0)
-	p->rid = m->rid, p->pos = m->pos, p->is_rev = m->is_rev, p->n_cigar = 0;
+	if (p->rid < 0 && m && m->rid >= 0)
+		p->rid = m->rid, p->pos = m->pos, p->is_rev = m->is_rev, p->n_cigar = 0;
   /* copy alignment to mate */
-  if (m && m->rid < 0 && p->rid >= 0)
-	m->rid = p->rid, m->pos = p->pos, m->is_rev = p->is_rev, m->n_cigar = 0;
+	if (m && m->rid < 0 && p->rid >= 0)
+		m->rid = p->rid, m->pos = p->pos, m->is_rev = p->is_rev, m->n_cigar = 0;
   /* is read on the reverse strand */
-  p->flag |= p->is_rev? BAM_FREVERSE : 0;
+	p->flag |= p->is_rev? BAM_FREVERSE : 0;
   /* is mate on the reverse strand */
-  p->flag |= m && m->is_rev? BAM_FMREVERSE : 0;
+	p->flag |= m && m->is_rev? BAM_FMREVERSE : 0;
 
   bam1_t *b = calloc(sizeof(bam1_t));
   bam1_core_t *c = &b1->core;
   c->flag = p->flag;
   if (p->rid >= 0) {
-	c->tid = p->rid;
-	c->pos = p->pos;              /* both are 0-based */
-	c->qual = p->mapq;
+    c->tid = p->rid;
+    c->pos = p->pos;              /* both are 0-based */
+    c->qual = p->mapq;
   } else {
-	c->tid = -1;
-	c->pos = -1;
-	c->qual = -1;
+    c->tid = -1;
+    c->pos = -1;
+    c->qual = -1;
   }
 
   /* data length */
   c->l_qname = strlen(s->name);
   c->n_cigar = p->n_cigar?p->n_cigar:0;
   c->l_qseq = p->flag&0x100 ? qe - qb : 0;
-  b->data_len = c->l_qname + c->n_cigar*4 + (c->l_qseq+1)>>1 + s->qual?c->l_qseq:0;
+  b->data_len = c->l_qname + c->n_cigar*4 + (c->l_qseq+1)>>1 + c->l_qseq;
   b->mdata = kroundup32(b->data_len);
   b->data = malloc(b->mdata);
   
@@ -1053,109 +1052,22 @@ bam1_t *mem_aln2bam(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, int n
 
   /* SEQ and QUAL */
   /* trimming hard clip */
-  uint8_t *q,q2;
   if (p->flag&0x100) {
     kputsn("*\t*", 3, str);
   } else if (!p->is_rev) {
-
     int i, qb = 0, qe = s->l_seq;
     /* optionally hard-clip
        when have cigar and not the primary alignment and not soft-clip-all */
     if (p->n_cigar && which && !(opt->flag&MEM_F_SOFTCLIP) && !p->is_alt) {
-	  if ((p->cigar[0]&0xf) == 4 || (p->cigar[0]&0xf) == 3)
+			if ((p->cigar[0]&0xf) == 4 || (p->cigar[0]&0xf) == 3)
         qb += p->cigar[0]>>4;
-	  if ((p->cigar[p->n_cigar-1]&0xf) == 4 || (p->cigar[p->n_cigar-1]&0xf) == 3)
+			if ((p->cigar[p->n_cigar-1]&0xf) == 4 || (p->cigar[p->n_cigar-1]&0xf) == 3)
         qe -= p->cigar[p->n_cigar-1]>>4;
-	}
 
-	_nt256int8_encode_nt16(bam1_seq(b1), s->seq+qb, qe-qb);
-
-	q = bam1_qual(b1); 
-	if (s->qual) {
-	  q2 = s->qual+qb;
-	  for (i=0; i<c->l_qseq; ++i) q[i]=q2[i]-33;
-	} else {
-	  for (i=0; i<c->l_qseq; ++i) q[i] = 0xff;
-	}
-  } else {
-	
-	int i, qb = 0, qe = s->l_seq;
-	/* optionally hard-clip */
-	if (p->n_cigar && which && !(opt->flag&MEM_F_SOFTCLIP) && !p->is_alt) {
-	  if ((p->cigar[0]&0xf) == 4 || (p->cigar[0]&0xf) == 3)
-		qe -= p->cigar[0]>>4;
-	  if ((p->cigar[p->n_cigar-1]&0xf) == 4 || (p->cigar[p->n_cigar-1]&0xf) == 3)
-		qb += p->cigar[p->n_cigar-1]>>4;
-	}
-
-	_nt256int8_encode_nt16(bam1_seq(b1), s->seq+qb, qe-qb);
-	nt16_rev_ip(bam1_seq(b1), c->l_qseq);
-
-	q = bam1_qual(b1); 
-	if (s->qual) {
-	  q2 = s->qual+qb;
-	  for (i=0; i<c->l_qseq; ++i) q[i]=q2[c->l_qseq-i]-33;
-	} else {
-	  for (i=0; i<c->l_qseq; ++i) q[i] = 0xff;
-	}
-  }
-
-  /* optional TAGS */
-  if (p->n_cigar) {
-	bam_aux_append(b, "NM", 'i', 4, p->NM);
-	char *md = (char*)(p->cigar+p->n_cigar);
-	bam_aux_append(b, "MD", 'Z', strlen(md)+1, md);
-	bam_aux_append(b, "ZC", 'i', 4, p->ZC); /* conversion count */
-	bam_aux_append(b, "ZR", 'i', 4, p->ZR); /* retention count */
-  }
-  if (p->score >=0) bam_aux_append(b, "AS", 'i', 4, p->score);
-  if (p->sub >= 0) bam_aux_append(b, "XS", 'i', 4, p->sub);
-  if (bwa_rg_id[0]) bam_aux_append(b, "RG", 'Z', strlen(bwa_rg_id)+1, bwa_rg_id);
-
-  /* whether parent strand is BSW or BSC */
-  bam_aux_append(b, "YD", 'A', 1, p->bss<0?'u':"fr"[p->bss]);
-
-  /* primary alignment output alternative mapping */
-  if (!(p->flag & 0x100)) {
-	for (i=0; i<n; ++i)
-	  if (i != which && !(list[i].flag&0x100)) break;
-	/* if there are other primary hits, output them */
-	if (i<n) {
-	  kstring_t str; str.s = 0; str.m = str.l = 0;
-	  for (i=0; i<n; ++i) {
-		const mem_aln_t *r = &list[i];
-		int k;
-		if (i==which || (r->flag&0x100))
-		  continue;
-		kputs(bns->anns[r->rid].name, str); kputc(',', str);
-		kputl(r->pos+1, str); kputc(',', str);
-		kputc("+-"[r->is_rev], str); kputc(',', str);
-		for (k = 0; k < r->n_cigar; ++k) {
-		  kputw(r->cigar[k]>>4, str); kputc("MIDSH"[r->cigar[k]&0xf], str);
-		}
-		kputc(',', str); kputw(r->mapq, str);
-		kputc(',', str); kputw(r->NM, str);
-		kputc(';', str);
-	  }
-	  bam_aux_append(b, "SA", 'Z', str.l+1, str.s);
-	  free(str.s);
-	}
-  }
-
-  if (p->alt_sc > 0) bam_aux_append(b, "PA", 'f', 8, (double) p->score/p->alt_sc);
-  if (p->XA) bam_aux_append(b, "XA", 'Z', strlen(p->XA), p->XA);
-  /* no output of comment, is this part of SAM format? */
-  /* optionally output comments to the reference chromosome */
-  if ((opt->flag&MEM_F_REF_HDR) && p->rid >= 0 && bns->anns[p->rid].anno != 0 && bns->anns[p->rid].anno[0] != 0) {
-	char *str = strdup(bns->anns[p->rid].anno);
-	/* replace TAB in the comment ot SPACE */
-	int l = strlen(str);
-	for (i=0; i<l; ++i) if (str[i] == '\t') str[i] = ' ';
-	str[l] = 0;
-	bam_aux_append(b, "XR", 'Z', strlen(str)+1, str);
-	free(str);
-  }
-  return b;
+      _ENCODE(bam1_seq(b1), s->seq+qb, qe-qb);
+		} else {
+      
+    }
 }
 
 /************************
