@@ -417,7 +417,10 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
 
   if (methcallable) {
     fivenuc_context(rs, rpos, s, rb);
-    ksprintf(s, ";RetnT=%d;ConvT=%d", cnts[BSS_RETENTION], cnts[BSS_CONVERSION]);
+    /* ksprintf(s, ";RetnT=%d;ConvT=%d", cnts[BSS_RETENTION], cnts[BSS_CONVERSION]); */
+    ksprintf(s, ";RetnT=%d;ConvT=%d;beta=%1.2f", cnts[BSS_RETENTION], cnts[BSS_CONVERSION],
+             ((double) cnts[BSS_RETENTION])/ (double) (cnts[BSS_RETENTION]+cnts[BSS_CONVERSION]));
+
   }
 
   if (cref || cm1 >=0) {

@@ -578,11 +578,11 @@ void bwa_print_sam_hdr(const bntseq_t *bns, const char *hdr_line)
       err_printf("@SQ\tSN:%s\tLN:%d\n", annps[i]->name, annps[i]->len);
     }
     free(annps);
-    
-		for (i = 0; i < bns->n_seqs; ++i) {
-      /* if (!bns->anns[i].bsstrand)       /\* bisulfite adaption *\/ */
-      err_printf("@SQ\tSN:%s\tLN:%d\n", bns->anns[i].name, bns->anns[i].len);
-    }
+
+		/* for (i = 0; i < bns->n_seqs; ++i) { */
+    /*   /\* if (!bns->anns[i].bsstrand)       /\\* bisulfite adaption *\\/ *\/ */
+    /*   err_printf("@SQ\tSN:%s\tLN:%d\n", bns->anns[i].name, bns->anns[i].len); */
+    /* } */
 	} else if (n_SQ != bns->n_seqs && bwa_verbose >= 2) /* sequences in the header line on command option does not match index */
 		fprintf(stderr, "[W::%s] %d @SQ lines provided with -H; %d sequences in the index. Continue anyway.\n", __func__, n_SQ, bns->n_seqs);
 	if (hdr_line) err_printf("%s\n", hdr_line);
