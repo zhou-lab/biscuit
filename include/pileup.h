@@ -15,6 +15,8 @@
 typedef struct {
   int step;
   int n_threads;
+  int min_cov;
+  int bsrate_max_pos;
   uint32_t min_base_qual;
   uint32_t max_retention;
   uint32_t min_read_len;
@@ -45,9 +47,14 @@ typedef struct {
 
 DEFINE_WQUEUE(window, window_t)
 
+/* mutation-methylation code */
 extern const char nt256int8_to_mutcode[6];
 typedef enum {BSS_MA, BSS_MC, BSS_MG, BSS_MT,
               BSS_MY, BSS_MR, BSS_RETENTION, BSS_CONVERSION, BSS_N} status_t;
+
+/* cytosine context */
+typedef enum {CONTEXT_CG, CONTEXT_CHG, CONTEXT_CHH, CONTEXT_NA} cytosine_context_t;
+extern const char *cytosine_context[];
 
 typedef struct {
   uint8_t bsstrand:1;
@@ -57,7 +64,7 @@ typedef struct {
   uint8_t cnt_ret;
   uint16_t rlen;                /* read length */
   char qb;
-  status_t stat;                  /* code from mut-met status table */
+  status_t stat;                /* code from mut-met status table */
 } __attribute__((__packed__)) pileup_data_t;
 
 DEFINE_VECTOR(pileup_data_v, pileup_data_t)
@@ -65,28 +72,63 @@ DEFINE_VECTOR(pileup_data_v, pileup_data_t)
 #define RECORD_QUEUE_END -2
 #define RECORD_SLOT_OBSOLETE -1
 
+
+typedef struct bsrate_t {
+  int m;
+  int *ct_unconv, *ct_conv, *ga_unconv, *ga_conv;
+  int *ct_unconv_m, *ct_conv_m, *ga_unconv_m, *ga_conv_m;
+} bsrate_t;
+
+static inline void bsrate_init(bsrate_t *b, int m) {
+  b->m = m;
+  b->ct_unconv = calloc(m, sizeof(int));
+  b->ct_conv = calloc(m, sizeof(int));
+  b->ga_unconv = calloc(m, sizeof(int));
+  b->ga_conv = calloc(m, sizeof(int));
+
+  /* conversion based on chrM */
+  b->ct_unconv_m = calloc(m, sizeof(int));
+  b->ct_conv_m = calloc(m, sizeof(int));
+  b->ga_unconv_m = calloc(m, sizeof(int));
+  b->ga_conv_m = calloc(m, sizeof(int));
+}
+
+static inline void bsrate_free(bsrate_t *b) {
+
+  free(b->ct_unconv);
+  free(b->ct_conv);
+  free(b->ga_unconv);
+  free(b->ga_conv);
+  free(b->ct_unconv_m);
+  free(b->ct_conv_m);
+  free(b->ga_unconv_m);
+  free(b->ga_conv_m);
+}
+
 typedef struct {
   int64_t block_id;
-  kstring_t s;
+  kstring_t s;                  /* vcf record */
+
+  /* coverage */
+  int tid;
+  int l, n, n_uniq;             /* length, base coverage, unique base coverage */
+
+  /* methlevelaverages, [beta sum, cnt] */
+  double betasum_context[3];       /* CG, CHG, CHH */
+  int cnt_context[3];
+  
+  /* bsrate */
+  bsrate_t b;
 } record_t;
 
 DEFINE_VECTOR(record_v, record_t)
 
 DEFINE_WQUEUE(record, record_t)
 
-
-void remove_record_by_block_id(record_v *records, int64_t block_id, record_t *record);
+void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record);
 void put_into_record_v(record_v *records, record_t rec);
 
 uint32_t cnt_retention(refseq_t *rs, bam1_t *b, uint8_t bsstrand);
-
-typedef struct {
-  wqueue_t(record) *q;
-  char *outfn;
-  char *header;
-} writer_conf_t;
-
-void *write_func(void *data);
 
 uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual);
 
@@ -106,7 +148,7 @@ static inline int compare_targets(const void *a, const void *b) {
 
 #define mutcode(a) (nt256char_to_nt256int8_table[(uint8_t)a])
 
-void fivenuc_context(refseq_t *rs, uint32_t rpos, kstring_t *s, char rb);
+cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *fivenuc);
 
 #define min(a,b) ((a)<(b)?(a):(b))
 
@@ -120,3 +162,22 @@ static inline int compare_supp(const void *a, const void *b)
   return ((*(uint32_t*)b)>>4) - ((*(uint32_t*)a)>>4);
 }
 
+typedef struct {
+  wqueue_t(record) *q;
+  char *outfn;
+  char *header;
+  target_v *targets;
+  conf_t *conf;
+} writer_conf_t;
+
+void *write_func(void *data);
+
+
+#ifndef kroundup32
+/*! @function
+  @abstract  Round an integer to the next closest power-2 integer.
+  @param  x  integer to be rounded (in place)
+  @discussion x will be modified.
+ */
+#define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
+#endif
