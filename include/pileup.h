@@ -165,6 +165,7 @@ static inline int compare_supp(const void *a, const void *b)
 typedef struct {
   wqueue_t(record) *q;
   char *outfn;
+  char *statsfn;
   char *header;
   target_v *targets;
   conf_t *conf;

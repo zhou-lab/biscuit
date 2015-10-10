@@ -86,9 +86,23 @@ void merge_bsrate(bsrate_t *t, bsrate_t *s) {
 
 void *write_func(void *data) {
   writer_conf_t *c = (writer_conf_t*) data;
+
   FILE *out;
   if (c->outfn) out=fopen(c->outfn, "w");
   else out=stdout;
+
+  FILE *stats;
+  if (c->statsfn) {
+    stats=fopen(c->statsfn, "w");
+  } else if (c->outfn) {
+    c->statsfn = calloc(strlen(c->outfn)+7,1);
+    strcpy(c->statsfn, c->outfn);
+    strcat(c->statsfn, ".stats");
+    stats=fopen(c->statsfn, "w");
+  } else {
+    stats=stderr;
+  }
+  
   if (c->header) fputs(c->header, out);
   int64_t next_block = 0;
   record_v *records = init_record_v(20);
@@ -141,29 +155,29 @@ void *write_func(void *data) {
   }
 
   /* output statistics */
-  fprintf(stderr, "\ntotal length:\n");
-  fprintf(stderr, "chrom\tlen\tcov\tcov_uniq\n");
+  fprintf(stats, "\ntotal length:\n");
+  fprintf(stats, "chrom\tlen\tcov\tcov_uniq\n");
   uint32_t k;
   for (k=0; k<c->targets->size; ++k) {
     if (l[k] == 0) continue;
-    fprintf(stderr, "%s\t%d\t%d\t%d\n", get_target_v(c->targets, k).name, l[k], n[k], n_uniq[k]);
+    fprintf(stats, "%s\t%d\t%d\t%d\n", get_target_v(c->targets, k).name, l[k], n[k], n_uniq[k]);
   }
 
-  fprintf(stderr, "\nmethlevelaverage:\n");
-  fprintf(stderr, "chrom\tCGn\tCGb\tCHGn\tCHGb\tCHHn\tCHHb\n");
+  fprintf(stats, "\nmethlevelaverage:\n");
+  fprintf(stats, "chrom\tCGn\tCGb\tCHGn\tCHGb\tCHHn\tCHHb\n");
   for (k=0; k<c->targets->size; ++k) {
     if (l[k] == 0) continue;
-    fprintf(stderr, "%s\t%d\t%1.3f\t%d\t%1.3f\t%d\t%1.3f\n",
+    fprintf(stats, "%s\t%d\t%1.3f\t%d\t%1.3f\t%d\t%1.3f\n",
             get_target_v(c->targets, k).name,
             cnt_context[k*3], betasum_context[k*0] / (double) cnt_context[k*3],
             cnt_context[k*3+1], betasum_context[k*3+1] / (double) cnt_context[k*3+1],
             cnt_context[k*3+2], betasum_context[k*3+2] / (double) cnt_context[k*3+2]);
   }
 
-  fprintf(stderr, "\nbsrate:\n");
-  fprintf(stderr, "pos\tct_c\tct_u\tct_r\tga_c\tga_u\tga_r\tct_cm\tct_um\tct_rm\tga_cm\tga_um\tga_rm\n");
+  fprintf(stats, "\nbsrate:\n");
+  fprintf(stats, "pos\tct_c\tct_u\tct_r\tga_c\tga_u\tga_r\tct_cm\tct_um\tct_rm\tga_cm\tga_um\tga_rm\n");
   for (i=0; i<b.m; ++i){
-    fprintf(stderr, "%d\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\n",
+    fprintf(stats, "%d\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\n",
             i+1, b.ct_conv[i], b.ct_unconv[i],
             (double) b.ct_conv[i] / (double)(b.ct_conv[i]+b.ct_unconv[i]),
             b.ga_conv[i], b.ga_unconv[i],
@@ -174,6 +188,7 @@ void *write_func(void *data) {
             (double) b.ga_conv_m[i] / (double)(b.ga_conv_m[i]+b.ga_unconv_m[i]));
   }
 
+  free(c->statsfn);
   free(l); free(n); free(n_uniq);
   free(cnt_context);
   free(betasum_context);
@@ -396,17 +411,17 @@ int reference_supp(int cnts[9]) {
 void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[9], kstring_t *s) {
 
   if (cref)
-    ksprintf(s, "%c:%d", rb, cref);
+    ksprintf(s, "%c%d", rb, cref);
 
   if (cm1 >= 0) {
     if (cref) kputc(',',s);
-    ksprintf(s, "%c:%d", nt256int8_to_mutcode[cm1], cnts[cm1]);
+    ksprintf(s, "%c%d", nt256int8_to_mutcode[cm1], cnts[cm1]);
     if (cm2 >= 0) {
-      ksprintf(s, ",%c:%d", nt256int8_to_mutcode[cm2], cnts[cm2]);
+      ksprintf(s, ",%c%d", nt256int8_to_mutcode[cm2], cnts[cm2]);
       int i;
       for (i=0; i<6; ++i) {
         if (cnts[i]>0 && i!= cm1 && i!= cm2) {
-          ksprintf(s, ",%c:%d", nt256int8_to_mutcode[i], cnts[i]);
+          ksprintf(s, ",%c%d", nt256int8_to_mutcode[i], cnts[i]);
         }
       }
     }
@@ -463,9 +478,11 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
     if (cnts[BSS_MA]==0 && rb == 'G') methcallable = 1;
   }
 
+  /* CHROM, POS, ID, REF */
   ksprintf(s, "%s\t%u\t.\t%c\t", chrm, rpos, rb);
-  
-  /* if BSW shows G->A or BSC shows C->T, then a SNP, 
+
+  /* ALT
+     if BSW shows G->A or BSC shows C->T, then a SNP, 
      no methylation information is inferred */
   if (cm1 >= 0) {
     uint32_t supp[6];
@@ -501,38 +518,55 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
   }
 
   /* INFO tags */
-  if (dv) ksprintf(s, "DP=%u", dv->size);
-  else kputs("DP=0", s);
-
+  cytosine_context_t ctt=CONTEXT_NA;
+  kputs("NS=1", s);
   if (methcallable) {
     char fivenuc[5];
-    cytosine_context_t ctt = fivenuc_context(rs, rpos, rb, fivenuc);
+    ctt = fivenuc_context(rs, rpos, rb, fivenuc);
+    ksprintf(s, ";CX=%s", cytosine_context[ctt]);
+    ksprintf(s, ";N5=%.5s", fivenuc);
+  }
+
+  /* FORMAT */
+  kputs("\tDP:GT:GP:GQ", s);
+  if (cref || cm1 >=0) kputs(":SP", s);
+  if (methcallable) kputs(":CV:BT", s);
+
+  /* BY SAMPLE FORMAT CONTEXT */
+  if (dv) ksprintf(s, "\t%u", dv->size);
+  else kputs("\t0", s);
+
+  if (gq>0) {
+    ksprintf(s, ":%s:%1.0f,%1.0f,%1.0f:%1.0f", gt, min(1000, -gl0), min(1000, -gl1), min(1000, -gl2), gq);
+  } else {
+    ksprintf(s, ":./.:.:.");
+  }
+
+  if (cref || cm1>=0) {
+    kputc(':', s);
+    allele_supp(rb, cref, cm1, cm2, cnts, s);
+  }
+  
+  if (methcallable) {
     double beta = (double) cnts[BSS_RETENTION] / (double) (cnts[BSS_RETENTION]+cnts[BSS_CONVERSION]);
     if (ctt != CONTEXT_NA) {
       rec->betasum_context[ctt] += beta;
       rec->cnt_context[ctt]++;
     }
-
-    ksprintf(s, ";CV=%d;BT=%1.3f;CTX=%s", cnts[BSS_RETENTION]+cnts[BSS_CONVERSION], beta, cytosine_context[ctt]);
-    if (conf->verbose) ksprintf(s, ";Retn=%d;Conv=%d;N5=%.5s", cnts[BSS_RETENTION], cnts[BSS_CONVERSION], fivenuc);
+    ksprintf(s, ":%d:%1.2f", cnts[BSS_RETENTION]+cnts[BSS_CONVERSION], beta);
   }
 
-  if (cref || cm1 >=0) {
-    kputs(";SP=", s);
-    allele_supp(rb, cref, cm1, cm2, cnts, s);
-  }
-
-  /* additional information printed on verbose */
+  /* additional information printed on verbose theoretically this should be 
+     put to FORMAT since they are sample-specific, but in FORMAT is usually 
+     harder to parse, so they are appended to INFO these are not intended for
+     formal submission, just for diagnostic purposes.
+  */
   if (conf->verbose) {
+    kputs("\tDIAGNOSE", s);
+    if (methcallable)
+      ksprintf(s, ";RN=%d;CN=%d", cnts[BSS_RETENTION], cnts[BSS_CONVERSION]);
     verbose_format(0, dv, s);
     verbose_format(1, dv, s);
-  }
-
-  kputs("\tGT:GP:GQ", s);
-  if (gq>0) {
-    ksprintf(s, "\t%s:%1.0f,%1.0f,%1.0f:%1.2f", gt, min(1000, -gl0), min(1000, -gl1), min(1000, -gl2), gq);
-  } else {
-    ksprintf(s, "\t./.:.:.");
   }
 
   kputc('\n', s);
@@ -828,12 +862,12 @@ static void *process_func(void *data) {
 }
 
 static void head_append_verbose(char *pb, char b, kstring_t *s) {
-  ksprintf(s, "##INFO=<ID=Bs%c,Number=1,Type=String,Description=\"base identity, %s\">\n", b, pb);
-  ksprintf(s, "##INFO=<ID=Sta%c,Number=1,Type=String,Description=\"Status code, %s (0,1,2,3 for mutation into A,C,G,T; 4,5 for Y,R; 6,7 for retention and conversion; 8 for other normal;)\">\n", b, pb);
-  ksprintf(s, "##INFO=<ID=Bq%c,Number=1,Type=String,Description=\"base quality, %s\">\n", b, pb);
-  ksprintf(s, "##INFO=<ID=Str%c,Number=1,Type=String;Description=\"strands, %s\">\n", b, pb);
-  ksprintf(s, "##INFO=<ID=Pos%c,Number=1,Type=String;Description=\"position in read, %s\">\n", b, pb);
-  ksprintf(s, "##INFO=<ID=Rret%c,Number=1,Type=String;Description=\"Number of retention in read, %s\">\n", b, pb);
+  ksprintf(s, "##FORMAT=<ID=Bs%c,Number=1,Type=String,Description=\"base identity, %s\">\n", b, pb);
+  ksprintf(s, "##FORMAT=<ID=Sta%c,Number=1,Type=String,Description=\"Status code, %s (0,1,2,3 for mutation into A,C,G,T; 4,5 for Y,R; 6,7 for retention and conversion; 8 for other normal;)\">\n", b, pb);
+  ksprintf(s, "##FORMAT=<ID=Bq%c,Number=1,Type=String,Description=\"base quality, %s\">\n", b, pb);
+  ksprintf(s, "##FORMAT=<ID=Str%c,Number=1,Type=String;Description=\"strands, %s\">\n", b, pb);
+  ksprintf(s, "##FORMAT=<ID=Pos%c,Number=1,Type=String;Description=\"position in read, %s\">\n", b, pb);
+  ksprintf(s, "##FORMAT=<ID=Rret%c,Number=1,Type=String;Description=\"Number of retention in read, %s\">\n", b, pb);
 }
 
 static int usage(conf_t *conf) {
@@ -847,7 +881,8 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -s        step of window dispatching [%d].\n", conf->step);
   fprintf(stderr, "     -q        number of threads [%d] recommend 20.\n", conf->n_threads);
   fprintf(stderr, "\nOutputing format:\n\n");
-  fprintf(stderr, "     -o        pileup output file\n");
+  fprintf(stderr, "     -o        pileup output file [stdout]\n");
+  fprintf(stderr, "     -w        pileup statistics output, e.g., bsrate, methlevelaverage etc. [stderr if no '-o' else [output].stats]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "\nGenotyping parameters:\n\n");
   fprintf(stderr, "     -E        error rate [%1.3f].\n", conf->error);
@@ -888,7 +923,7 @@ void conf_init(conf_t *conf) {
   conf->filter_ppair = 1;
   conf->min_dist_end = 3;
   conf->max_nm = 255;
-  conf->contam = 0.005;
+  conf->contam = 0.1;
   conf->error = 0.001;
   conf->mu = 0.001;
   conf->prior1 = 0.33333;
@@ -918,14 +953,16 @@ int main_pileup(int argc, char *argv[]) {
   char *reg = 0;
   char *infn = 0;
   char *outfn = 0;
+  char *statsfn = 0;
   conf_t conf;
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:o:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:cupvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:cupvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'o': outfn = optarg; break;
+    case 'w': statsfn = strdup(optarg); break;
     case 'r': reffn = optarg; break;
     case 'g': reg = optarg; break;
     case 'q': conf.n_threads = atoi(optarg); break;
@@ -990,16 +1027,21 @@ int main_pileup(int argc, char *argv[]) {
   for (i=0; i<argc; ++i)
     ksprintf(&header, " %s", argv[i]);
   kputs(">\n", &header);
-  kputs("##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Raw read depth\">\n", &header);
-  kputs("##INFO=<ID=SP,Number=1,Type=String,Description=\"Allele support (with filtering)\">\n", &header);
-  kputs("##INFO=<ID=CV,Number=1,Type=Integer,Description=\"Effective coverage in methylation call\">\n", &header);
-  kputs("##INFO=<ID=BT,Number=1,Type=Float,Description=\"Conversion count (with filtering)\">\n", &header);
-  kputs("##INFO=<ID=CTX,Number=1,Type=Float,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
+  kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
+  kputs("##INFO=<ID=CX,Number=1,Type=Float,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
+  kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
+
+  kputs("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Raw read depth\">\n", &header);
+  kputs("##FORMAT=<ID=SP,Number=R,Type=String,Description=\"Allele support (with filtering)\">\n", &header);
+  kputs("##FORMAT=<ID=CV,Number=1,Type=Integer,Description=\"Effective (strand-specific) coverage on cytosine\">\n", &header);
+  kputs("##FORMAT=<ID=BT,Number=1,Type=Float,Description=\"Cytosine methylation fraction (aka beta value, with filtering)\">\n", &header);
+  kputs("##FORMAT=<ID=GT,Number=1,Type=Integer,Description=\"Genotype from normal\">\n", &header);
+  kputs("##FORMAT=<ID=GL,Number=G,Type=Integer,Description=\"Genotype likelihoods\">\n", &header);
+  kputs("##FORMAT=<ID=GQ,Number=1,Type=Float,Description=\"Genotype quality (phred-scaled)\">\n", &header);
 
   if (conf.verbose) {
-    kputs("##INFO=<ID=Retn,Number=1,Type=Integer,Description=\"Retention count (with filtering)\">\n", &header);
-    kputs("##INFO=<ID=Conv,Number=1,Type=Integer,Description=\"Conversion count (with filtering)\">\n", &header);
-    kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
+    kputs("##FORMAT=<ID=RN,Number=1,Type=Integer,Description=\"Retention count (with filtering)\">\n", &header);
+    kputs("##FORMAT=<ID=CN,Number=1,Type=Integer,Description=\"Conversion count (with filtering)\">\n", &header);
     char plpbsstrand[4];
     strcpy(plpbsstrand, "BSW");
     head_append_verbose(plpbsstrand, '0', &header);
@@ -1007,15 +1049,12 @@ int main_pileup(int argc, char *argv[]) {
     head_append_verbose(plpbsstrand, '1', &header);
   }
 
-  kputs("##FORMAT=<ID=GT,Number=1,Type=Integer,Description=\"Genotype from normal\">\n", &header);
-  kputs("##FORMAT=<ID=GL,Number=G,Type=Integer,Description=\"Genotype likelihoods\">\n", &header);
-  kputs("##FORMAT=<ID=GQ,Number=1,Type=Float,Description=\"Genotype quality (phred-scaled)\">\n", &header);
-
   /* setup writer */
   pthread_t writer;
   writer_conf_t writer_conf = {
     .q = wqueue_init(record, 100000),
     .outfn = outfn,
+    .statsfn = statsfn,
     .header = conf.noheader?0:header.s,
     .targets = targets,
     .conf = &conf,

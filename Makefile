@@ -91,6 +91,7 @@ bin/correct_bsstrand: $(LSAM0119)
 clean_correct_bsstrand:
 	rm -f bin/correct_bsstrand
 
+# get unmapped reads from bam
 .PHONY: get_unmapped
 get_unmapped : bin/get_unmapped
 bin/get_unmapped : $(LSAM0119)
@@ -98,6 +99,7 @@ bin/get_unmapped : $(LSAM0119)
 clean_get_unmapped:
 	rm -f bin/get_unmapped
 
+# get trinuc spectrum
 .PHONY: sample_trinuc
 sample_trinuc : bin/sample_trinuc
 bin/sample_trinuc: $(LSAM0119) src/sample_trinuc/sample_trinuc.c
@@ -105,6 +107,7 @@ bin/sample_trinuc: $(LSAM0119) src/sample_trinuc/sample_trinuc.c
 clean_sample_trinuc:
 	rm -f bin/sample_trinuc
 
+# find hemi methylation
 .PHONY: hemifinder
 hemifinder : bin/hemifinder
 bin/hemifinder: $(LSAM0119) $(LUTILS) src/hemifinder/hemifinder.c
@@ -115,6 +118,6 @@ clean_hemifinder:
 .c.o :
 	gcc -c $(CFLAGS) $< -o $@
 
-.PHONY: clean_all
+.PHONY: clean
 clean : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup clean_klib clean_somatic
 	make -C $(LSAM0119D) clean
