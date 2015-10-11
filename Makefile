@@ -37,7 +37,7 @@ clean_klib:
 	rm -f $(KLIBD)/*.o lib/klib/klib.a
 
 .PHONY: biscuit
-LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
+LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o src/markdup.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
 biscuit: bin/biscuit
 bin/biscuit: $(LIBS) src/main.o
 		gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
@@ -83,6 +83,14 @@ src/somatic.o: src/somatic.c
 	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/somatic.c
 clean_somatic:
 	rm -f src/somatic.o
+
+.PHONY: markdup
+markdup: src/markdup.o
+markdup: src/markdup.o
+src/markdup.o: src/markdup.c
+	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/markdup.c
+clean_markdup:
+	rm -f src/markdup.o
 
 .PHONY: correct_bsstrand
 correct_bsstrand : bin/correct_bsstrand

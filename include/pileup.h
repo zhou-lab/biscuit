@@ -1,6 +1,7 @@
 
 #include <ctype.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include "wqueue.h"
 #include "encode.h"
 #include "sam.h"
@@ -111,11 +112,11 @@ typedef struct {
 
   /* coverage */
   int tid;
-  int l, n, n_uniq;             /* length, base coverage, unique base coverage */
+  int64_t l, n, n_uniq;             /* length, base coverage, unique base coverage */
 
   /* methlevelaverages, [beta sum, cnt] */
   double betasum_context[3];       /* CG, CHG, CHH */
-  int cnt_context[3];
+  int64_t cnt_context[3];
   
   /* bsrate */
   bsrate_t b;

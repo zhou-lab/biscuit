@@ -108,12 +108,12 @@ void *write_func(void *data) {
   record_v *records = init_record_v(20);
 
   /* statistics */
-  int *l=(int*)calloc(c->targets->size, sizeof(int));
-  int *n=(int*)calloc(c->targets->size, sizeof(int));
-  int *n_uniq=(int*)calloc(c->targets->size, sizeof(int));
+  int64_t *l=(int64_t*)calloc(c->targets->size, sizeof(int64_t));
+  int64_t *n=(int64_t*)calloc(c->targets->size, sizeof(int64_t));
+  int64_t *n_uniq=(int64_t*)calloc(c->targets->size, sizeof(int64_t));
 
   double *betasum_context=(double*)calloc(c->targets->size*3, sizeof(double));
-  int *cnt_context=(int*)calloc(c->targets->size*3, sizeof(int));
+  int64_t *cnt_context=(int64_t*)calloc(c->targets->size*3, sizeof(int64_t));
   int i;
   bsrate_t b;
   bsrate_init(&b, c->conf->bsrate_max_pos);
@@ -157,35 +157,38 @@ void *write_func(void *data) {
   /* output statistics */
   fprintf(stats, "\ntotal length:\n");
   fprintf(stats, "chrom\tlen\tcov\tcov_uniq\n");
-  uint32_t k;
+  uint32_t k; int64_t l0=0, n0=0, n_uniq0=0;
   for (k=0; k<c->targets->size; ++k) {
     if (l[k] == 0) continue;
-    fprintf(stats, "%s\t%d\t%d\t%d\n", get_target_v(c->targets, k).name, l[k], n[k], n_uniq[k]);
+    fprintf(stats, "%s\t%"PRId64"\t%"PRId64"\t%1.2f%%\t%"PRId64"\t%1.2f%%\n", get_target_v(c->targets, k).name, l[k], n[k], (double)n[k]/(double)l[k]*100, n_uniq[k], (double)n_uniq[k]/(double)l[k]*100);
+    l0 += l[k]; n0 += n[k]; n_uniq0 += n_uniq[k];
   }
+  fprintf(stats, "whole_genome\t%"PRId64"\t%"PRId64"\t%1.2f%%\t%"PRId64"\t%1.2f%%\n", l0, n0, (double)n0/(double)l0*100, n_uniq0, (double)n_uniq0/(double)l0*100);
 
   fprintf(stats, "\nmethlevelaverage:\n");
   fprintf(stats, "chrom\tCGn\tCGb\tCHGn\tCHGb\tCHHn\tCHHb\n");
   for (k=0; k<c->targets->size; ++k) {
     if (l[k] == 0) continue;
-    fprintf(stats, "%s\t%d\t%1.3f\t%d\t%1.3f\t%d\t%1.3f\n",
+    fprintf(stats, "%s\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
             get_target_v(c->targets, k).name,
-            cnt_context[k*3], betasum_context[k*0] / (double) cnt_context[k*3],
-            cnt_context[k*3+1], betasum_context[k*3+1] / (double) cnt_context[k*3+1],
-            cnt_context[k*3+2], betasum_context[k*3+2] / (double) cnt_context[k*3+2]);
+            cnt_context[k*3], betasum_context[k*3] / (double) cnt_context[k*3]*100,
+            cnt_context[k*3+1], betasum_context[k*3+1] / (double) cnt_context[k*3+1]*100,
+            cnt_context[k*3+2], betasum_context[k*3+2] / (double) cnt_context[k*3+2]*100);
   }
 
   fprintf(stats, "\nbsrate:\n");
   fprintf(stats, "pos\tct_c\tct_u\tct_r\tga_c\tga_u\tga_r\tct_cm\tct_um\tct_rm\tga_cm\tga_um\tga_rm\n");
   for (i=0; i<b.m; ++i){
-    fprintf(stats, "%d\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\t%d\t%d\t%1.3f\n",
+    if (!b.ct_conv[i] && !b.ga_conv[i] && !b.ct_conv_m[i] && !b.ga_conv_m[i]) continue;
+    fprintf(stats, "%d\t%d\t%d\t%1.3f%%\t%d\t%d\t%1.3f%%\t%d\t%d\t%1.3f%%\t%d\t%d\t%1.3f%%\n",
             i+1, b.ct_conv[i], b.ct_unconv[i],
-            (double) b.ct_conv[i] / (double)(b.ct_conv[i]+b.ct_unconv[i]),
+            (double) b.ct_conv[i] / (double)(b.ct_conv[i]+b.ct_unconv[i])*100,
             b.ga_conv[i], b.ga_unconv[i],
-            (double) b.ga_conv[i] / (double)(b.ga_conv[i]+b.ga_unconv[i]),
+            (double) b.ga_conv[i] / (double)(b.ga_conv[i]+b.ga_unconv[i])*100,
             b.ct_conv_m[i], b.ct_unconv_m[i],
-            (double) b.ct_conv_m[i] / (double)(b.ct_conv_m[i]+b.ct_unconv_m[i]),
+            (double) b.ct_conv_m[i] / (double)(b.ct_conv_m[i]+b.ct_unconv_m[i])*100,
             b.ga_conv_m[i], b.ga_unconv_m[i],
-            (double) b.ga_conv_m[i] / (double)(b.ga_conv_m[i]+b.ga_unconv_m[i]));
+            (double) b.ga_conv_m[i] / (double)(b.ga_conv_m[i]+b.ga_unconv_m[i])*100);
   }
 
   free(c->statsfn);
