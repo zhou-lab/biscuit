@@ -37,13 +37,30 @@ clean_klib:
 	rm -f $(KLIBD)/*.o lib/klib/klib.a
 
 .PHONY: biscuit
-LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o src/markdup.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
+LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o src/markdup.o src/nome.o src/vcf2bed.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
 biscuit: bin/biscuit
 bin/biscuit: $(LIBS) src/main.o
 		gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
 
 src/main.o: src/main.c
 	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE) -I$(INCLUDE)/aln -I$(INCLUDE)/klib
+
+####### libraries #######
+
+.PHONY: utils
+utils: $(LUTILS)
+LUTILSOBJ = $(LUTILSD)/encode.o $(LUTILSD)/stats.o $(LUTILSD)/wzhmm.o
+$(LUTILS): $(LUTILSOBJ)
+	ar -csru $@ $(LUTILSOBJ)
+$(LUTILSD)/%.o: $(LUTILSD)/%.c
+	gcc -c $(CFLAGS) -I$(INCLUDE) $< -o $@
+clean_utils:
+	rm -f $(LUTILSD)/*.o $(LUTILS)
+
+libaln.a: $(ALNOBJS)
+	$(AR) -csru $@ $(ALNOBJS)
+
+####### subcommands #######
 
 .PHONY: aln
 aln: lib/aln/libaln.a
@@ -56,41 +73,39 @@ $(LALND)/%.o: $(LALND)/%.c
 clean_aln:
 	rm -f $(LALND)/*.o lib/aln/libaln.a
 
-.PHONY: utils
-utils: $(LUTILS)
-LUTILSOBJ = $(LUTILSD)/encode.o $(LUTILSD)/stats.o
-$(LUTILS): $(LUTILSOBJ)
-	ar -csru $@ $(LUTILSOBJ)
-$(LUTILSD)/%.o: $(LUTILSD)/%.c
-	gcc -c $(CFLAGS) -I$(INCLUDE) $< -o $@
-clean_utils:
-	rm -f $(LUTILSD)/*.o $(LUTILS)
-
-libaln.a: $(ALNOBJS)
-	$(AR) -csru $@ $(ALNOBJS)
-
-.PHONY: pileup
-pileup: src/pileup.o
 src/pileup.o: src/pileup.c
 	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/pileup.c
 clean_pileup:
 	rm -f src/pileup.o
 
-.PHONY: somatic
-somatic: src/somatic.o
-somatic: src/somatic.o
 src/somatic.o: src/somatic.c
 	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/somatic.c
 clean_somatic:
 	rm -f src/somatic.o
 
-.PHONY: markdup
-markdup: src/markdup.o
-markdup: src/markdup.o
 src/markdup.o: src/markdup.c
 	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/markdup.c
 clean_markdup:
 	rm -f src/markdup.o
+
+src/nome.o: src/nome.c
+	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
+
+src/vcf2bed.o: src/vcf2bed.c
+	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
+
+####### general #######
+
+.c.o :
+	gcc -c $(CFLAGS) $< -o $@
+
+####### clean #######
+
+.PHONY: clean
+clean : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup clean_klib clean_somatic
+	make -C $(LSAM0119D) clean
+
+####### archived #######
 
 .PHONY: correct_bsstrand
 correct_bsstrand : bin/correct_bsstrand
@@ -122,10 +137,3 @@ bin/hemifinder: $(LSAM0119) $(LUTILS) src/hemifinder/hemifinder.c
 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/hemifinder/hemifinder.c $(LSAM0119) $(LUTILS) -lpthread  -lz
 clean_hemifinder:
 	rm -f bin/hemifinder
-
-.c.o :
-	gcc -c $(CFLAGS) $< -o $@
-
-.PHONY: clean
-clean : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup clean_klib clean_somatic
-	make -C $(LSAM0119D) clean

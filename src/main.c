@@ -9,6 +9,8 @@ int main_align(int argc, char *argv[]);
 int main_pileup(int argc, char *argv[]);
 int main_somatic(int argc, char *argv[]);
 int main_markdup(int argc, char *argv[]);
+int main_nome(int argc, char *argv[]);
+int main_vcf2bed(int argc, char *argv[]);
 
 static int usage()
 {
@@ -20,8 +22,10 @@ static int usage()
 	fprintf(stderr, "Command: index         index sequences in the FASTA format\n");
 	fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
-	fprintf(stderr, "         pileup        pileup cytosine and mutations.\n");
+	fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and meth-level averages.\n");
   fprintf(stderr, "         somatic       take both tumor and normal and call somatic mutations together with methylation.\n");
+  fprintf(stderr, "         nome          call nucleosome depletion region from NOMe-seq\n");
+  fprintf(stderr, "         vcf2bed       convert VCF to bed graph for visualization purpose\n");
   /* fprint */
   /* fprintf(stderr, "         hemi          find hemi-methylated region.\n"); */
 	fprintf(stderr, "\n");
@@ -45,6 +49,8 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
   else if (strcmp(argv[1], "somatic") == 0) ret = main_somatic(argc-1, argv+1);
   else if (strcmp(argv[1], "markdup") == 0) ret = main_markdup(argc-1, argv+1);
+  else if (strcmp(argv[1], "nome") == 0) ret = main_nome(argc-1, argv+1);
+  else if (strcmp(argv[1], "vcf2bed") == 0) ret = main_vcf2bed(argc-1, argv+1);
 	else {
 		fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
 		return 1;
@@ -57,7 +63,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "[%s] CMD:", __func__);
 		for (i = 0; i < argc; ++i)
 			fprintf(stderr, " %s", argv[i]);
-		fprintf(stderr, "\n[%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime() - t_real, cputime());
+		fprintf(stderr, "\n[%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime()-t_real, cputime());
 	}
 	free(bwa_pg);
 

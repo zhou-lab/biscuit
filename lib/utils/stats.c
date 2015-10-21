@@ -1,5 +1,12 @@
 #include "stats.h"
 
+double beta_binomial(int k, int n, double a, double b) {
+
+  double p = lgamma(n+1) - lgamma(k+1) - lgamma(n-k+1) + lgamma(k+a) + lgamma(n-k+b) - lgamma(n+a+b) + lgamma(a+b) - lgamma(a) - lgamma(b);
+
+  return p;
+}
+
 static double max( double a, double b ) { return a > b ? a : b; }
 
 /* sum of numbers inside ln function,

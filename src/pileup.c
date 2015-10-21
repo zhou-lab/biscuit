@@ -155,7 +155,7 @@ void *write_func(void *data) {
   }
 
   /* output statistics */
-  fprintf(stats, "\ntotal length:\n");
+  fprintf(stats, "\n#### base coverage ####\n");
   fprintf(stats, "chrom\tlen\tcov\tcov_uniq\n");
   uint32_t k; int64_t l0=0, n0=0, n_uniq0=0;
   for (k=0; k<c->targets->size; ++k) {
@@ -165,18 +165,28 @@ void *write_func(void *data) {
   }
   fprintf(stats, "whole_genome\t%"PRId64"\t%"PRId64"\t%1.2f%%\t%"PRId64"\t%1.2f%%\n", l0, n0, (double)n0/(double)l0*100, n_uniq0, (double)n_uniq0/(double)l0*100);
 
-  fprintf(stats, "\nmethlevelaverage:\n");
+  fprintf(stats, "\n#### methlevelaverage ####\n");
   fprintf(stats, "chrom\tCGn\tCGb\tCHGn\tCHGb\tCHHn\tCHHb\n");
+  double betasum_context0[3] = {0.0,0.0,0.0};
+  int64_t cnt_context0[3] = {0,0,0}; int k0;
   for (k=0; k<c->targets->size; ++k) {
-    if (l[k] == 0) continue;
+    if (l[k] == 0) continue;    /* skip chrom with no base coverage */
     fprintf(stats, "%s\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
             get_target_v(c->targets, k).name,
             cnt_context[k*3], betasum_context[k*3] / (double) cnt_context[k*3]*100,
             cnt_context[k*3+1], betasum_context[k*3+1] / (double) cnt_context[k*3+1]*100,
             cnt_context[k*3+2], betasum_context[k*3+2] / (double) cnt_context[k*3+2]*100);
+    for (k0=0; k0<3; ++k0) {
+      cnt_context0[k0] += cnt_context[k*3+k0];
+      betasum_context0[k0] += betasum_context[k*3+k0];
+    }
   }
+  fprintf(stats, "whole_genome\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
+          cnt_context0[0], betasum_context0[0] / (double) cnt_context0[0]*100,
+          cnt_context0[1], betasum_context0[1] / (double) cnt_context0[1]*100,
+          cnt_context0[2], betasum_context0[2] / (double) cnt_context0[2]*100);
 
-  fprintf(stats, "\nbsrate:\n");
+  fprintf(stats, "\n#### bisculfite conversion rate ####\n");
   fprintf(stats, "pos\tct_c\tct_u\tct_r\tga_c\tga_u\tga_r\tct_cm\tct_um\tct_rm\tga_cm\tga_um\tga_rm\n");
   for (i=0; i<b.m; ++i){
     if (!b.ct_conv[i] && !b.ga_conv[i] && !b.ct_conv_m[i] && !b.ga_conv_m[i]) continue;
@@ -1051,6 +1061,8 @@ int main_pileup(int argc, char *argv[]) {
     strcpy(plpbsstrand, "BSC");
     head_append_verbose(plpbsstrand, '1', &header);
   }
+
+  kputs("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample\n", &header);
 
   /* setup writer */
   pthread_t writer;

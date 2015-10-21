@@ -38,4 +38,6 @@ double ln_beta_incdiff_kernel(double p1, double p2, int a, int b);
 
 double somatic_posterior(int kr_t, int kv_t, int kr_n, int kv_n, double error, double mu, double mu_somatic, double contam);
 
+double beta_binomial(int k, int n, double a, double b);
+
 #endif
