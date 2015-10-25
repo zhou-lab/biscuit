@@ -4,7 +4,9 @@
 /* typedef enum {MCT, MCG, MCA, MGT, MGC, MGA} mutation_t; */
 /* const char alts[] = "TGATCA"; */
 const char nt256int8_to_mutcode[6] = "ACGTYR";
-const char *cytosine_context[] = {"CG","CHG","CHH","CN"};
+/* different representation of context when nome */
+const char *cytosine_context[] = {"CG","CHG","CHH","CG","CHG","CHH","CN"};
+const char *cytosine_context_nome[] = {"CG","CHG","CHH","GC","GC","GC","CN"};
 
 typedef struct {
   int n;                        /* number of sites */
@@ -112,8 +114,8 @@ void *write_func(void *data) {
   int64_t *n=(int64_t*)calloc(c->targets->size, sizeof(int64_t));
   int64_t *n_uniq=(int64_t*)calloc(c->targets->size, sizeof(int64_t));
 
-  double *betasum_context=(double*)calloc(c->targets->size*3, sizeof(double));
-  int64_t *cnt_context=(int64_t*)calloc(c->targets->size*3, sizeof(int64_t));
+  double *betasum=(double*)calloc(c->targets->size*NCONTXTS, sizeof(double));
+  int64_t *cnt=(int64_t*)calloc(c->targets->size*NCONTXTS, sizeof(int64_t));
   int i;
   bsrate_t b;
   bsrate_init(&b, c->conf->bsrate_max_pos);
@@ -133,9 +135,9 @@ void *write_func(void *data) {
           n_uniq[rec.tid] += rec.n_uniq;
 
           /* methlevelaverage */
-          for (i=0; i<3; ++i) {
-            betasum_context[rec.tid*3+i] += rec.betasum_context[i];
-            cnt_context[rec.tid*3+i] += rec.cnt_context[i];
+          for (i=0; i<NCONTXTS; ++i) {
+            betasum[rec.tid*NCONTXTS+i] += rec.betasum_context[i];
+            cnt[rec.tid*NCONTXTS+i] += rec.cnt_context[i];
           }
 
           /* merge bsrate */
@@ -155,6 +157,7 @@ void *write_func(void *data) {
   }
 
   /* output statistics */
+  /* by chromosome base coverage */
   fprintf(stats, "\n#### base coverage ####\n");
   fprintf(stats, "chrom\tlen\tcov\tcov_uniq\n");
   uint32_t k; int64_t l0=0, n0=0, n_uniq0=0;
@@ -163,30 +166,81 @@ void *write_func(void *data) {
     fprintf(stats, "%s\t%"PRId64"\t%"PRId64"\t%1.2f%%\t%"PRId64"\t%1.2f%%\n", get_target_v(c->targets, k).name, l[k], n[k], (double)n[k]/(double)l[k]*100, n_uniq[k], (double)n_uniq[k]/(double)l[k]*100);
     l0 += l[k]; n0 += n[k]; n_uniq0 += n_uniq[k];
   }
+  /* whole genome base coverage */
   fprintf(stats, "whole_genome\t%"PRId64"\t%"PRId64"\t%1.2f%%\t%"PRId64"\t%1.2f%%\n", l0, n0, (double)n0/(double)l0*100, n_uniq0, (double)n_uniq0/(double)l0*100);
 
   fprintf(stats, "\n#### methlevelaverage ####\n");
-  fprintf(stats, "chrom\tCGn\tCGb\tCHGn\tCHGb\tCHHn\tCHHb\n");
-  double betasum_context0[3] = {0.0,0.0,0.0};
-  int64_t cnt_context0[3] = {0,0,0}; int k0;
+  if (c->conf->is_nome)
+    fprintf(stats, "chrom\tHCGn\tHCGb\tHCHGn\tHCHGb\tHCHHn\tHCHHb\tGCn\tGCb\n");
+  else
+    fprintf(stats, "chrom\tCGn\tCGb\tCHGn\tCHGb\tCHHn\tCHHb\n");
+  double betasum0[NCONTXTS] = {0.0};
+  int64_t cnt0[NCONTXTS] = {0}; int k0;
+  int64_t kk0=0,kk1=0,kk2=0,kk3=0; double bb0=0.0,bb1=0.0,bb2=0.0,bb3=0.0;
+  /* by chromosome methlevelaverage */
   for (k=0; k<c->targets->size; ++k) {
     if (l[k] == 0) continue;    /* skip chrom with no base coverage */
-    fprintf(stats, "%s\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
-            get_target_v(c->targets, k).name,
-            cnt_context[k*3], betasum_context[k*3] / (double) cnt_context[k*3]*100,
-            cnt_context[k*3+1], betasum_context[k*3+1] / (double) cnt_context[k*3+1]*100,
-            cnt_context[k*3+2], betasum_context[k*3+2] / (double) cnt_context[k*3+2]*100);
-    for (k0=0; k0<3; ++k0) {
-      cnt_context0[k0] += cnt_context[k*3+k0];
-      betasum_context0[k0] += betasum_context[k*3+k0];
+    if (c->conf->is_nome) {
+      kk0 = cnt[k*NCONTXTS+CTXT_HCG];
+      bb0 = betasum[k*NCONTXTS+CTXT_HCG];
+      kk1 = cnt[k*NCONTXTS+CTXT_HCHG];
+      bb1 = betasum[k*NCONTXTS+CTXT_HCHG];
+      kk2 = cnt[k*NCONTXTS+CTXT_HCHH];
+      bb2 = betasum[k*NCONTXTS+CTXT_HCHH];
+      kk3 = cnt[k*NCONTXTS+CTXT_GCG]+cnt[k*NCONTXTS+CTXT_GCHG]+cnt[k*NCONTXTS+CTXT_GCHH];
+      bb3 = betasum[k*NCONTXTS+CTXT_GCG]+betasum[k*NCONTXTS+CTXT_GCHG]+betasum[k*NCONTXTS+CTXT_GCHH];
+      fprintf(stats, "%s\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
+              get_target_v(c->targets, k).name,
+              kk0, bb0 / (double) kk0*100, kk1, bb1 / (double) kk1*100,
+              kk2, bb2 / (double) kk2*100, kk3, bb3 / (double) kk3*100);
+      
+    } else {
+      kk0 = cnt[k*NCONTXTS+CTXT_GCG]+cnt[k*NCONTXTS+CTXT_HCG];
+      bb0 = betasum[k*NCONTXTS+CTXT_GCG]+betasum[k*NCONTXTS+CTXT_HCG];
+      kk1 = cnt[k*NCONTXTS+CTXT_GCHG]+cnt[k*NCONTXTS+CTXT_HCHG];
+      bb1 = betasum[k*NCONTXTS+CTXT_GCHG]+betasum[k*NCONTXTS+CTXT_HCHG];
+      kk2 = cnt[k*NCONTXTS+CTXT_GCHH]+cnt[k*NCONTXTS+CTXT_HCHH];
+      bb2 = betasum[k*NCONTXTS+CTXT_GCHH]+betasum[k*NCONTXTS+CTXT_HCHH];
+      fprintf(stats, "%s\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
+              get_target_v(c->targets, k).name,
+              kk0, bb0 / (double) kk0*100, kk1, bb1 / (double) kk1*100, kk2, bb2 / (double) kk2*100);
+    }
+    for (k0=0; k0<NCONTXTS; ++k0) {
+      cnt0[k0] += cnt[k*NCONTXTS+k0];
+      betasum0[k0] += betasum[k*NCONTXTS+k0];
     }
   }
-  fprintf(stats, "whole_genome\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
-          cnt_context0[0], betasum_context0[0] / (double) cnt_context0[0]*100,
-          cnt_context0[1], betasum_context0[1] / (double) cnt_context0[1]*100,
-          cnt_context0[2], betasum_context0[2] / (double) cnt_context0[2]*100);
+
+  /* whole genome methlevel average */
+  if (c->conf->is_nome) {
+    kk0 = cnt0[CTXT_HCG];
+    bb0 = betasum0[CTXT_HCG];
+    kk1 = cnt0[CTXT_HCHG];
+    bb1 = betasum0[CTXT_HCHG];
+    kk2 = cnt0[CTXT_HCHH];
+    bb2 = betasum0[CTXT_HCHH];
+    kk3 = cnt0[CTXT_GCG]+cnt0[CTXT_GCHG]+cnt0[CTXT_GCHH];
+    bb3 = betasum0[CTXT_GCG]+betasum0[CTXT_GCHG]+betasum0[CTXT_GCHH];
+    fprintf(stats, "whole_genome\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
+            kk0, bb0 / (double) kk0*100, kk1, bb1 / (double) kk1*100,
+            kk2, bb2 / (double) kk2*100, kk3, bb3 / (double) kk3*100);
+      
+  } else {
+    kk0 = cnt0[CTXT_GCG]+cnt0[CTXT_HCG];
+    bb0 = betasum0[CTXT_GCG]+betasum0[CTXT_HCG];
+    kk1 = cnt0[CTXT_GCHG]+cnt0[CTXT_HCHG];
+    bb1 = betasum0[CTXT_GCHG]+betasum0[CTXT_HCHG];
+    kk2 = cnt0[CTXT_GCHH]+cnt0[CTXT_HCHH];
+    bb2 = betasum0[CTXT_GCHH]+betasum0[CTXT_HCHH];
+    fprintf(stats, "whole_genome\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\t%"PRId64"\t%1.3f%%\n",
+            kk0, bb0 / (double) kk0*100, kk1, bb1 / (double) kk1*100, kk2, bb2 / (double) kk2*100);
+  }
 
   fprintf(stats, "\n#### bisculfite conversion rate ####\n");
+  fprintf(stats, "# _c: conversion\n");
+  fprintf(stats, "# _u: unconversion\n");
+  fprintf(stats, "# _r: conversion rate\n");
+  fprintf(stats, "# _m: mitochondrial\n");
   fprintf(stats, "pos\tct_c\tct_u\tct_r\tga_c\tga_u\tga_r\tct_cm\tct_um\tct_rm\tga_cm\tga_um\tga_rm\n");
   for (i=0; i<b.m; ++i){
     if (!b.ct_conv[i] && !b.ga_conv[i] && !b.ct_conv_m[i] && !b.ga_conv_m[i]) continue;
@@ -203,8 +257,8 @@ void *write_func(void *data) {
 
   free(c->statsfn);
   free(l); free(n); free(n_uniq);
-  free(cnt_context);
-  free(betasum_context);
+  free(cnt);
+  free(betasum);
   bsrate_free(&b);
   
   free_record_v(records);
@@ -368,11 +422,18 @@ cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *f
   }
   if (rb == 'G') nt256char_rev_ip(fivenuc, 5);
 
-  if (fivenuc[3] == 'N') return CONTEXT_NA;
-  else if (fivenuc[3] == 'G') return CONTEXT_CG;
-  else if (fivenuc[4] == 'G') return CONTEXT_CHG;
-  else if (fivenuc[4] == 'N') return CONTEXT_NA;
-  else return CONTEXT_CHH;
+  if (fivenuc[1] == 'N' || fivenuc[2] == 'N' || fivenuc[3] == 'N' || fivenuc[4] == 'N')
+    return CTXT_NA;
+  else if (fivenuc[3] == 'G') {
+    if (fivenuc[1]=='G') return CTXT_GCG;
+    else return CTXT_HCG;
+  } else if (fivenuc[4] == 'G') {
+    if (fivenuc[1]=='G') return CTXT_GCHG;
+    else return CTXT_HCHG;
+  } else {
+    if (fivenuc[1]=='G') return CTXT_GCHH;
+    else return CTXT_HCHH;
+  }
 }
 
 void plp_getcnts(pileup_data_v *dv, conf_t *conf, int cnts[9], int *_cm1, int *_cm2) {
@@ -531,12 +592,12 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
   }
 
   /* INFO tags */
-  cytosine_context_t ctt=CONTEXT_NA;
+  cytosine_context_t ctt=CTXT_NA;
   kputs("NS=1", s);
   if (methcallable) {
     char fivenuc[5];
     ctt = fivenuc_context(rs, rpos, rb, fivenuc);
-    ksprintf(s, ";CX=%s", cytosine_context[ctt]);
+    ksprintf(s, ";CX=%s", conf->is_nome?cytosine_context_nome[ctt]:cytosine_context[ctt]);
     ksprintf(s, ";N5=%.5s", fivenuc);
   }
 
@@ -562,7 +623,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
   
   if (methcallable) {
     double beta = (double) cnts[BSS_RETENTION] / (double) (cnts[BSS_RETENTION]+cnts[BSS_CONVERSION]);
-    if (ctt != CONTEXT_NA) {
+    if (ctt != CTXT_NA) {
       rec->betasum_context[ctt] += beta;
       rec->cnt_context[ctt]++;
     }
@@ -669,6 +730,10 @@ static void read_update_basecov(bam1_t *b, int *basecov, int *basecov_uniq, uint
   }
 }
 
+/* this calculates bisulfite conversion rate from mitochondria or CpH, 
+ * in nome-seq mode, cytosines in gpc context are further excluded (regardless
+ * of mitochrondrial or not)
+ */
 static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refseq_t *rs, uint32_t qp, uint32_t rp, uint8_t is_mito, bam1_core_t *c, bsrate_t *b, conf_t *conf) {
 
   int pos_on_template;
@@ -680,31 +745,41 @@ static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refseq_t *rs, uint32
   if (pos_on_template >= conf->bsrate_max_pos) return;
 
   if (bsstrand && rb == 'G') {
-    if (qb == 'A') {
-      if (is_mito) { /* mitochondrial */
-        b->ga_conv_m[pos_on_template]++;
-      } else if (rp-1 > rs->beg && toupper(getbase_refseq(rs, rp-1)) != 'C') { /* non-mitochondrial, look at CpH context */
-        b->ga_conv[pos_on_template]++;
-      }
-    } else if (qp == 'G') {
-      if (is_mito) {          /* mitochondrial */
-        b->ga_unconv_m[pos_on_template]++;
-      } else if (rp-1 > rs->beg && toupper(getbase_refseq(rs, rp-1)) != 'C') { /* non-mitochondrial, look at CpH context */
-        b->ga_unconv[pos_on_template]++;
+    /* if nome-seq, skip GCG */
+    if (!conf->is_nome || (rp+1<rs->end && toupper(getbase_refseq(rs, rp+1))!='C')) {
+      if (qb == 'A') {
+        if (is_mito) { /* mitochondrial */
+          b->ga_conv_m[pos_on_template]++;
+        } else if (rp-1 > rs->beg && toupper(getbase_refseq(rs, rp-1)) != 'C') {
+          /* non-mitochondrial, look at CpH context */
+          b->ga_conv[pos_on_template]++;
+        }
+      } else if (qp == 'G') {
+        if (is_mito) {          /* mitochondrial */
+          b->ga_unconv_m[pos_on_template]++;
+        } else if (rp-1 > rs->beg && toupper(getbase_refseq(rs, rp-1)) != 'C') {
+          /* non-mitochondrial, look at CpH context */
+          b->ga_unconv[pos_on_template]++;
+        }
       }
     }
   } else if (!bsstrand && rb == 'C') {
-    if (qb == 'T') {
-      if (is_mito) {          /* mitochondrial */
-        b->ct_conv_m[pos_on_template]++;
-      } else if (rp+1 < rs->end && toupper(getbase_refseq(rs, rp+1)) != 'G') { /* non-mitochondrial, look at CpH context */
-        b->ct_conv[pos_on_template]++;
-      }
-    } else if (qp == 'C') {
-      if (is_mito) {          /* mitochondrial */
-        b->ct_unconv_m[pos_on_template]++;
-      } else if (rp+1 < rs->end && toupper(getbase_refseq(rs, rp+1)) != 'G') { /* non-mitochondrial, look at CpH context */
-        b->ct_unconv[pos_on_template]++;
+    /* if nome-seq, skip GCG */
+    if (!conf->is_nome || (rp-1>rs->beg && toupper(getbase_refseq(rs, rp-1))!='G')) {
+      if (qb == 'T') {
+        if (is_mito) {          /* mitochondrial */
+          b->ct_conv_m[pos_on_template]++;
+        } else if (rp+1 < rs->end && toupper(getbase_refseq(rs, rp+1)) != 'G') {
+          /* non-mitochondrial, look at CpH context */
+          b->ct_conv[pos_on_template]++;
+        }
+      } else if (qp == 'C') {
+        if (is_mito) {          /* mitochondrial */
+          b->ct_unconv_m[pos_on_template]++;
+        } else if (rp+1 < rs->end && toupper(getbase_refseq(rs, rp+1)) != 'G') {
+          /* non-mitochondrial, look at CpH context */
+          b->ct_unconv[pos_on_template]++;
+        }
       }
     }
   }
@@ -728,7 +803,7 @@ static void *process_func(void *data) {
 
     rec.tid = w.tid;
     bsrate_init(&rec.b, conf->bsrate_max_pos);
-    for (i=0; i<3; ++i) {
+    for (i=0; i<NCONTXTS; ++i) {
       rec.betasum_context[i] = 0;
       rec.cnt_context[i] = 0;
     }
@@ -864,6 +939,8 @@ static void *process_func(void *data) {
     /* put output string to output queue */
     wqueue_put2(record, res->rq, rec);
 
+    free(basecov);
+    free(basecov_uniq);
     destroy_pileup(plp);
     bam_destroy1(b);
     bam_iter_destroy(iter);
@@ -896,6 +973,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "\nOutputing format:\n\n");
   fprintf(stderr, "     -o        pileup output file [stdout]\n");
   fprintf(stderr, "     -w        pileup statistics output, e.g., bsrate, methlevelaverage etc. [stderr if no '-o' else [output].stats]\n");
+  fprintf(stderr, "     -N        NOMe-seq mode (skip GCH in bisulfite conversion estimate) [off]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "\nGenotyping parameters:\n\n");
   fprintf(stderr, "     -E        error rate [%1.3f].\n", conf->error);
@@ -942,6 +1020,7 @@ void conf_init(conf_t *conf) {
   conf->prior1 = 0.33333;
   conf->prior2 = 0.33333;
   conf->prior0 = 1.0 - conf->prior1 - conf->prior2;
+  conf->is_nome = 0;
   if (conf->prior0 < 0) {
     fprintf(stderr, "[Error] genotype prior0 (%1.3f) must be from 0 to 1. \n", conf->prior0);
     exit(1);
@@ -971,7 +1050,7 @@ int main_pileup(int argc, char *argv[]) {
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:cupvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:Ncupvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'o': outfn = optarg; break;
@@ -993,6 +1072,7 @@ int main_pileup(int argc, char *argv[]) {
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'n': conf.max_nm = atoi(optarg); break;
     case 'm': conf.min_mapq = atoi(optarg); break;
+    case 'N': conf.is_nome = 1; break;
     case 'c': conf.filter_secondary = 0; break;
     case 'u': conf.filter_duplicate = 0; break;
     case 'p': conf.filter_ppair = 0; break;

@@ -36,6 +36,7 @@ typedef struct {
   double prior1;
   double prior2;
   uint8_t verbose;
+  int is_nome;
 } conf_t;
 
 void conf_init(conf_t *conf);
@@ -54,7 +55,10 @@ typedef enum {BSS_MA, BSS_MC, BSS_MG, BSS_MT,
               BSS_MY, BSS_MR, BSS_RETENTION, BSS_CONVERSION, BSS_N} status_t;
 
 /* cytosine context */
-typedef enum {CONTEXT_CG, CONTEXT_CHG, CONTEXT_CHH, CONTEXT_NA} cytosine_context_t;
+#define NCONTXTS 6          /* not including NA */
+typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH,
+              CTXT_GCG, CTXT_GCHG, CTXT_GCHH,
+              CTXT_NA} cytosine_context_t;
 extern const char *cytosine_context[];
 
 typedef struct {
@@ -115,8 +119,8 @@ typedef struct {
   int64_t l, n, n_uniq;             /* length, base coverage, unique base coverage */
 
   /* methlevelaverages, [beta sum, cnt] */
-  double betasum_context[3];       /* CG, CHG, CHH */
-  int64_t cnt_context[3];
+  double betasum_context[NCONTXTS];       /* CG, CHG, CHH */
+  int64_t cnt_context[NCONTXTS];
   
   /* bsrate */
   bsrate_t b;

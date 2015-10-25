@@ -45,13 +45,14 @@ static int vcf_parse1(char *line, bed1_t *b, int *is_cg, int *is_hcg, int *is_gc
   /* POS */
   tok=strtok_r(NULL, "\t", &linerest);
   ensure_number(tok);
-  b->pos = atoi(tok);
+  b->pos = atoi(tok); b->end = atoi(tok);
   
   /* ID */
   tok=strtok_r(NULL, "\t", &linerest);
 
   /* REF */
   tok=strtok_r(NULL, "\t", &linerest);
+  b->ref = tok[0];
 
   /* ALT */
   tok=strtok_r(NULL, "\t", &linerest);
@@ -144,8 +145,10 @@ void vcf2cg(gzFile FH, conf_t *conf) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &is_cg, &is_hcg, &is_gch);
         if (parse_ok && p_valid) {
+          /* printf("%d\t%d\t%d\t%c\t%c\t%s\t%s\n", is_cg, p->pos, b->pos, p->ref, b->ref, p->chrm, b->chrm); */
           if (is_cg && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge CG */
             p->end++;
+            /* fprintf(stdout, "merge%s\t%d\t%d\t%1.2f\t%d\n",b->chrm,b->pos,b->pos,b->beta,b->cov); */
             p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
             p->cov += b->cov;
             merged=1;
@@ -159,6 +162,7 @@ void vcf2cg(gzFile FH, conf_t *conf) {
         }
 
         if (!merged && parse_ok && is_cg) {
+          /* fprintf(stdout, "%s\t%d\t%d\t%1.2f\t%d\n",b->chrm,b->pos,b->pos,b->beta,b->cov); */
           bed1_t *tmp;
           tmp = p; p = b; b = tmp;
           p_valid=1;
@@ -178,11 +182,78 @@ void vcf2cg(gzFile FH, conf_t *conf) {
 }
 
 void vcf2hcg(gzFile FH, conf_t *conf) {
-  return;
+
+  bed1_t *b=init_bed1();
+  bed1_t *p=init_bed1();
+
+  kstring_t str;
+  str.s = 0; str.l = str.m = 0;
+
+  int is_cg, is_hcg, is_gch;
+  int p_valid=0;
+  while (1) {
+    int c=gzgetc(FH);
+    if (c=='\n' || c==EOF) {
+      int merged=0;
+      if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
+        int parse_ok = vcf_parse1(str.s, b, &is_cg, &is_hcg, &is_gch);
+        if (parse_ok && p_valid) {
+          if (is_hcg && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge CG */
+            p->end++;
+            p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
+            p->cov += b->cov;
+            merged=1;
+          }
+        }
+        if (p_valid) {
+          if (p->cov >= conf->mincov) {
+            fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", p->chrm, p->pos-1, p->end, p->beta);
+          }
+          p_valid = 0;
+        }
+
+        if (!merged && parse_ok && is_hcg) {
+          bed1_t *tmp;
+          tmp = p; p = b; b = tmp;
+          p_valid=1;
+        }
+      }
+      str.l = 0;                /* clean line */
+      if (c==EOF) break;
+    } else {
+      kputc(c, &str);
+    }
+  }
+  if (p_valid) {
+    if (p->cov >= conf->mincov) {
+      fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", p->chrm, p->pos-1, p->end, p->beta);
+    }
+  }
+
 }
 
 void vcf2gch(gzFile FH, conf_t *conf) {
-  return;
+
+  bed1_t *b=init_bed1();
+  kstring_t str;
+  str.s = 0; str.l = str.m = 0;
+
+  int is_cg, is_hcg, is_gch;
+  while (1) {
+    int c=gzgetc(FH);
+    if (c=='\n' || c==EOF) {
+      if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
+        int parse_ok = vcf_parse1(str.s, b, &is_cg, &is_hcg, &is_gch);
+        if (parse_ok && is_gch && b->cov >= conf->mincov) {
+          fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", b->chrm, b->pos-1, b->end, b->beta);
+        }
+      }
+      str.l = 0;                /* clean line */
+      if (c==EOF) break;
+    } else {
+      kputc(c, &str);
+    }
+  }
 }
 
 
@@ -236,9 +307,9 @@ int main_vcf2bed(int argc, char *argv[])
     fflush(stderr);
     exit(1);
   }
-  if (strcmp(optarg, "cg")==0) vcf2cg(FH, &conf);
-  if (strcmp(optarg, "hcg")==0) vcf2hcg(FH, &conf);
-  if (strcmp(optarg, "gch")==0) vcf2gch(FH, &conf);
+  if (strcmp(conf.target, "cg")==0) vcf2cg(FH, &conf);
+  if (strcmp(conf.target, "hcg")==0) vcf2hcg(FH, &conf);
+  if (strcmp(conf.target, "gch")==0) vcf2gch(FH, &conf);
 
   return 0;
 }
