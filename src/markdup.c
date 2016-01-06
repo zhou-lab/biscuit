@@ -471,7 +471,7 @@ int mark_dup_nosort(char *bam_in_fn, char *bam_out_fn) {
 
 static int usage(mkconf_t *conf) {
   fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: clinsek mkdup [options] <in.bam> <out.bam>\n");
+  fprintf(stderr, "Usage: biscuit markdup [options] <in.bam> <out.bam>\n");
   fprintf(stderr, "       <in.bam> must be sorted and indexed.\n");
   fprintf(stderr, "       <out.bam> is default to <in.bam.mkdup> if not provided.\n");
   fprintf(stderr, "Input options:\n");
