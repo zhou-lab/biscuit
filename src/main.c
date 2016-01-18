@@ -24,7 +24,7 @@ static int usage()
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
 	fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and meth-level averages.\n");
   fprintf(stderr, "         somatic       take both tumor and normal and call somatic mutations together with methylation.\n");
-  fprintf(stderr, "         nome          call nucleosome depletion region from NOMe-seq\n");
+  fprintf(stderr, "         nome          call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "         vcf2bed       convert VCF to bed graph for visualization purpose\n");
   /* fprint */
   /* fprintf(stderr, "         hemi          find hemi-methylated region.\n"); */
