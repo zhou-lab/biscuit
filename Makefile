@@ -40,7 +40,8 @@ clean_klib:
 LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o src/markdup.o src/nome.o src/vcf2bed.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
 biscuit: bin/biscuit
 bin/biscuit: $(LIBS) src/main.o
-		gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
+	mkdir -p bin
+	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
 
 src/main.o: src/main.c
 	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE) -I$(INCLUDE)/aln -I$(INCLUDE)/klib

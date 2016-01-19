@@ -198,7 +198,7 @@ void resolve_dup(khash_t(IGMap) *igm, samfile_t *out,
 
       unsigned i;
       unsigned bestqual;
-      insert_t *bestins;
+      insert_t *bestins=0;
       for (i=0; i<ig->size; ++i) {
         insert_t *ins = get_insert_v(ig, i);
         ins->sum_qual = sum_qual(ins->b1) + sum_qual(ins->b2);

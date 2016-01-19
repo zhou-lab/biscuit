@@ -7,7 +7,9 @@
 typedef struct conf_t {
   char target[5];
   int mincov;
+  int showcov;
   int verbose;
+  int destrand;
 } conf_t;
 
 typedef struct bed1_t {
@@ -27,6 +29,12 @@ bed1_t *init_bed1() {
 
 void free_bed1(bed1_t *b) {
   free(b);
+}
+
+static void format_bed1(bed1_t *b, conf_t *conf) {
+  fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f", b->chrm, b->pos-1, b->end, b->beta);
+  if (conf->showcov) fprintf(stdout, "\t%d", b->cov);
+  putchar('\n');
 }
 
 #define ET_C   0x1
@@ -141,7 +149,7 @@ void vcf2cg(gzFile FH, conf_t *conf) {
   kstring_t str;
   str.s = 0; str.l = str.m = 0;
 
-  int et;
+  uint8_t et;
   int p_valid=0;
   while (1) {
     int c=gzgetc(FH);
@@ -149,25 +157,24 @@ void vcf2cg(gzFile FH, conf_t *conf) {
       int merged=0;
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et);
-        if (parse_ok && p_valid) {
-          /* printf("%d\t%d\t%d\t%c\t%c\t%s\t%s\n", et, p->pos, b->pos, p->ref, b->ref, p->chrm, b->chrm); */
-          if ((et&ET_CG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge CG */
-            p->end++;
-            /* fprintf(stdout, "merge%s\t%d\t%d\t%1.2f\t%d\n",b->chrm,b->pos,b->pos,b->beta,b->cov); */
-            p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
-            p->cov += b->cov;
-            merged=1;
-          }
+        if (conf->destrand && parse_ok && p_valid && (et&ET_CG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge CG */
+          p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
+          p->cov += b->cov;
+          merged=1;
         }
+        
         if (p_valid) {
-          if (p->cov >= conf->mincov) {
-            fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", p->chrm, p->pos-1, p->end, p->beta);
+          if (p->cov >= conf->mincov) { /* adjust coordinates for de-stranding */
+            if (conf->destrand) {
+              if (p->ref == 'C') p->end++;
+              if (p->ref == 'G') p->pos--;
+            }
+            format_bed1(p, conf);
           }
-          p_valid = 0;
+          p_valid=0;
         }
 
-        if (!merged && parse_ok && (et&ET_CG)) {
-          /* fprintf(stdout, "%s\t%d\t%d\t%1.2f\t%d\n",b->chrm,b->pos,b->pos,b->beta,b->cov); */
+        if (parse_ok && (et&ET_CG) && !merged) {
           bed1_t *tmp;
           tmp = p; p = b; b = tmp;
           p_valid=1;
@@ -179,14 +186,24 @@ void vcf2cg(gzFile FH, conf_t *conf) {
       kputc(c, &str);
     }
   }
+
+  /* last record */
   if (p_valid) {
-    if (p->cov >= conf->mincov) {
-      fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", p->chrm, p->pos-1, p->end, p->beta);
+    if (p->cov >= conf->mincov) { /* adjust coordinates for de-stranding */
+      if (conf->destrand) {
+        if (p->ref == 'C') p->end++;
+        if (p->ref == 'G') p->pos--;
+      }
+      format_bed1(p, conf);
     }
   }
 }
 
 void vcf2hcg(gzFile FH, conf_t *conf) {
+
+  /* note: this is assymmetric, destrand occur only when 
+   * both C and G are in HCG context, merging will cause
+   * items in the output not of the same length (2 and 1) */
 
   bed1_t *b=init_bed1();
   bed1_t *p=init_bed1();
@@ -201,22 +218,18 @@ void vcf2hcg(gzFile FH, conf_t *conf) {
       int merged=0;
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et);
-        if (parse_ok && p_valid) {
-          if ((et&ET_HCG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge CG */
-            p->end++;
-            p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
-            p->cov += b->cov;
-            merged=1;
-          }
+        if (conf->destrand && parse_ok && p_valid && (et&ET_HCG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge when both are HCG */
+          p->end++;
+          p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
+          p->cov += b->cov;
+          merged=1;
         }
         if (p_valid) {
-          if (p->cov >= conf->mincov) {
-            fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", p->chrm, p->pos-1, p->end, p->beta);
-          }
+          if (p->cov >= conf->mincov) format_bed1(p, conf);
           p_valid = 0;
         }
 
-        if (!merged && parse_ok && (et&ET_HCG)) {
+        if (parse_ok && (et&ET_HCG) && !merged) {
           bed1_t *tmp;
           tmp = p; p = b; b = tmp;
           p_valid=1;
@@ -229,11 +242,30 @@ void vcf2hcg(gzFile FH, conf_t *conf) {
     }
   }
   if (p_valid) {
-    if (p->cov >= conf->mincov) {
-      fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", p->chrm, p->pos-1, p->end, p->beta);
+    if (p->cov >= conf->mincov) format_bed1(p, conf);
+  }
+}
+
+void vcf2ch(gzFile FH, conf_t *conf) {
+
+  bed1_t *b=init_bed1();
+  kstring_t str;
+  str.s = 0; str.l = str.m = 0;
+  uint8_t et;
+  while (1) {
+    int c=gzgetc(FH);
+    if (c=='\n' || c==EOF) {
+      if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
+        int parse_ok = vcf_parse1(str.s, b, &et);
+        if (parse_ok && (et&ET_C) && !(et&ET_CG) && b->cov >= conf->mincov)
+          format_bed1(b, conf);
+      }
+      str.l = 0;                /* clean line */
+      if (c==EOF) break;
+    } else {
+      kputc(c, &str);
     }
   }
-
 }
 
 void vcf2gch(gzFile FH, conf_t *conf) {
@@ -247,9 +279,8 @@ void vcf2gch(gzFile FH, conf_t *conf) {
     if (c=='\n' || c==EOF) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et);
-        if (parse_ok && (et&ET_GCH) && b->cov >= conf->mincov) {
-          fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", b->chrm, b->pos-1, b->end, b->beta);
-        }
+        if (parse_ok && (et&ET_GCH) && b->cov >= conf->mincov)
+          format_bed1(b, conf);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;
@@ -270,9 +301,8 @@ void vcf2c(gzFile FH, conf_t *conf) {
     if (c=='\n' || c==EOF) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et); 
-        if (parse_ok && (et&ET_C) && b->cov >= conf->mincov) {
-          fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f\n", b->chrm, b->pos-1, b->end, b->beta);
-        }
+        if (parse_ok && (et&ET_C) && b->cov >= conf->mincov)
+          format_bed1(b, conf);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;
@@ -284,18 +314,19 @@ void vcf2c(gzFile FH, conf_t *conf) {
 
 
 int main_vcf2bed(int argc, char *argv[]) { 
-  conf_t conf = {.verbose=0, .mincov=3};
+  conf_t conf = {.verbose=0, .mincov=3, .destrand=1, .showcov=0};
   strcpy(conf.target, "cg");
 
   int c;
-  while ((c = getopt(argc, argv, "k:t:V:h")) >= 0) {
+  while ((c = getopt(argc, argv, "k:t:cuV:h")) >= 0) {
     switch (c) {
     case 'k': conf.mincov = atoi(optarg); break;
     case 't': {
-      if (strcmp(optarg, "cg")  !=0 && 
+      if (strcmp(optarg, "c") !=0 &&
+          strcmp(optarg, "cg") !=0 &&
+          strcmp(optarg, "ch") !=0 &&
           strcmp(optarg, "hcg") !=0 && 
-          strcmp(optarg, "gch") !=0 && 
-          strcmp(optarg, "c")   !=0   ) {
+          strcmp(optarg, "gch") !=0) {
         fprintf(stderr, "[%s:%d] Invalid option for -t: %s. \n", __func__, __LINE__, optarg);
         fflush(stderr);
         exit(1);
@@ -303,13 +334,17 @@ int main_vcf2bed(int argc, char *argv[]) {
       strcpy(conf.target, optarg);
       break;
     }
+    case 'c': conf.showcov = 1; break;
+    case 'u': conf.destrand = 0; break;
     case 'V': conf.verbose = atoi(optarg); break;
     case 'h': {
       fprintf(stderr, "\n");
       fprintf(stderr, "Usage: biscuit vcf2bed [options] vcf \n");
       fprintf(stderr, "Input options:\n");
-      fprintf(stderr, "     -t STRING extract type {cg, hcg, gch, c} [%s]\n", conf.target);
+      fprintf(stderr, "     -t STRING extract type {c, cg, ch, hcg, gch} [%s]\n", conf.target);
       fprintf(stderr, "     -k INT    minimum coverage [%d]\n", conf.mincov);
+      fprintf(stderr, "     -c        show coverage as a column\n");
+      fprintf(stderr, "     -u INT    suppress merging C and G in the CpG context (destrand, for cg and hcg, when both strands are in the hcg context).\n");
       fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose);
       fprintf(stderr, "     -h        this help.\n");
       fprintf(stderr, "\n");
@@ -335,10 +370,11 @@ int main_vcf2bed(int argc, char *argv[]) {
     fflush(stderr);
     exit(1);
   }
+  if (strcmp(conf.target, "c")==0) vcf2c(FH, &conf);
   if (strcmp(conf.target, "cg")==0) vcf2cg(FH, &conf);
+  if (strcmp(conf.target, "ch")==0) vcf2ch(FH, &conf);
   if (strcmp(conf.target, "hcg")==0) vcf2hcg(FH, &conf);
   if (strcmp(conf.target, "gch")==0) vcf2gch(FH, &conf);
-  if (strcmp(conf.target, "c")==0) vcf2c(FH, &conf);
 
   return 0;
 }
