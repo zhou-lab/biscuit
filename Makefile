@@ -103,7 +103,7 @@ src/vcf2bed.o: src/vcf2bed.c
 ####### clean #######
 
 .PHONY: clean
-clean : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup clean_klib clean_somatic
+clean : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup clean_klib clean_somatic clean_markdup
 	make -C $(LSAM0119D) clean
 
 ####### archived #######

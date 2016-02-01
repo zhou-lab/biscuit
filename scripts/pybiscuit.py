@@ -205,7 +205,18 @@ def main_to_mr(args):
         assert(rend - rbeg == len(s))
         assert(len(s) == len(n) or len(n) == 0)
 
+def main_to_methylKit(args):
 
+    out = open(args.o,"w") if args.o is not None else sys.stdout
+    out.write("chrBase\tchr\tbase\tstrand\tcoverage\tfreqC\tfreqT\n")
+    for line in args.i:
+        fields = line.strip().split('\t')
+        strand = "F" if fields[5]=="C" else "R"
+        out.write("%s.%s\t%s\t%s\t%s\t%d\t%1.2f\t%1.2f\n" % 
+                  (fields[0], fields[2], fields[0], fields[2], strand,
+                   int(fields[4]), float(fields[3])*100, (1-float(fields[3]))*100))
+    
+    return
 
 if __name__ == '__main__':
     
@@ -220,6 +231,12 @@ if __name__ == '__main__':
     parser_to_mr.add_argument('-k', type=int, default=40, help='minimum template length [40]')
     parser_to_mr.add_argument('-m', type=int, default=10000000, help='number of total unpaired reads cached in memory before flushing')
     parser_to_mr.set_defaults(func=main_to_mr)
+
+    
+    parser_to_methylKit = subparsers.add_parser('to_methylKit', help='convert biscuit vcf2bed output to methylKit format')
+    parser_to_methylKit.add_argument('-i', type=argparse.FileType('r'), default='-', help='input table')
+    parser_to_methylKit.add_argument('-o', help='output', default=None)
+    parser_to_methylKit.set_defaults(func=main_to_methylKit)
     
     args = parser.parse_args()
     try:

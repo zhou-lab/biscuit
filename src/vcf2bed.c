@@ -33,7 +33,17 @@ void free_bed1(bed1_t *b) {
 
 static void format_bed1(bed1_t *b, conf_t *conf) {
   fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f", b->chrm, b->pos-1, b->end, b->beta);
-  if (conf->showcov) fprintf(stdout, "\t%d", b->cov);
+  if (conf->showcov) {
+    if (b->end == b->pos+1) {
+      fprintf(stdout, "\t%d\tCG", b->cov);
+    } else if (b->end == b->pos) {
+      fprintf(stdout, "\t%d\t%c", b->cov, b->ref);
+    } else {
+      fprintf(stderr, "[%s:%d] Error, abnormal record length: %s:%"PRId64"-%"PRId64". Abort.\n", __func__, __LINE__, b->chrm, b->pos, b->end);
+      fflush(stderr);
+      exit(1);
+    }
+  }
   putchar('\n');
 }
 
@@ -62,7 +72,7 @@ static int vcf_parse1(char *line, bed1_t *b, uint8_t *et) {
 
   /* REF */
   tok=strtok_r(NULL, "\t", &linerest);
-  b->ref = tok[0];
+  b->ref = toupper(tok[0]);
 
   /* ALT */
   tok=strtok_r(NULL, "\t", &linerest);
@@ -343,7 +353,7 @@ int main_vcf2bed(int argc, char *argv[]) {
       fprintf(stderr, "Input options:\n");
       fprintf(stderr, "     -t STRING extract type {c, cg, ch, hcg, gch} [%s]\n", conf.target);
       fprintf(stderr, "     -k INT    minimum coverage [%d]\n", conf.mincov);
-      fprintf(stderr, "     -c        show coverage as a column\n");
+      fprintf(stderr, "     -c        show coverage and strand as extra columns\n");
       fprintf(stderr, "     -u INT    suppress merging C and G in the CpG context (destrand, for cg and hcg, when both strands are in the hcg context).\n");
       fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose);
       fprintf(stderr, "     -h        this help.\n");
