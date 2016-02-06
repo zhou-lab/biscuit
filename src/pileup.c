@@ -128,6 +128,8 @@ void *write_func(void *data) {
       do {
         if (rec.s.s) {
           fputs(rec.s.s, out);
+	  if (rec.epi.s) 
+	    fputs(rec.epi.s, c->conf->epiread);
 
           /* statistics */
           l[rec.tid] += rec.l;
@@ -144,6 +146,7 @@ void *write_func(void *data) {
           merge_bsrate(&b, &rec.b);
         }
         free(rec.s.s);
+	free(rec.epi.s);
         bsrate_free(&rec.b);
 
         /* get next block from shelf if available else return OBSOLETE 
@@ -532,6 +535,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
                        pileup_data_v *dv, conf_t *conf, record_t *rec) {
 
   kstring_t *s = &rec->s;
+
   uint32_t i;
   char rb = toupper(getbase_refseq(rs, rpos));
 
@@ -785,6 +789,85 @@ static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refseq_t *rs, uint32
   }
 }
 
+static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsstrand, char *chrm, window_t *w) {
+
+  kstring_t epi1;
+  epi1.s = 0; epi1.l = epi1.m = 0;
+
+  int i; uint32_t j;
+  bam1_core_t *c = &b->core;
+  uint32_t rpos = c->pos+1, qpos = 0;
+  int first_cpg_loc = -1;
+  char qb, rb;
+  for (i=0; i<c->n_cigar; ++i) {
+    uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
+    uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+    switch(op) {
+    case BAM_CMATCH:
+      for (j=0; j<oplen; ++j) {
+	rb = toupper(getbase_refseq(rs, rpos+j));
+	if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
+	  char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
+	  if (rb0 == 'C') {	/* CpG context */
+	    if (first_cpg_loc < 0) {
+	      first_cpg_loc = (int) rpos+j-1;
+	      if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
+		return;
+	      ksprintf(epi, "%s\t%d\t", chrm, first_cpg_loc);
+	    }
+	    qb = bscall(b, qpos+j);
+	    if (qb == 'A') {
+	      kputc('T', epi);
+	    } else if (qb == 'G') {
+	      kputc('C', epi);
+	    } else {
+	      kputc('N', epi);
+	    }
+	  }
+	}
+	if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
+	  char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
+	  if (rb1 == 'G') {	/* CpG context */
+	    if (first_cpg_loc < 0) {
+	      first_cpg_loc = (int) rpos+j;
+	      if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
+		return;
+	      ksprintf(epi, "%s\t%d\t", chrm, first_cpg_loc);
+	    }
+	    qb = bscall(b, qpos+j);
+	    if (qb == 'T') {
+	      kputc('T', epi);
+	    } else if (qb == 'C') {
+	      kputc('C', epi);
+	    } else {
+	      kputc('N', epi);
+	    }
+	  }
+	}
+      }
+      rpos += oplen;
+      qpos += oplen;
+      break;
+    case BAM_CINS:
+      qpos += oplen;
+      break;
+    case BAM_CDEL:
+      rpos += oplen;
+      break;
+    case BAM_CSOFT_CLIP:
+      qpos += oplen;
+      break;
+    case BAM_CHARD_CLIP:
+      qpos += oplen;
+      break;
+    default:
+      fprintf(stderr, "Unknown cigar, %u\n", op);
+      abort();
+    }
+  }
+  if (first_cpg_loc >= 0) kputc('\n', epi);
+}
+
 static void *process_func(void *data) {
 
   result_t *res = (result_t*) data;
@@ -817,16 +900,14 @@ static void *process_func(void *data) {
     uint8_t is_mito=0;
     if (strcmp(chrm, "chrM")==0 || strcmp(chrm, "MT")==0) is_mito=1;
 
+    rec.epi.l = rec.epi.m = 0; rec.epi.s = 0; /* the epiread string */
+
     fetch_refseq(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
     bam_iter_t iter = bam_iter_query(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
     bam1_t *b = bam_init1();
     int ret;
     char qb, rb;
     while ((ret = bam_iter_read(in->x.bam, iter, b))>0) {
-
-      /* uint8_t *bsstrand = bam_aux_get(b, "ZS"); */
-      /* if (!bsstrand) continue; */
-      /* bsstrand++; */
 
       uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
       read_update_basecov(b, basecov, basecov_uniq, w.beg, w.end, conf);
@@ -846,6 +927,10 @@ static void *process_func(void *data) {
       if (nm && bam_aux2i(nm)>conf->max_nm) continue;
       uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
       if (cnt_ret > conf->max_retention) continue;
+
+      /* produce epiread */
+      if (conf->epiread) format_epiread(&rec.epi, b, rs, bsstrand, chrm, &w);
+
 
       uint32_t rpos = c->pos+1, qpos = 0;
       for (i=0; i<c->n_cigar; ++i) {
@@ -871,7 +956,7 @@ static void *process_func(void *data) {
 
             calc_bsrate(bsstrand, rb, qb, rs, qpos+j, rpos+j, is_mito, c, &rec.b, conf);
 
-            if (bsstrand) {          /* BSC */
+            if (bsstrand) {	/* BSC */
               if (rb == 'G') {
                 if (qb == 'A') d->stat = BSS_CONVERSION;
                 else if (qb == 'G') d->stat = BSS_RETENTION;
@@ -883,7 +968,7 @@ static void *process_func(void *data) {
                 d->stat = BSS_N;
               }
       
-            } else {                    /* BSW */
+            } else {		/* BSW */
               if (rb == 'C') {
                 if (qb == 'T') d->stat = BSS_CONVERSION;
                 else if (qb == 'C') d->stat = BSS_RETENTION;
@@ -963,17 +1048,18 @@ static void head_append_verbose(char *pb, char b, kstring_t *s) {
 static int usage(conf_t *conf) {
   fprintf(stderr, "\n");
   fprintf(stderr, "Usage: pileup [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
-  fprintf(stderr, "output format: chrm, pos, pos, refbase, mutation, cytosine_context, coverage, filtered_retention, filtered_conversion\n");
+  /* fprintf(stderr, "output format: chrm, pos, pos, refbase, mutation, cytosine_context, coverage, filtered_retention, filtered_conversion\n"); */
   fprintf(stderr, "Input options:\n\n");
   fprintf(stderr, "     -i        input bam.\n");
   fprintf(stderr, "     -r        reference in fasta.\n");
   fprintf(stderr, "     -g        region (optional, if not specified the whole bam will be processed).\n");
   fprintf(stderr, "     -s        step of window dispatching [%d].\n", conf->step);
-  fprintf(stderr, "     -q        number of threads [%d] recommend 20.\n", conf->n_threads);
+  fprintf(stderr, "     -q        number of threads [%d].\n", conf->n_threads);
   fprintf(stderr, "\nOutputing format:\n\n");
   fprintf(stderr, "     -o        pileup output file [stdout]\n");
   fprintf(stderr, "     -w        pileup statistics output, e.g., bsrate, methlevelaverage etc. [stderr if no '-o' else [output].stats]\n");
   fprintf(stderr, "     -N        NOMe-seq mode (skip GCH in bisulfite conversion estimate) [off]\n");
+  fprintf(stderr, "     -R        output epiread [off]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "\nGenotyping parameters:\n\n");
   fprintf(stderr, "     -E        error rate [%1.3f].\n", conf->error);
@@ -1021,6 +1107,7 @@ void conf_init(conf_t *conf) {
   conf->prior2 = 0.33333;
   conf->prior0 = 1.0 - conf->prior1 - conf->prior2;
   conf->is_nome = 0;
+  conf->epiread = NULL;
   if (conf->prior0 < 0) {
     fprintf(stderr, "[Error] genotype prior0 (%1.3f) must be from 0 to 1. \n", conf->prior0);
     exit(1);
@@ -1050,7 +1137,7 @@ int main_pileup(int argc, char *argv[]) {
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:Ncupvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:R:Ncupvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'o': outfn = optarg; break;
@@ -1072,6 +1159,7 @@ int main_pileup(int argc, char *argv[]) {
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'n': conf.max_nm = atoi(optarg); break;
     case 'm': conf.min_mapq = atoi(optarg); break;
+    case 'R': conf.epiread = fopen(optarg, "w"); break;
     case 'N': conf.is_nome = 1; break;
     case 'c': conf.filter_secondary = 0; break;
     case 'u': conf.filter_duplicate = 0; break;

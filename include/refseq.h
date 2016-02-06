@@ -69,6 +69,11 @@ static inline void free_refseq(refseq_t *rs) {
 
 }
 
+static inline int in_range_refseq(refseq_t *rs, uint32_t rpos) {
+  if (rpos < rs->beg || rpos > rs->end) return 0;
+  else return 1;
+}
+
 /* rpos is 1-based */
 static inline char getbase_refseq(refseq_t *rs, uint32_t rpos) {
 	if (rpos<rs->beg || rpos>rs->end) {

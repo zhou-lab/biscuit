@@ -37,6 +37,7 @@ typedef struct {
   double prior2;
   uint8_t verbose;
   int is_nome;
+  FILE *epiread;
 } conf_t;
 
 void conf_init(conf_t *conf);
@@ -113,6 +114,7 @@ static inline void bsrate_free(bsrate_t *b) {
 typedef struct {
   int64_t block_id;
   kstring_t s;                  /* vcf record */
+  kstring_t epi;		/* epiread record */
 
   /* coverage */
   int tid;
