@@ -128,8 +128,6 @@ void *write_func(void *data) {
       do {
         if (rec.s.s) {
           fputs(rec.s.s, out);
-	  if (rec.epi.s) 
-	    fputs(rec.epi.s, c->conf->epiread);
 
           /* statistics */
           l[rec.tid] += rec.l;
@@ -146,7 +144,6 @@ void *write_func(void *data) {
           merge_bsrate(&b, &rec.b);
         }
         free(rec.s.s);
-	free(rec.epi.s);
         bsrate_free(&rec.b);
 
         /* get next block from shelf if available else return OBSOLETE 
@@ -790,101 +787,6 @@ static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refseq_t *rs, uint32
   }
 }
 
-#define episnp_test(snps, i) snps[(i)>>3]&(1<<(i&0x7))
-#define episnp_set(snps, i) snps[(i)>>3] |= 1<<(i&0x7)
-
-static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, uint32_t *snp_beg, uint32_t *snp_end) {
-
-  kstring_t *es = 0; int first_snp_loc = -1;
-  es.s = 0; es.l = es.m = 0;
-  
-  int i; uint32_t j;
-  bam1_core_t *c = &b->core;
-  uint32_t rpos = c->pos+1, qpos = 0;
-  int first_cpg_loc = -1;
-  char qb, rb;
-  for (i=0; i<c->n_cigar; ++i) {
-    uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
-    uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
-    switch(op) {
-    case BAM_CMATCH:
-      for (j=0; j<oplen; ++j) {
-        rb = toupper(getbase_refseq(rs, rpos+j));
-        qb = bscall(b, qpos+j);
-        if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
-          char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
-          if (rb0 == 'C') {	/* CpG context */
-            if (first_cpg_loc < 0) {
-              first_cpg_loc = (int) rpos+j-1;
-              if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
-                return;
-              ksprintf(epi, "%s\t%d\t", chrm, first_cpg_loc);
-            }
-            if (qb == 'A') {
-              kputc('T', epi);
-            } else if (qb == 'G') {
-              kputc('C', epi);
-            } else {
-              kputc('N', epi);
-            }
-          }
-        }
-        if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
-          char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
-          if (rb1 == 'G') {	/* CpG context */
-            if (first_cpg_loc < 0) {
-              first_cpg_loc = (int) rpos+j;
-              if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
-                return;
-              ksprintf(epi, "%s\t%d\t", chrm, first_cpg_loc);
-            }
-            if (qb == 'T') {
-              kputc('T', epi);
-            } else if (qb == 'C') {
-              kputc('C', epi);
-            } else {
-              kputc('N', epi);
-            }
-          }
-        }
-
-        /* append SNP info if present */
-        uint32_t snp_ind = rpos+j-snp_beg;
-        if (episnp_test(snps, snp_ind)) {
-          kputc(qb, es);
-          if (first_snp_loc < 0)
-            first_snp_loc = rpos+j;
-        }
-      }
-      rpos += oplen;
-      qpos += oplen;
-      break;
-    case BAM_CINS:
-      qpos += oplen;
-      break;
-    case BAM_CDEL:
-      rpos += oplen;
-      break;
-    case BAM_CSOFT_CLIP:
-      qpos += oplen;
-      break;
-    case BAM_CHARD_CLIP:
-      qpos += oplen;
-      break;
-    default:
-      fprintf(stderr, "Unknown cigar, %u\n", op);
-      abort();
-    }
-  }
-  if (first_cpg_loc >= 0) {
-    if (first_snp_loc >= 0)
-      ksprintf(epi, "\t%d\t%s", first_snp_loc, es.s);
-    kputc('\n', epi);
-  }
-
-  free(es.s);
-}
-
 static void *process_func(void *data) {
 
   result_t *res = (result_t*) data;
@@ -917,19 +819,6 @@ static void *process_func(void *data) {
     uint8_t is_mito=0;
     if (strcmp(chrm, "chrM")==0 || strcmp(chrm, "MT")==0) is_mito=1;
 
-    uint32_t snp_beg = w.beg>1000?w.beg-1000:1;
-    uint32_t snp_end = w.end+1000;
-    uint8_t *snps = calloc((snp_end-snp_beg)/8+1, sizeof(uint8_t)); /* TODO free snps */
-    episnp_chrom1_t *episnp1 = get_episnp1(conf->episnp, chrm);
-    for (j=0; j<episnp1->size; ++j) {
-      i=episnp1->locs[i-snp_beg];
-      if (i>=snp_beg && i<snp_end) {
-        episnp_set(snps, i-snp_beg);
-      }
-    }
-    
-    rec.epi.l = rec.epi.m = 0; rec.epi.s = 0; /* the epiread string */
-
     fetch_refseq(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
     bam_iter_t iter = bam_iter_query(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
     bam1_t *b = bam_init1();
@@ -955,9 +844,6 @@ static void *process_func(void *data) {
       if (nm && bam_aux2i(nm)>conf->max_nm) continue;
       uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
       if (cnt_ret > conf->max_retention) continue;
-
-      /* produce epiread */
-      if (conf->epiread) format_epiread(&rec.epi, b, rs, bsstrand, chrm, &w, snps, snp_beg, snp_end);
 
       uint32_t rpos = c->pos+1, qpos = 0;
       for (i=0; i<c->n_cigar; ++i) {
@@ -1086,8 +972,6 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -o        pileup output file [stdout]\n");
   fprintf(stderr, "     -w        pileup statistics output, e.g., bsrate, methlevelaverage etc. [stderr if no '-o' else [output].stats]\n");
   fprintf(stderr, "     -N        NOMe-seq mode (skip GCH in bisulfite conversion estimate) [off]\n");
-  fprintf(stderr, "     -R        epiread output file name [no]\n");
-  fprintf(stderr, "     -B        bed input for SNP display in epiread output [no SNP]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "\nGenotyping parameters:\n\n");
   fprintf(stderr, "     -E        error rate [%1.3f].\n", conf->error);
@@ -1135,8 +1019,6 @@ void conf_init(conf_t *conf) {
   conf->prior2 = 0.33333;
   conf->prior0 = 1.0 - conf->prior1 - conf->prior2;
   conf->is_nome = 0;
-  conf->epiread = NULL;
-  conf->episnp = NULL;
   if (conf->prior0 < 0) {
     fprintf(stderr, "[Error] genotype prior0 (%1.3f) must be from 0 to 1. \n", conf->prior0);
     exit(1);
@@ -1154,42 +1036,6 @@ void conf_init(conf_t *conf) {
   conf->noheader = 0;
 }
 
-episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
-
-  episnp_chrom1_v *episnp = init_episnp_chrom1_v(2);
-  kstring_t line;
-  line.l = line.m = 0; line.s = 0;
-
-  episnp_chrom1_t *episnp1 = 0;
-  char *tok;
-  FILE *fh = open(snp_bed_fn,"r");
-  while (1) {
-    int c=fgetc();
-    if (c=='\n' || c==EOF) {
-      tok = strtok(line.s, "\t");
-
-      if (!episnp1 || strcmp(episnp1->chrm, tok) != 0)
-        episnp1 = get_n_insert_episnp1(episnp, tok);
-
-      episnp1->locs = realloc(episnp1->locs, (episnp1->n+1)*sizeof(uint32_t));
-      tok = strtok(NULL, "\t");
-      ensure_number(tok);
-      episnp1->locs[episnp1->n] = atoi(tok)+1;
-      episnp1->n++;
-      
-      line.l = 0;
-      if (c==EOF) {
-        break;
-      }
-    } else {
-      kputc(c, &line);
-    }
-    free(line.s);
-  }
-
-  return episnp;
-}
-
 int main_pileup(int argc, char *argv[]) {
 
   int c;
@@ -1203,7 +1049,7 @@ int main_pileup(int argc, char *argv[]) {
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:R:B:Ncupvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:Ncupvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'o': outfn = optarg; break;
@@ -1225,8 +1071,6 @@ int main_pileup(int argc, char *argv[]) {
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'n': conf.max_nm = atoi(optarg); break;
     case 'm': conf.min_mapq = atoi(optarg); break;
-    case 'R': conf.epiread = fopen(optarg, "w"); break;
-    case 'B': snp_bed_fn = optarg; break;
     case 'N': conf.is_nome = 1; break;
     case 'c': conf.filter_secondary = 0; break;
     case 'u': conf.filter_duplicate = 0; break;
@@ -1244,9 +1088,6 @@ int main_pileup(int argc, char *argv[]) {
     usage(&conf);
     exit(1);
   }
-
-  if (conf.epiread && snp_bed_fn)
-    conf.episnp = bed_init_episnp(snp_bed_fn);
 
   wqueue_t(window) *wq = wqueue_init(window, 100000);
   pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));

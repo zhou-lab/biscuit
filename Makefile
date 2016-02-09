@@ -13,14 +13,25 @@ LSAM0119 = $(LSAM0119D)/libsam.a
 LUTILSD = lib/utils
 LUTILS = lib/utils/libutils.a
 
-PROG = biscuit
-# PROG = hemifinder correct_bsstrand get_unmapped sample_trinuc
+########### program ##########
+
+PROG = bin/biscuit
+# PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
 release : CFLAGS += -O3
 release : $(PROG)
 
 debug : CFLAGS += -g
 debug : $(PROG)
+
+LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o src/markdup.o src/nome.o src/vcf2bed.o src/epiread.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
+bin/biscuit: $(LIBS) src/main.o
+	mkdir -p bin
+	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
+clean_biscuit:
+	rm -f bin/biscuit
+
+######### external ###########
 
 $(LSAM0119) :
 	make -C $(LSAM0119D) libsam.a
@@ -36,16 +47,6 @@ $(KLIBD)/%.o: $(KLIBD)/%.c
 clean_klib:
 	rm -f $(KLIBD)/*.o lib/klib/klib.a
 
-.PHONY: biscuit
-LIBS=lib/aln/libaln.a src/pileup.o src/somatic.o src/markdup.o src/nome.o src/vcf2bed.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
-biscuit: bin/biscuit
-bin/biscuit: $(LIBS) src/main.o
-	mkdir -p bin
-	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
-
-src/main.o: src/main.c
-	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE) -I$(INCLUDE)/aln -I$(INCLUDE)/klib
-
 ####### libraries #######
 
 .PHONY: utils
@@ -58,13 +59,13 @@ $(LUTILSD)/%.o: $(LUTILSD)/%.c
 clean_utils:
 	rm -f $(LUTILSD)/*.o $(LUTILS)
 
-libaln.a: $(ALNOBJS)
-	$(AR) -csru $@ $(ALNOBJS)
-
 ####### subcommands #######
 
-.PHONY: aln
-aln: lib/aln/libaln.a
+src/main.o: src/main.c
+	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE) -I$(INCLUDE)/aln -I$(INCLUDE)/klib
+clean_main:
+	rm -f src/main.o
+
 LALND = lib/aln
 LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/fastmap.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o
 lib/aln/libaln.a: $(LALNOBJ)
@@ -91,9 +92,18 @@ clean_markdup:
 
 src/nome.o: src/nome.c
 	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
+clean_nome:
+	rm -f src/nome.o
 
 src/vcf2bed.o: src/vcf2bed.c
 	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
+clean_vcf2bed:
+	rm -f src/vcf2bed.o
+
+src/epiread.o: src/epiread.c
+	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(LSAM0119D) -I$(INCLUDE)/klib $< -o $@
+clean_epiread:
+	rm -f src/epiread.o
 
 ####### general #######
 
@@ -102,8 +112,9 @@ src/vcf2bed.o: src/vcf2bed.c
 
 ####### clean #######
 
+CLEAN_TARGETS=clean_biscuit clean_main clean_aln clean_utils clean_pileup clean_klib clean_somatic clean_markdup clean_nome clean_vcf2bed clean_epiread
 .PHONY: clean
-clean : clean_sample_trinuc clean_get_unmapped clean_correct_bsstrand clean_hemifinder clean_pileup clean_klib clean_somatic clean_markdup
+clean : $(CLEAN_TARGETS)
 	make -C $(LSAM0119D) clean
 
 ####### archived #######
