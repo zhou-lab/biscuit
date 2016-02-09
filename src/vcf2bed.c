@@ -19,19 +19,29 @@ typedef struct bed1_t {
   char ref;
   double beta;
   int cov;
+
+  /* reference and
+     alternative as in VCF */
+  char *vcfref;
+  char *vcfalt;
 } bed1_t;
 
 bed1_t *init_bed1() {
   bed1_t *b=calloc(1, sizeof(bed1_t));
-  b->chrm=0;
+  b->chrm = 0;
+  b->vcfref = 0;
+  b->vcfalt = 0;
   return b;
 }
 
 void free_bed1(bed1_t *b) {
   free(b);
+  free(b->chrm);
+  free(b->vcfref);
+  free(b->vcfalt);
 }
 
-static void format_bed1(bed1_t *b, conf_t *conf) {
+static void format_cytosine_bed1(bed1_t *b, conf_t *conf) {
   fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f", b->chrm, b->pos-1, b->end, b->beta);
   if (conf->showcov) {
     if (b->end == b->pos+1) {
@@ -44,6 +54,12 @@ static void format_bed1(bed1_t *b, conf_t *conf) {
       exit(1);
     }
   }
+  putchar('\n');
+}
+
+static void format_snp_bed1(bed1_t *b, conf_t *conf) {
+  fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%s\t%s", b->chrm, b->pos-1, b->end, b->vcfref, b->vcfalt);
+  if (conf->showcov) fprintf(stdout, "\t%d\tCG", b->cov);
   putchar('\n');
 }
 
@@ -65,7 +81,7 @@ static int vcf_parse1(char *line, bed1_t *b, uint8_t *et) {
   /* POS */
   tok=strtok_r(NULL, "\t", &linerest);
   ensure_number(tok);
-  b->pos = atoi(tok); b->end = atoi(tok);
+  b->pos = atoi(tok); b->end = b->pos;
   
   /* ID */
   tok=strtok_r(NULL, "\t", &linerest);
@@ -73,9 +89,13 @@ static int vcf_parse1(char *line, bed1_t *b, uint8_t *et) {
   /* REF */
   tok=strtok_r(NULL, "\t", &linerest);
   b->ref = toupper(tok[0]);
+  b->vcfref = realloc(b->vcfref, strlen(tok)+1);
+  strcpy(b->vcfref, tok);
 
   /* ALT */
   tok=strtok_r(NULL, "\t", &linerest);
+  b->vcfalt = realloc(b->vcfalt, strlen(tok)+1);
+  strcpy(b->vcfalt, tok);
 
   /* QUAL */
   tok=strtok_r(NULL, "\t", &linerest);
@@ -179,7 +199,7 @@ void vcf2cg(gzFile FH, conf_t *conf) {
               if (p->ref == 'C') p->end++;
               if (p->ref == 'G') p->pos--;
             }
-            format_bed1(p, conf);
+            format_cytosine_bed1(p, conf);
           }
           p_valid=0;
         }
@@ -204,7 +224,7 @@ void vcf2cg(gzFile FH, conf_t *conf) {
         if (p->ref == 'C') p->end++;
         if (p->ref == 'G') p->pos--;
       }
-      format_bed1(p, conf);
+      format_cytosine_bed1(p, conf);
     }
   }
 }
@@ -235,7 +255,7 @@ void vcf2hcg(gzFile FH, conf_t *conf) {
           merged=1;
         }
         if (p_valid) {
-          if (p->cov >= conf->mincov) format_bed1(p, conf);
+          if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf);
           p_valid = 0;
         }
 
@@ -252,7 +272,7 @@ void vcf2hcg(gzFile FH, conf_t *conf) {
     }
   }
   if (p_valid) {
-    if (p->cov >= conf->mincov) format_bed1(p, conf);
+    if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf);
   }
 }
 
@@ -268,7 +288,7 @@ void vcf2ch(gzFile FH, conf_t *conf) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et);
         if (parse_ok && (et&ET_C) && !(et&ET_CG) && b->cov >= conf->mincov)
-          format_bed1(b, conf);
+          format_cytosine_bed1(b, conf);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;
@@ -290,7 +310,7 @@ void vcf2gch(gzFile FH, conf_t *conf) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et);
         if (parse_ok && (et&ET_GCH) && b->cov >= conf->mincov)
-          format_bed1(b, conf);
+          format_cytosine_bed1(b, conf);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;
@@ -312,7 +332,7 @@ void vcf2c(gzFile FH, conf_t *conf) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et); 
         if (parse_ok && (et&ET_C) && b->cov >= conf->mincov)
-          format_bed1(b, conf);
+          format_cytosine_bed1(b, conf);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;
@@ -322,6 +342,119 @@ void vcf2c(gzFile FH, conf_t *conf) {
   }
 }
 
+static int vcf_parse_snp1(char *line, bed1_t *b) {
+
+  int i;
+  char *tok;
+  char *linerest=0, *fieldrest=0;
+  
+  /* CHROM */
+  tok=strtok_r(line, "\t", &linerest);
+  b->chrm = realloc(b->chrm, strlen(tok)+1);
+  strcpy(b->chrm, tok);
+
+  /* POS */
+  tok=strtok_r(NULL, "\t", &linerest);
+  ensure_number(tok);
+  b->pos = atoi(tok); b->end = b->pos;
+  
+  /* ID */
+  tok=strtok_r(NULL, "\t", &linerest);
+
+  /* REF */
+  tok=strtok_r(NULL, "\t", &linerest);
+  b->ref = toupper(tok[0]);
+  b->vcfref = realloc(b->vcfref, strlen(tok)+1);
+  strcpy(b->vcfref, tok);
+
+  if (strlen(b->vcfref) != 1) return 0;
+  
+  /* ALT */
+  tok=strtok_r(NULL, "\t", &linerest);
+  b->vcfalt = realloc(b->vcfalt, strlen(tok)+1);
+  strcpy(b->vcfalt, tok);
+
+  if (strlen(b->vcfalt) != 1) return 0;
+
+  /* QUAL */
+  tok=strtok_r(NULL, "\t", &linerest);
+
+  /* PASS FILTER */
+  tok=strtok_r(NULL, "\t", &linerest);
+
+  if (strcmp(tok, "PASS") != 0) return 0;
+
+  /* INFO */
+  tok=strtok_r(NULL, "\t", &linerest);
+
+  /* FORMAT */
+  tok=strtok_r(NULL, "\t", &linerest);
+  int dp_index=-1, gt_index=-1;
+  char *field;
+  field=strtok_r(tok, ":", &fieldrest);
+  i=0;
+  while(field) {
+    if (field[0]=='D' && field[1]=='P') {
+      dp_index = i;
+    }
+    if (field[0]=='G' && field[1]=='T') {
+      gt_index = i;
+    }
+    ++i;
+    field=strtok_r(NULL, ":", &fieldrest);
+  }
+
+  /* no coverage or beta info */
+  if (dp_index<0 || gt_index<0) return 0;
+
+  /* FORMAT content */
+  tok = strtok_r(NULL, "\t", &linerest);
+  i=0;
+  int coverage=-1; int is_var=0;
+  field=strtok_r(tok, ":", &fieldrest);
+  while (field) {
+    if (i==dp_index) {
+      ensure_number(field);
+      coverage=atoi(field);
+    }
+    if (i==gt_index) {
+      if (strchr(field, '1')!=NULL)
+        is_var = 1;
+    }
+    ++i;
+    field=strtok_r(NULL, ":", &fieldrest);
+  }
+
+  /* no coverage or beta info */
+  if (coverage<0 || !is_var) return 0;
+
+  b->cov = coverage;
+
+  return 1;
+}
+
+
+void vcf2snp(gzFile FH, conf_t *conf) {
+  
+  bed1_t *b=init_bed1();
+  kstring_t str;
+  str.s = 0; str.l = str.m = 0;
+  while (1) {
+    int c=gzgetc(FH);
+    if (c=='\n' || c==EOF) {
+      if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
+        int parse_ok = vcf_parse_snp1(str.s, b);
+        if (parse_ok && b->cov >= conf->mincov)
+          format_snp_bed1(b, conf);
+      }
+      str.l = 0;                /* clean line */
+      if (c==EOF) break;
+    } else {
+      kputc(c, &str);
+    }
+  }
+  free_bed1(b);
+}
 
 int main_vcf2bed(int argc, char *argv[]) { 
   conf_t conf = {.verbose=0, .mincov=3, .destrand=1, .showcov=0};
@@ -336,7 +469,8 @@ int main_vcf2bed(int argc, char *argv[]) {
           strcmp(optarg, "cg") !=0 &&
           strcmp(optarg, "ch") !=0 &&
           strcmp(optarg, "hcg") !=0 && 
-          strcmp(optarg, "gch") !=0) {
+          strcmp(optarg, "gch") !=0 &&
+          strcmp(optarg, "snp") !=0) {
         fprintf(stderr, "[%s:%d] Invalid option for -t: %s. \n", __func__, __LINE__, optarg);
         fflush(stderr);
         exit(1);
@@ -351,7 +485,7 @@ int main_vcf2bed(int argc, char *argv[]) {
       fprintf(stderr, "\n");
       fprintf(stderr, "Usage: biscuit vcf2bed [options] vcf \n");
       fprintf(stderr, "Input options:\n");
-      fprintf(stderr, "     -t STRING extract type {c, cg, ch, hcg, gch} [%s]\n", conf.target);
+      fprintf(stderr, "     -t STRING extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf.target);
       fprintf(stderr, "     -k INT    minimum coverage [%d]\n", conf.mincov);
       fprintf(stderr, "     -c        show coverage and strand as extra columns\n");
       fprintf(stderr, "     -u INT    suppress merging C and G in the CpG context (destrand, for cg and hcg, when both strands are in the hcg context).\n");
@@ -385,6 +519,7 @@ int main_vcf2bed(int argc, char *argv[]) {
   if (strcmp(conf.target, "ch")==0) vcf2ch(FH, &conf);
   if (strcmp(conf.target, "hcg")==0) vcf2hcg(FH, &conf);
   if (strcmp(conf.target, "gch")==0) vcf2gch(FH, &conf);
+  if (strcmp(conf.target, "snp")==0) vcf2snp(FH, &conf);
 
   return 0;
 }

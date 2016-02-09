@@ -78,7 +78,6 @@ DEFINE_VECTOR(pileup_data_v, pileup_data_t)
 #define RECORD_QUEUE_END -2
 #define RECORD_SLOT_OBSOLETE -1
 
-
 typedef struct bsrate_t {
   int m;
   int *ct_unconv, *ct_conv, *ga_unconv, *ga_conv;
@@ -114,7 +113,6 @@ static inline void bsrate_free(bsrate_t *b) {
 typedef struct {
   int64_t block_id;
   kstring_t s;                  /* vcf record */
-  kstring_t epi;		/* epiread record */
 
   /* coverage */
   int tid;

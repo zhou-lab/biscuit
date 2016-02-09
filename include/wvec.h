@@ -365,15 +365,15 @@
   DEFINE_VECTOR_CORE(Vector, Element, size_t, 0xFFFFFU);						\
   DEFINE_VECTOR_EXT(Vector, Element, size_t, NATIVE_NUMBER_EQUALS);
 
-DEFINE_NATIVE_VECTOR(u8vector,  uint8_t);
-DEFINE_NATIVE_VECTOR(u16vector, uint16_t);
-DEFINE_NATIVE_VECTOR(u32vector, uint32_t);
-DEFINE_NATIVE_VECTOR(u64vector, uint64_t);
+DEFINE_NATIVE_VECTOR(uint8_v,  uint8_t);
+DEFINE_NATIVE_VECTOR(uint16_v, uint16_t);
+DEFINE_NATIVE_VECTOR(uint32_v, uint32_t);
+DEFINE_NATIVE_VECTOR(uint64_v, uint64_t);
 
-DEFINE_NATIVE_VECTOR(b8vector,  int8_t);
-DEFINE_NATIVE_VECTOR(b16vector, int16_t);
-DEFINE_NATIVE_VECTOR(b32vector, int32_t);
-DEFINE_NATIVE_VECTOR(b64vector, int64_t);
+DEFINE_NATIVE_VECTOR(int8_v,  int8_t);
+DEFINE_NATIVE_VECTOR(int16_v, int16_t);
+DEFINE_NATIVE_VECTOR(int32_v, int32_t);
+DEFINE_NATIVE_VECTOR(int64_v, int64_t);
 
 DEFINE_VECTOR(vpvector, void*);
 
