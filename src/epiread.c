@@ -201,6 +201,8 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
   if (first_cpg_loc >= 0) {
     if (first_snp_loc >= 0)
       ksprintf(epi, "\t%d\t%s", first_snp_loc-1, es.s); /* 0-based */
+    else
+      kputs("\t.\t.", epi);
     kputc('\n', epi);
   }
 
@@ -383,7 +385,7 @@ int main_epiread(int argc, char *argv[]) {
   conf.filter_duplicate = 1;
   conf.filter_ppair = 1;
   conf.min_dist_end = 3;
-  conf.max_nm = 255;
+  conf.max_nm = 5;
   conf.is_nome = 0;
   conf.verbose = 0;
 

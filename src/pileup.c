@@ -1011,7 +1011,7 @@ void conf_init(conf_t *conf) {
   conf->filter_duplicate = 1;
   conf->filter_ppair = 1;
   conf->min_dist_end = 3;
-  conf->max_nm = 255;
+  conf->max_nm = 5;
   conf->contam = 0.1;
   conf->error = 0.001;
   conf->mu = 0.001;
