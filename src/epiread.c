@@ -172,7 +172,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
 
         /* append SNP info if present */
         uint32_t snp_ind = rpos+j-snp_beg;
-        if (episnp_test(snps, snp_ind)) {
+        if (snps && episnp_test(snps, snp_ind)) {
           kputc(qb, &es);
           if (first_snp_loc < 0)
             first_snp_loc = rpos+j;
@@ -201,7 +201,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
   if (first_cpg_loc >= 0) {
     if (first_snp_loc >= 0)
       ksprintf(epi, "\t%d\t%s", first_snp_loc-1, es.s); /* 0-based */
-    else
+    else if (snps)
       kputs("\t.\t.", epi);
     kputc('\n', epi);
   }
@@ -232,8 +232,9 @@ static void *process_func(void *data) {
     uint32_t snp_beg = w.beg>1000?w.beg-1000:1;
     uint32_t snp_end = w.end+1000;
     /* make snp lookup table */
-    uint8_t *snps = calloc((snp_end-snp_beg)/8+1, sizeof(uint8_t));
+    uint8_t *snps = NULL;
     if (res->snp) {             /* if snp is supplied */
+      snps = calloc((snp_end-snp_beg)/8+1, sizeof(uint8_t));
       episnp_chrom1_t *episnp1 = get_episnp1(res->snp, chrm);
       if (episnp1) {          /* if chromosome is found in snp file */
         for (j=0; j<episnp1->n; ++j) {

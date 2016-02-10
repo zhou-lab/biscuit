@@ -1044,7 +1044,6 @@ int main_pileup(int argc, char *argv[]) {
   char *infn = 0;
   char *outfn = 0;
   char *statsfn = 0;
-  char *snp_bed_fn = 0;
   conf_t conf;
   conf_init(&conf);
 
