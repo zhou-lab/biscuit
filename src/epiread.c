@@ -135,10 +135,11 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
           char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
           if (rb0 == 'C') {	/* CpG context */
             if (first_cpg_loc < 0) {
-              first_cpg_loc = (int) rpos+j-1;
+              first_cpg_loc = (int) rpos+j-1; /* C in CpG, 1-based */
               if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
                 return;
-              ksprintf(epi, "%s\t%c\t%d\t", chrm, bsstrand?'-':'+', first_cpg_loc);
+              ksprintf(epi, "%s\t%s\t%c\t-\t%d\t", chrm, bam1_qname(b),
+                       (b->core.flag&BAM_FREAD2)?'2':'1', first_cpg_loc-1); /* 0-based */
             }
             if (qb == 'A') {
               kputc('T', epi);
@@ -153,10 +154,11 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
           char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
           if (rb1 == 'G') {	/* CpG context */
             if (first_cpg_loc < 0) {
-              first_cpg_loc = (int) rpos+j;
+              first_cpg_loc = (int) rpos+j; /* C in CpG, 1-based */
               if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
                 return;
-              ksprintf(epi, "%s\t%d\t", chrm, first_cpg_loc);
+              ksprintf(epi, "%s\t%s\t%c\t+\t%d\t", chrm, bam1_qname(b),
+                       (b->core.flag&BAM_FREAD2)?'2':'1', first_cpg_loc-1); /* 0-based */
             }
             if (qb == 'T') {
               kputc('T', epi);
@@ -198,7 +200,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
   }
   if (first_cpg_loc >= 0) {
     if (first_snp_loc >= 0)
-      ksprintf(epi, "\t%d\t%s", first_snp_loc, es.s);
+      ksprintf(epi, "\t%d\t%s", first_snp_loc-1, es.s); /* 0-based */
     kputc('\n', epi);
   }
 
@@ -227,12 +229,17 @@ static void *process_func(void *data) {
 
     uint32_t snp_beg = w.beg>1000?w.beg-1000:1;
     uint32_t snp_end = w.end+1000;
-    uint8_t *snps = calloc((snp_end-snp_beg)/8+1, sizeof(uint8_t)); /* TODO free snps */
-    episnp_chrom1_t *episnp1 = get_episnp1(res->snp, chrm);
-    for (j=0; j<episnp1->n; ++j) {
-      uint32_t l=episnp1->locs[j];
-      if (l>=snp_beg && l<snp_end) {
-        episnp_set(snps, l-snp_beg);
+    /* make snp lookup table */
+    uint8_t *snps = calloc((snp_end-snp_beg)/8+1, sizeof(uint8_t));
+    if (res->snp) {             /* if snp is supplied */
+      episnp_chrom1_t *episnp1 = get_episnp1(res->snp, chrm);
+      if (episnp1) {          /* if chromosome is found in snp file */
+        for (j=0; j<episnp1->n; ++j) {
+          uint32_t l=episnp1->locs[j];
+          if (l>=snp_beg && l<snp_end) {
+            episnp_set(snps, l-snp_beg);
+          }
+        }
       }
     }
     
@@ -273,6 +280,7 @@ static void *process_func(void *data) {
 
     bam_destroy1(b);
     bam_iter_destroy(iter);
+    free(snps);
   }
   free_refseq(rs);
   samclose(in);
@@ -415,9 +423,7 @@ int main_epiread(int argc, char *argv[]) {
     exit(1);
   }
 
-  episnp_chrom1_v *episnp = NULL;
-  if (snp_bed_fn)
-    episnp = bed_init_episnp(snp_bed_fn);
+  episnp_chrom1_v *episnp = snp_bed_fn ? bed_init_episnp(snp_bed_fn) : NULL;
 
   wqueue_t(window) *wq = wqueue_init(window, 100000);
   pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
