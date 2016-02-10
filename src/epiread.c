@@ -138,7 +138,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
               first_cpg_loc = (int) rpos+j-1;
               if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
                 return;
-              ksprintf(epi, "%s\t%d\t", chrm, first_cpg_loc);
+              ksprintf(epi, "%s\t%c\t%d\t", chrm, bsstrand?'-':'+', first_cpg_loc);
             }
             if (qb == 'A') {
               kputc('T', epi);
