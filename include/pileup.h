@@ -37,7 +37,6 @@ typedef struct {
   double prior2;
   uint8_t verbose;
   int is_nome;
-  FILE *epiread;
 } conf_t;
 
 void conf_init(conf_t *conf);

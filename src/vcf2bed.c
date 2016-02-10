@@ -217,6 +217,8 @@ void vcf2cg(gzFile FH, conf_t *conf) {
     }
   }
 
+  free(str.s);
+
   /* last record */
   if (p_valid) {
     if (p->cov >= conf->mincov) { /* adjust coordinates for de-stranding */

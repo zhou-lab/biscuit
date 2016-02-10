@@ -89,7 +89,7 @@ static void *epiread_write_func(void *data) {
     if (rec.block_id == next_block) {
       do {
         if (rec.s.s)
-	  fputs(rec.s.s, out);
+          fputs(rec.s.s, out);
         free(rec.s.s);
 
         /* get next block from shelf if available else return OBSOLETE 
@@ -267,9 +267,7 @@ static void *process_func(void *data) {
     }
 
     /* run through cytosines */
-    rec.s.l = rec.s.m = 0; rec.s.s = 0; /* the record string */
     rec.block_id = w.block_id;
-
     /* put output string to output queue */
     wqueue_put2(record, res->rq, rec);
 
@@ -287,15 +285,14 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "Usage: epiread [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
   fprintf(stderr, "Input options:\n\n");
   fprintf(stderr, "     -i        input bam.\n");
+  fprintf(stderr, "     -B        bed input for SNP display in epiread output [no SNP]\n");
   fprintf(stderr, "     -r        reference in fasta.\n");
   fprintf(stderr, "     -g        region (optional, if not specified the whole bam will be processed).\n");
   fprintf(stderr, "     -s        step of window dispatching [%d].\n", conf->step);
   fprintf(stderr, "     -q        number of threads [%d].\n", conf->n_threads);
   fprintf(stderr, "\nOutputing format:\n\n");
   fprintf(stderr, "     -o        output file [stdout]\n");
-  fprintf(stderr, "     -N        NOMe-seq mode (skip GCH in bisulfite conversion estimate) [off]\n");
-  fprintf(stderr, "     -R        epiread output file name [no]\n");
-  fprintf(stderr, "     -B        bed input for SNP display in epiread output [no SNP]\n");
+  fprintf(stderr, "     -N        NOMe-seq mode [off]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "\nPileup filtering:\n\n");
   fprintf(stderr, "     -k        min read coverage [%d]\n", conf->min_cov);
@@ -327,16 +324,18 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
   while (1) {
     int c=fgetc(fh);
     if (c=='\n' || c==EOF) {
-      tok = strtok(line.s, "\t");
+      if (strcount_char(line.s, '\t')>=2) {
+        tok = strtok(line.s, "\t");
 
-      if (!episnp1 || strcmp(episnp1->chrm, tok) != 0)
-        episnp1 = get_n_insert_episnp1(episnp, tok);
+        if (!episnp1 || strcmp(episnp1->chrm, tok) != 0)
+          episnp1 = get_n_insert_episnp1(episnp, tok);
 
-      episnp1->locs = realloc(episnp1->locs, (episnp1->n+1)*sizeof(uint32_t));
-      tok = strtok(NULL, "\t");
-      ensure_number(tok);
-      episnp1->locs[episnp1->n] = atoi(tok)+1;
-      episnp1->n++;
+        episnp1->locs = realloc(episnp1->locs, (episnp1->n+1)*sizeof(uint32_t));
+        tok = strtok(NULL, "\t");
+        ensure_number(tok);
+        episnp1->locs[episnp1->n] = atoi(tok)+1;
+        episnp1->n++;
+      }
       
       line.l = 0;
       if (c==EOF) {
@@ -345,8 +344,8 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
     } else {
       kputc(c, &line);
     }
-    free(line.s);
   }
+  free(line.s);
 
   return episnp;
 }
@@ -417,7 +416,7 @@ int main_epiread(int argc, char *argv[]) {
   }
 
   episnp_chrom1_v *episnp = NULL;
-  if (conf.epiread && snp_bed_fn)
+  if (snp_bed_fn)
     episnp = bed_init_episnp(snp_bed_fn);
 
   wqueue_t(window) *wq = wqueue_init(window, 100000);
