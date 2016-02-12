@@ -5,6 +5,7 @@
 /* const char alts[] = "TGATCA"; */
 const char nt256int8_to_mutcode[6] = "ACGTYR";
 /* different representation of context when nome */
+
 const char *cytosine_context[] = {"CG","CHG","CHH","CG","CHG","CHH","CN"};
 const char *cytosine_context_nome[] = {"CG","CHG","CHH","GC","GC","GC","CN"};
 
@@ -267,7 +268,7 @@ void *write_func(void *data) {
   }
 
   for (sid=0; sid<c->n_bams; ++sid) {
-    if (!sid) fputs("\n\n", stats);
+    if (sid) fputs("\n\n", stats);
     fprintf(stats, "sample: %s\n", c->bam_fns[sid]);
     int inc = sid*c->targets->size;
     format_stats(stats, l, n+inc, n_uniq+inc, betasum+inc*NCONTXTS, cnt+inc*NCONTXTS, b+sid, c);
@@ -460,7 +461,7 @@ cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *f
   }
 }
 
-static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[9], int n_bams, int *_cm1, int *_cm2) {
+static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[NSTATUS], int n_bams, int *_cm1, int *_cm2) {
 
   if (!dv) {
     *_cm1 = -1; *_cm2 = -1;
@@ -475,22 +476,22 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[
     if (d->qual < conf->min_base_qual) continue;
     if (d->qpos < conf->min_dist_end ||
         d->rlen < d->qpos + conf->min_dist_end) continue;
-    cnts[d->sid*n_bams+d->stat]++;
+    cnts[d->sid * NSTATUS + d->stat]++;
   }
 
   /* reset ambiguous mutation if they can be disambiguated */
   for (sid=0; sid<n_bams; ++sid) {
-    if (cnts[sid*n_bams+BSS_MC]>0 || cnts[sid*n_bams+BSS_MT]>0)
-      cnts[sid*n_bams+BSS_MY] = 0;
-    if (cnts[sid*n_bams+BSS_MG]>0 || cnts[sid*n_bams+BSS_MA]>0)
-      cnts[sid*n_bams+BSS_MR] = 0;
+    if (cnts[sid * NSTATUS + BSS_MC]>0 || cnts[sid * NSTATUS + BSS_MT]>0)
+      cnts[sid * NSTATUS + BSS_MY] = 0;
+    if (cnts[sid * NSTATUS + BSS_MG]>0 || cnts[sid * NSTATUS + BSS_MA]>0)
+      cnts[sid * NSTATUS + BSS_MR] = 0;
   }
 
   /* pick the top 2 mutations */
-  memset(allcnts, 0, sizeof(int)*9);
+  memset(allcnts, 0, sizeof(int)*NSTATUS);
   for (sid=0; sid<n_bams; ++sid)
-    for (i=0; i<9; ++i)
-      allcnts[i] += cnts[sid*n_bams+i];
+    for (i=0; i<NSTATUS; ++i)
+      allcnts[i] += cnts[sid * NSTATUS + i];
 
   int cm1=-1, cm2=-1;
   for (i=0; i<6; i++) {
@@ -516,7 +517,7 @@ int reference_supp(int *cnts) {
   return cref;
 }
 
-void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[9], kstring_t *s) {
+void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[NSTATUS], kstring_t *s) {
 
   if (cref)
     ksprintf(s, "%c%d", rb, cref);
@@ -569,8 +570,8 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
   uint32_t i;
   char rb = toupper(getbase_refseq(rs, rpos));
 
-  int *cnts = calloc(9*n_bams, sizeof(int));
-  int allcnts[9]={0};
+  int *cnts = calloc(NSTATUS*n_bams, sizeof(int));
+  int allcnts[NSTATUS]={0};
   int cm1, cm2;
   plp_getcnts(dv, conf, cnts, allcnts, n_bams, &cm1, &cm2);
 
@@ -607,7 +608,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
   uint8_t *methcallable = calloc(n_bams, sizeof(uint8_t));
   uint8_t *variant = calloc(n_bams, sizeof(uint8_t));
   for (sid=0; sid<n_bams; ++sid) {
-    int *cnts1 = cnts + 9*sid;
+    int *cnts1 = cnts + NSTATUS*sid;
 
     /* MY and MR do not interfere */
     if (cnts1[BSS_RETENTION] + cnts1[BSS_CONVERSION] > 0) {
@@ -639,7 +640,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
      no methylation information is inferred */
   if (cm1 >= 0) {
     uint32_t supp[6];
-    for (i=0; i<6; ++i) supp[i] = (cnts[i]<<4) | i;
+    for (i=0; i<6; ++i) supp[i] = (allcnts[i]<<4) | i;
     qsort(supp, 6, sizeof(uint32_t), compare_supp);
     int fst = 1;
     for (i=0; i<6; ++i) {
@@ -682,7 +683,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
   /* loop over samples print format */
   double beta;
   for (sid=0; sid<n_bams; ++sid) {
-    int *cnts1 = cnts + 9*sid;
+    int *cnts1 = cnts + NSTATUS*sid;
 
     /* DP */
     if (dv) {
@@ -694,7 +695,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     /* GT, GP, GQ */
     if (gq[sid]>0) {
       ksprintf(s, ":%s:%1.0f,%1.0f,%1.0f:%1.0f", gt[sid], 
-	       min(1000, -gl0[sid]), min(1000, -gl1[sid]), min(1000, -gl2[sid]), gq[sid]);
+               min(1000, -gl0[sid]), min(1000, -gl1[sid]), min(1000, -gl2[sid]), gq[sid]);
     } else {
       ksprintf(s, ":./.:.:.");
     }
@@ -708,14 +709,14 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     /* CV, BT */
     if (any_methcallable) {
       if (methcallable[sid]) {
-	beta = (double) cnts1[BSS_RETENTION] / (double) (cnts1[BSS_RETENTION]+cnts1[BSS_CONVERSION]);
-	if (ctt != CTXT_NA) {
-	  rec->betasum_context[sid*NCONTXTS+ctt] += beta;
-	  rec->cnt_context[sid*NCONTXTS+ctt]++;
-	}
-	ksprintf(s, ":%d:%1.2f", cnts1[BSS_RETENTION]+cnts1[BSS_CONVERSION], beta);
+        beta = (double) cnts1[BSS_RETENTION] / (double) (cnts1[BSS_RETENTION]+cnts1[BSS_CONVERSION]);
+        if (ctt != CTXT_NA) {
+          rec->betasum_context[sid*NCONTXTS+ctt] += beta;
+          rec->cnt_context[sid*NCONTXTS+ctt]++;
+        }
+        ksprintf(s, ":%d:%1.2f", cnts1[BSS_RETENTION]+cnts1[BSS_CONVERSION], beta);
       } else {
-	kputs(":.:.", s);
+        kputs(":.:.", s);
       }
     }
 
@@ -727,7 +728,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     if (conf->verbose) {
       kputs("\tDIAGNOSE", s);
       if (methcallable)
-	ksprintf(s, ";RN=%d;CN=%d", cnts1[BSS_RETENTION], cnts1[BSS_CONVERSION]);
+        ksprintf(s, ";RN=%d;CN=%d", cnts1[BSS_RETENTION], cnts1[BSS_CONVERSION]);
       verbose_format(0, dv, s, sid);
       verbose_format(1, dv, s, sid);
     }
@@ -1045,7 +1046,7 @@ static void *process_func(void *data) {
       rb = getbase_refseq(rs, j);
       pileup_data_v *plp_data = plp->data[j-w.beg];
       if (plp_data) {
-        plp_format(rs, chrm, j, plp_data, res->conf, &rec, sid*res->n_bams);
+        plp_format(rs, chrm, j, plp_data, res->conf, &rec, res->n_bams);
       }
     }
 
@@ -1219,7 +1220,7 @@ int main_pileup(int argc, char *argv[]) {
   result_t *results = calloc(conf.n_threads, sizeof(result_t));
   samfile_t *in = samopen(in_fns[0], "rb", 0); /* use first bam, assume the headers are all equal */
 
-  /* process header */
+  /***** process header *****/
   kstring_t header; header.l = header.m = 0; header.s = 0;
   kputs("##fileformat=VCFv4.1\n", &header);
   ksprintf(&header, "##reference=%s\n", reffn);
@@ -1248,7 +1249,7 @@ int main_pileup(int argc, char *argv[]) {
   kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
 
   kputs("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Raw read depth\">\n", &header);
-  kputs("##FORMAT=<ID=SP,Number=R,Type=String,Description=\"Allele support (with filtering)\">\n", &header);
+  kputs("##FORMAT=<ID=SP,Number=R,Type=String,Description=\"Allele support (before bisulfite conversion, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=CV,Number=1,Type=Integer,Description=\"Effective (strand-specific) coverage on cytosine\">\n", &header);
   kputs("##FORMAT=<ID=BT,Number=1,Type=Float,Description=\"Cytosine methylation fraction (aka beta value, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=GT,Number=1,Type=Integer,Description=\"Genotype from normal\">\n", &header);

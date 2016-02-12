@@ -51,15 +51,13 @@ typedef struct {
 DEFINE_WQUEUE(window, window_t)
 
 /* mutation-methylation code */
+#define NSTATUS 9
 extern const char nt256int8_to_mutcode[6];
-typedef enum {BSS_MA, BSS_MC, BSS_MG, BSS_MT,
-              BSS_MY, BSS_MR, BSS_RETENTION, BSS_CONVERSION, BSS_N} status_t;
+typedef enum {BSS_MA, BSS_MC, BSS_MG, BSS_MT, BSS_MY, BSS_MR, BSS_RETENTION, BSS_CONVERSION, BSS_N} status_t;
 
-/* cytosine context */
+/* cytosine context code */
 #define NCONTXTS 6          /* not including NA */
-typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH,
-              CTXT_GCG, CTXT_GCHG, CTXT_GCHH,
-              CTXT_NA} cytosine_context_t;
+typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH, CTXT_GCG, CTXT_GCHG, CTXT_GCHH, CTXT_NA} cytosine_context_t;
 extern const char *cytosine_context[];
 
 typedef struct {
