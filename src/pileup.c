@@ -238,24 +238,28 @@ void *write_func(void *data) {
           fputs(rec.s.s, out);
 
           /* statistics */
-	  l[rec.tid] += rec.l;
-	  for (sid=0; sid<c->n_bams; ++sid) {
-	    /* base coverage */
-	    n[sid*c->targets->size+rec.tid] += rec.n[sid];
-	    n_uniq[sid*c->targets->size+rec.tid] += rec.n_uniq[sid];
+          l[rec.tid] += rec.l;
+          for (sid=0; sid<c->n_bams; ++sid) {
+            /* base coverage */
+            n[sid*c->targets->size+rec.tid] += rec.n[sid];
+            n_uniq[sid*c->targets->size+rec.tid] += rec.n_uniq[sid];
 
-	    /* methlevelaverage */
-	    for (i=0; i<NCONTXTS; ++i) {
-	      betasum[rec.tid*NCONTXTS+i] += rec.betasum_context[sid*NCONTXTS+i];
-	      cnt[rec.tid*NCONTXTS+i] += rec.cnt_context[sid*NCONTXTS+i];
-	    }
+            /* methlevelaverage */
+            for (i=0; i<NCONTXTS; ++i) {
+              betasum[rec.tid*NCONTXTS+i] += rec.betasum_context[sid*NCONTXTS+i];
+              cnt[rec.tid*NCONTXTS+i] += rec.cnt_context[sid*NCONTXTS+i];
+            }
 
-	    /* merge bsrate */
-	    merge_bsrate(b+sid, rec.b+sid);
-	  }
+            /* merge bsrate */
+            merge_bsrate(b+sid, rec.b+sid);
+          }
         }
         free(rec.s.s);
-        bsrate_free(rec.b, c->n_bams);
+        free(rec.n);
+        free(rec.n_uniq);
+        free(rec.betasum_context);
+        free(rec.cnt_context);
+        free_bsrate(rec.b, c->n_bams);
 
         /* get next block from shelf if available else return OBSOLETE 
            and retrieve new block from queue  */
@@ -278,7 +282,7 @@ void *write_func(void *data) {
   free(l); free(n); free(n_uniq);
   free(cnt);
   free(betasum);
-  bsrate_free(b, c->n_bams);
+  free_bsrate(b, c->n_bams);
   
   free_record_v(records);
   if (c->outfn) {    /* for stdout, will close at the end of main */
@@ -595,10 +599,6 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
   double *gl1 = malloc(n_bams*sizeof(double));
   double *gl2 = malloc(n_bams*sizeof(double));
   double *gq = malloc(n_bams*sizeof(double));
-  for (sid=0; sid<n_bams; ++sid) {
-    gl0[sid] = -1; gl1[sid] = -1;
-    gl2[sid] = -1; gq[sid] = -1;
-  }
   int *cref = calloc(n_bams, sizeof(int));
 
   /* genotype each sample */
@@ -618,14 +618,21 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
 
     cref[sid] = reference_supp(cnts1);
     int altsupp = cm1 >= 0?cnts1[cm1]:0;
-    pileup_genotype(cref[sid], altsupp, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid);
-    if (gq[sid] < lowest_gq || !sid) lowest_gq = gq[sid];
 
-    if (cref[sid] || cm1 >=0) {
-      variant[sid] = 1;
+    gl0[sid] = -1; gl1[sid] = -1; gl2[sid] = -1; gq[sid] = 0;
+    /* if (cref[sid] || cm1 >=0) { */
+    /*   pileup_genotype(cref[sid], altsupp, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid); */
+    /*   variant[sid] = 1; */
+    /*   any_variant = 1; */
+    /* } */
+    if (cref[sid] || cm1 >= 0) {
+      pileup_genotype(cref[sid], altsupp, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid);
       any_variant = 1;
     }
-
+    if (cref[sid] || altsupp) variant[sid] = 1;
+    if (gq[sid] < lowest_gq || !sid)
+      lowest_gq = gq[sid];
+    
     if (methcallable[sid]) {
       any_methcallable = 1;
     }
@@ -658,7 +665,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
   }
 
   /* QUAL */
-  ksprintf(s, "\t%1.2f", lowest_gq);
+  ksprintf(s, "\t%d", (int) lowest_gq);
   if (lowest_gq > 1) {
     kputs("\tPASS\t", s);
   } else {
@@ -686,14 +693,14 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     int *cnts1 = cnts + NSTATUS*sid;
 
     /* DP */
+    int dp=0;
     if (dv) {
-      int dp=0;
       for(i=0; i<dv->size; ++i)	if (ref_pileup_data_v(dv, i)->sid == sid) ++dp;
       ksprintf(s, "\t%d", dp);
     } else kputs("\t0", s);
 
     /* GT, GP, GQ */
-    if (gq[sid]>0) {
+    if (gq[sid]>0 && dp) {
       ksprintf(s, ":%s:%1.0f,%1.0f,%1.0f:%1.0f", gt[sid], 
                min(1000, -gl0[sid]), min(1000, -gl1[sid]), min(1000, -gl2[sid]), gq[sid]);
     } else {
@@ -703,7 +710,11 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     /* SP */
     if (any_variant) {
       kputc(':', s);
-      allele_supp(rb, cref[sid], cm1, cm2, cnts1, s);
+      if (variant[sid]) {
+        allele_supp(rb, cref[sid], cm1, cm2, cnts1, s);
+      } else {
+        kputc('.', s);
+      }
     }
   
     /* CV, BT */
@@ -735,7 +746,8 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
   }
 
   kputc('\n', s);
-  free(gl0); free(gl1); free(gl2); free(gq);
+  for (sid=0; sid<n_bams; ++sid) free(gt[sid]);
+  free(gt); free(gl0); free(gl1); free(gl2); free(gq);
   free(cref); free(methcallable); free(variant);
   free(cnts);
 }
@@ -890,7 +902,17 @@ static void *process_func(void *data) {
   bam_index_t **idxs = calloc(res->n_bams, sizeof(bam_index_t*));
   for (sid=0; sid<res->n_bams; ++sid) {
     in_fhs[sid] = samopen(res->bam_fns[sid], "rb", 0);
+    if (!in_fhs[sid]) {
+      fprintf(stderr, "[%s:%d] cannot open %s\n", __func__, __LINE__, res->bam_fns[sid]);
+      fflush(stderr);
+      exit(1);
+    }
     idxs[sid] = bam_index_load(res->bam_fns[sid]);
+    if (!idxs[sid]) {
+      fprintf(stderr, "[%s:%d] cannot find index for %s\n", __func__, __LINE__, res->bam_fns[sid]);
+      fflush(stderr);
+      exit(1);
+    }
   }
 
   refseq_t *rs = init_refseq(res->ref_fn, 1000, 1000);
@@ -1167,7 +1189,7 @@ int main_pileup(int argc, char *argv[]) {
     switch (c) {
     case 'i':
       for(--optind; optind < argc && *argv[optind] != '-'; optind++){
-        in_fns = realloc(in_fns, n_fns+1);
+        in_fns = realloc(in_fns, (n_fns+1)*sizeof(char*));
         in_fns[n_fns] = argv[optind];
         n_fns++;
       }

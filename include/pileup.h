@@ -97,8 +97,7 @@ static inline void bsrate_init(bsrate_t *b, int m) {
   b->ga_conv_m = calloc(m, sizeof(int));
 }
 
-static inline void bsrate_free(bsrate_t *b, int n_bams) {
-
+static inline void free_bsrate(bsrate_t *b, int n_bams) {
   int sid;
   for (sid = 0; sid < n_bams; ++sid) {
     free(b[sid].ct_unconv);
@@ -110,6 +109,7 @@ static inline void bsrate_free(bsrate_t *b, int n_bams) {
     free(b[sid].ga_unconv_m);
     free(b[sid].ga_conv_m);
   }
+  free(b);
 }
 
 typedef struct {
