@@ -411,7 +411,7 @@ static void head_append_info(char *p, char m, kstring_t *s) {
   ksprintf(s, "##INFO=<ID=Conv%c,Number=1,Type=String,Description=\"Conversion count, %s (with filtering)\">\n", m, p);
 }
 
-static int usage() {
+static int usage(conf_t *conf) {
   fprintf(stderr, "\n");
   fprintf(stderr, "Usage: somatic [options] -r [ref.fa] -i [tumor.bam] -j [normal.bam] -o [out.pileup] -g [chr1:123-234]\n");
   fprintf(stderr, "Input options:\n\n");
@@ -419,8 +419,8 @@ static int usage() {
   fprintf(stderr, "     -j        normal bam.\n");
   fprintf(stderr, "     -r        reference in fasta.\n");
   fprintf(stderr, "     -g        region (optional, if not specified the whole bam will be processed).\n");
-  fprintf(stderr, "     -s        step of window dispatching [100000].\n");
-  fprintf(stderr, "     -q        number of threads [3] recommend 20.\n");
+  fprintf(stderr, "     -s        step of window dispatching [%d].\n", conf->step);
+  fprintf(stderr, "     -q        number of threads [%d].\n", conf->n_threads);
   fprintf(stderr, "\nOutputing format:\n\n");
   fprintf(stderr, "     -H        no header\n");
   fprintf(stderr, "     -o        pileup output file\n");
@@ -460,7 +460,7 @@ int main_somatic(int argc, char *argv[]) {
   };
   conf_init(&conf.c);
 
-  if (argc<2) return usage();
+  if (argc<2) return usage(&conf);
   while ((c=getopt(argc, argv, "E:M:S:C:P:Q:i:j:o:r:s:g:q:e:b:t:n:m:l:Hcupvh"))>=0) {
     switch (c) {
     case 'E': conf.c.error = atof(optarg); break;
@@ -487,7 +487,7 @@ int main_somatic(int argc, char *argv[]) {
     case 'm': conf.c.min_mapq = atoi(optarg); break;
     case 'n': conf.c.max_nm = atoi(optarg); break;
     case 'v': conf.c.verbose = 1; break;
-    case 'h': return usage();
+    case 'h': return usage(&conf);
     default:
       fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
       exit(1);
@@ -498,7 +498,7 @@ int main_somatic(int argc, char *argv[]) {
   conf.c.prior0 = 1.0 - conf.c.prior1 - conf.c.prior2;
 
   if (!tumo_fn || !norm_fn || !reffn) {
-    usage();
+    usage(&conf);
     exit(1);
   }
 

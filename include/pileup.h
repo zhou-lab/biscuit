@@ -62,6 +62,7 @@ typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH,
 extern const char *cytosine_context[];
 
 typedef struct {
+  uint8_t sid;			/* which sample */
   uint8_t bsstrand:1;
   uint8_t qual:7;
   uint8_t strand:1;
@@ -97,16 +98,19 @@ static inline void bsrate_init(bsrate_t *b, int m) {
   b->ga_conv_m = calloc(m, sizeof(int));
 }
 
-static inline void bsrate_free(bsrate_t *b) {
+static inline void bsrate_free(bsrate_t *b, int n_bams) {
 
-  free(b->ct_unconv);
-  free(b->ct_conv);
-  free(b->ga_unconv);
-  free(b->ga_conv);
-  free(b->ct_unconv_m);
-  free(b->ct_conv_m);
-  free(b->ga_unconv_m);
-  free(b->ga_conv_m);
+  int sid;
+  for (sid = 0; sid < n_bams; ++sid) {
+    free(b[sid].ct_unconv);
+    free(b[sid].ct_conv);
+    free(b[sid].ga_unconv);
+    free(b[sid].ga_conv);
+    free(b[sid].ct_unconv_m);
+    free(b[sid].ct_conv_m);
+    free(b[sid].ga_unconv_m);
+    free(b[sid].ga_conv_m);
+  }
 }
 
 typedef struct {
@@ -115,14 +119,16 @@ typedef struct {
 
   /* coverage */
   int tid;
-  int64_t l, n, n_uniq;             /* length, base coverage, unique base coverage */
+  int64_t l;
+  int64_t *n, *n_uniq;             /* length, base coverage, unique base coverage */
 
   /* methlevelaverages, [beta sum, cnt] */
-  double betasum_context[NCONTXTS];       /* CG, CHG, CHH */
-  int64_t cnt_context[NCONTXTS];
+  /* dim = NCONTXTS * n_bams */
+  double *betasum_context;       /* CG, CHG, CHH */
+  int64_t *cnt_context;
   
   /* bsrate */
-  bsrate_t b;
+  bsrate_t *b;
 } record_t;
 
 DEFINE_VECTOR(record_v, record_t)
@@ -168,6 +174,8 @@ static inline int compare_supp(const void *a, const void *b)
 
 typedef struct {
   wqueue_t(record) *q;
+  int n_bams;
+  char *bam_fns;
   char *outfn;
   char *statsfn;
   char *header;
