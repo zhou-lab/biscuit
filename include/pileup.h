@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <libgen.h>
 #include "wqueue.h"
 #include "encode.h"
 #include "sam.h"
@@ -162,7 +163,6 @@ cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *f
 
 #define min(a,b) ((a)<(b)?(a):(b))
 
-void plp_getcnts(pileup_data_v *dv, conf_t *conf, int cnts[9], int *_cm1, int *_cm2);
 void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq);
 int reference_supp(int cnts[9]);
 void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[9], kstring_t *s);
@@ -175,7 +175,7 @@ static inline int compare_supp(const void *a, const void *b)
 typedef struct {
   wqueue_t(record) *q;
   int n_bams;
-  char *bam_fns;
+  char **bam_fns;
   char *outfn;
   char *statsfn;
   char *header;

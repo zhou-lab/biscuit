@@ -73,7 +73,7 @@ void put_into_record_v(record_v *records, record_t rec) {
 
 void merge_bsrate(bsrate_t *t, bsrate_t *s) {
   int i;
-  if (t->m==0) bsrate_init(t+sid, s->m);
+  if (t->m==0) bsrate_init(t, s->m);
   for (i=0; i<t->m; ++i) {
     t->ct_unconv[i] += s->ct_unconv[i];
     t->ct_conv[i] += s->ct_conv[i];
@@ -86,8 +86,7 @@ void merge_bsrate(bsrate_t *t, bsrate_t *s) {
   }
 }
 
-static void format_stats(FILE *stats, int sid, int64_t *l, int64_t *n, int64_t *n_uniq, 
-		  int64_t *betasum, int64_t *cnt, bsrate *b) {
+static void format_stats(FILE *stats, int64_t *l, int64_t *n, int64_t *n_uniq, double *betasum, int64_t *cnt, bsrate_t *b, writer_conf_t *c) {
   
   /* output statistics */
   /* by chromosome base coverage */
@@ -176,6 +175,7 @@ static void format_stats(FILE *stats, int sid, int64_t *l, int64_t *n, int64_t *
   fprintf(stats, "# _r: conversion rate\n");
   fprintf(stats, "# _m: mitochondrial\n");
   fprintf(stats, "pos\tct_c\tct_u\tct_r\tga_c\tga_u\tga_r\tct_cm\tct_um\tct_rm\tga_cm\tga_um\tga_rm\n");
+  int i;
   for (i=0; i<b->m; ++i){
     if (!b->ct_conv[i] && !b->ga_conv[i] && !b->ct_conv_m[i] && !b->ga_conv_m[i]) continue;
     fprintf(stats, "%d\t%d\t%d\t%1.3f%%\t%d\t%d\t%1.3f%%\t%d\t%d\t%1.3f%%\t%d\t%d\t%1.3f%%\n",
@@ -270,14 +270,14 @@ void *write_func(void *data) {
     if (!sid) fputs("\n\n", stats);
     fprintf(stats, "sample: %s\n", c->bam_fns[sid]);
     int inc = sid*c->targets->size;
-    format_stats(stats, sid, l, n+inc, n_uniq+inc, betasum+inc*NCONTXTS, cnt+inc*NCONTXTS, b+sid);
+    format_stats(stats, l, n+inc, n_uniq+inc, betasum+inc*NCONTXTS, cnt+inc*NCONTXTS, b+sid, c);
   }
 
   free(c->statsfn);
   free(l); free(n); free(n_uniq);
   free(cnt);
   free(betasum);
-  bsrate_free(b);
+  bsrate_free(b, c->n_bams);
   
   free_record_v(records);
   if (c->outfn) {    /* for stdout, will close at the end of main */
@@ -460,8 +460,7 @@ cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *f
   }
 }
 
-void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[9],
-		 int n_bams, int *_cm1, int *_cm2) {
+static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[9], int n_bams, int *_cm1, int *_cm2) {
 
   if (!dv) {
     *_cm1 = -1; *_cm2 = -1;
@@ -488,9 +487,9 @@ void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[9],
   }
 
   /* pick the top 2 mutations */
-  int allcnts[9] = {0};
+  memset(allcnts, 0, sizeof(int)*9);
   for (sid=0; sid<n_bams; ++sid)
-    for (i=0; i<6; ++i)
+    for (i=0; i<9; ++i)
       allcnts[i] += cnts[sid*n_bams+i];
 
   int cm1=-1, cm2=-1;
@@ -563,8 +562,7 @@ void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_g
   *_gl0 = gl0; *_gl1 = gl1; *_gl2 = gl2; *_gq = gq;
 }
 
-static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
-                       pileup_data_v *dv, conf_t *conf, record_t *rec, int n_bams) {
+static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf, record_t *rec, int n_bams) {
 
   kstring_t *s = &rec->s;
 
@@ -581,12 +579,13 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
   if (cm1 < 0 && !conf->verbose
       && allcnts[BSS_RETENTION] == 0
       && allcnts[BSS_CONVERSION] == 0) {
-    free(cnts)
+    free(cnts);
     return;
   }
 
   /* initialize genotyping */
   char **gt = malloc(n_bams*sizeof(char*));
+  int sid;
   for (sid=0; sid<n_bams; ++sid) {
     gt[sid] = malloc(4*sizeof(char));
     strcpy(gt[sid], "./.");
@@ -618,7 +617,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos,
 
     cref[sid] = reference_supp(cnts1);
     int altsupp = cm1 >= 0?cnts1[cm1]:0;
-    pileup_genotype(cref[sid], altsupp, conf, gt+sid, gl0+sid, gl1+sid, gl2+sid, gq+sid);
+    pileup_genotype(cref[sid], altsupp, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid);
     if (gq[sid] < lowest_gq || !sid) lowest_gq = gq[sid];
 
     if (cref[sid] || cm1 >=0) {
@@ -886,7 +885,7 @@ static void *process_func(void *data) {
 
   /* open bam files */
   int sid=0;
-  samfile_t *in_fhs = calloc(res->n_bams, sizeof(samfile_t));
+  samfile_t **in_fhs = calloc(res->n_bams, sizeof(samfile_t*));
   bam_index_t **idxs = calloc(res->n_bams, sizeof(bam_index_t*));
   for (sid=0; sid<res->n_bams; ++sid) {
     in_fhs[sid] = samopen(res->bam_fns[sid], "rb", 0);
@@ -918,11 +917,16 @@ static void *process_func(void *data) {
     rec.betasum_context = calloc(NCONTXTS*res->n_bams, sizeof(double));
     rec.cnt_context = calloc(NCONTXTS*res->n_bams, sizeof(int64_t));
 
-    uint8_t is_mito=0; char *chrm;
-
     pileup_t *plp = init_pileup(w.end - w.beg);
 
     /* loop over samples */
+    char qb, rb;
+    /* chrm based on the first bam */
+    char *chrm = in_fhs[0]->header->target_name[w.tid];
+    fetch_refseq(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
+    uint8_t is_mito=0;
+    if (strcmp(chrm, "chrM")==0 || strcmp(chrm, "MT")==0) is_mito=1;
+
     for (sid=0; sid<res->n_bams; ++sid) {
       samfile_t *in = in_fhs[sid];
       bam_index_t *idx = idxs[sid];
@@ -930,114 +934,110 @@ static void *process_func(void *data) {
       int *basecov = calloc(w.end-w.beg, sizeof(int));
       int *basecov_uniq = calloc(w.end-w.beg, sizeof(int));
 
-      if (!sid) {		/* for first bam, prepare reference */
-	char *chrm = in->header->target_name[w.tid];
-	if (strcmp(chrm, "chrM")==0 || strcmp(chrm, "MT")==0) is_mito=1;
-	fetch_refseq(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
-      }
-
       bam_iter_t iter = bam_iter_query(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
       bam1_t *b = bam_init1();
       int ret;
-      char qb, rb;
       while ((ret = bam_iter_read(in->x.bam, iter, b))>0) {
 
-	uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
-	read_update_basecov(b, basecov, basecov_uniq, w.beg, w.end, conf);
+        uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
+        read_update_basecov(b, basecov, basecov_uniq, w.beg, w.end, conf);
       
-	/* read-based filtering */
-	bam1_core_t *c = &b->core;
-	if (c->qual < conf->min_mapq) continue;
-	if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->min_read_len) continue;
-	if (c->flag > 0){         /* only when any flag is set */
-	  if (conf->filter_secondary && c->flag & BAM_FSECONDARY) continue;
-	  if (conf->filter_duplicate && c->flag & BAM_FDUP) continue;
-	  if (conf->filter_ppair && !(c->flag & BAM_FPROPER_PAIR)) continue;
-	  if (conf->filter_qcfail && c->flag & BAM_FQCFAIL) continue;
-	}
+        /* read-based filtering */
+        bam1_core_t *c = &b->core;
+        if (c->qual < conf->min_mapq) continue;
+        if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->min_read_len) continue;
+        if (c->flag > 0){         /* only when any flag is set */
+          if (conf->filter_secondary && c->flag & BAM_FSECONDARY) continue;
+          if (conf->filter_duplicate && c->flag & BAM_FDUP) continue;
+          if (conf->filter_ppair && !(c->flag & BAM_FPROPER_PAIR)) continue;
+          if (conf->filter_qcfail && c->flag & BAM_FQCFAIL) continue;
+        }
 
-	uint8_t *nm = bam_aux_get(b, "NM");
-	if (nm && bam_aux2i(nm)>conf->max_nm) continue;
-	uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
-	if (cnt_ret > conf->max_retention) continue;
+        uint8_t *nm = bam_aux_get(b, "NM");
+        if (nm && bam_aux2i(nm)>conf->max_nm) continue;
+        uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
+        if (cnt_ret > conf->max_retention) continue;
 
-	uint32_t rpos = c->pos+1, qpos = 0;
-	for (i=0; i<c->n_cigar; ++i) {
-	  uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
-	  uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
-	  switch(op) {
-	  case BAM_CMATCH:
-	    for (j=0; j<oplen; ++j) {
-	      if (rpos+j<w.beg || rpos+j>=w.end) continue; /* include begin but not end */
-	      rb = toupper(getbase_refseq(rs, rpos+j));
-	      qb = bscall(b, qpos+j);
-	      pileup_data_v **plp_data_vec = plp->data+rpos+j-w.beg;
-	      if (!*plp_data_vec) *plp_data_vec = init_pileup_data_v(2);
-	      pileup_data_t *d = next_ref_pileup_data_v(*plp_data_vec);
-	      d->sid = sid;
-	      d->qual = bam1_qual(b)[qpos+j];
-	      d->cnt_ret = (unsigned) cnt_ret;
-	      d->strand = (c->flag&BAM_FREVERSE)?1:0;
-	      d->qpos = qpos+j+1;
-	      d->rlen = c->l_qseq;
-	      d->bsstrand = bsstrand;
-	      d->qb = qb;
+        uint32_t rpos = c->pos+1, qpos = 0;
+        for (i=0; i<c->n_cigar; ++i) {
+          uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
+          uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+          switch(op) {
+          case BAM_CMATCH:
+            for (j=0; j<oplen; ++j) {
+              if (rpos+j<w.beg || rpos+j>=w.end) continue; /* include begin but not end */
+              rb = toupper(getbase_refseq(rs, rpos+j));
+              qb = bscall(b, qpos+j);
+              pileup_data_v **plp_data_vec = plp->data+rpos+j-w.beg;
+              if (!*plp_data_vec) *plp_data_vec = init_pileup_data_v(2);
+              pileup_data_t *d = next_ref_pileup_data_v(*plp_data_vec);
+              d->sid = sid;
+              d->qual = bam1_qual(b)[qpos+j];
+              d->cnt_ret = (unsigned) cnt_ret;
+              d->strand = (c->flag&BAM_FREVERSE)?1:0;
+              d->qpos = qpos+j+1;
+              d->rlen = c->l_qseq;
+              d->bsstrand = bsstrand;
+              d->qb = qb;
 
-	      calc_bsrate(bsstrand, rb, qb, rs, qpos+j, rpos+j, is_mito, c, rec.b+sid, conf);
+              calc_bsrate(bsstrand, rb, qb, rs, qpos+j, rpos+j, is_mito, c, rec.b+sid, conf);
 
-	      if (bsstrand) {	/* BSC */
-		if (rb == 'G') {
-		  if (qb == 'A') d->stat = BSS_CONVERSION;
-		  else if (qb == 'G') d->stat = BSS_RETENTION;
-		  else d->stat = mutcode(qb);
-		} else if (rb != qb) {
-		  if (qb == 'A') d->stat = BSS_MR;
-		  else d->stat = mutcode(qb);
-		} else {
-		  d->stat = BSS_N;
-		}
-	      } else {		/* BSW */
-		if (rb == 'C') {
-		  if (qb == 'T') d->stat = BSS_CONVERSION;
-		  else if (qb == 'C') d->stat = BSS_RETENTION;
-		  else d->stat = mutcode(qb);
-		} else if (rb != qb) {
-		  if (qb == 'T') d->stat = BSS_MY;
-		  else d->stat = mutcode(qb);
-		} else {
-		  d->stat = BSS_N;
-		}
-	      }
-	    }
-	    rpos += oplen;
-	    qpos += oplen;
-	    break;
-	  case BAM_CINS:
-	    qpos += oplen;
-	    break;
-	  case BAM_CDEL:
-	    rpos += oplen;
-	    break;
-	  case BAM_CSOFT_CLIP:
-	    qpos += oplen;
-	    break;
-	  case BAM_CHARD_CLIP:
-	    qpos += oplen;
-	    break;
-	  default:
-	    fprintf(stderr, "Unknown cigar, %u\n", op);
-	    abort();
-	  }
-	}
+              if (bsstrand) {	/* BSC */
+                if (rb == 'G') {
+                  if (qb == 'A') d->stat = BSS_CONVERSION;
+                  else if (qb == 'G') d->stat = BSS_RETENTION;
+                  else d->stat = mutcode(qb);
+                } else if (rb != qb) {
+                  if (qb == 'A') d->stat = BSS_MR;
+                  else d->stat = mutcode(qb);
+                } else {
+                  d->stat = BSS_N;
+                }
+              } else {		/* BSW */
+                if (rb == 'C') {
+                  if (qb == 'T') d->stat = BSS_CONVERSION;
+                  else if (qb == 'C') d->stat = BSS_RETENTION;
+                  else d->stat = mutcode(qb);
+                } else if (rb != qb) {
+                  if (qb == 'T') d->stat = BSS_MY;
+                  else d->stat = mutcode(qb);
+                } else {
+                  d->stat = BSS_N;
+                }
+              }
+            }
+            rpos += oplen;
+            qpos += oplen;
+            break;
+          case BAM_CINS:
+            qpos += oplen;
+            break;
+          case BAM_CDEL:
+            rpos += oplen;
+            break;
+          case BAM_CSOFT_CLIP:
+            qpos += oplen;
+            break;
+          case BAM_CHARD_CLIP:
+            qpos += oplen;
+            break;
+          default:
+            fprintf(stderr, "Unknown cigar, %u\n", op);
+            abort();
+          }
+        }
       }
 
+      
       for (i=0; i<rec.l; ++i) {
-	if (basecov[i] >= res->conf->min_cov) rec.n[sid]++;
-	if (basecov_uniq[i] >= res->conf->min_cov) rec.n_uniq[sid]++;
+        if (basecov[i] >= res->conf->min_cov) rec.n[sid]++;
+        if (basecov_uniq[i] >= res->conf->min_cov) rec.n_uniq[sid]++;
       }
       free(basecov);
       free(basecov_uniq);
       bam_destroy1(b);
+      bam_iter_destroy(iter);
+
     }
 
     /* loop over cytosines and format */
@@ -1053,13 +1053,14 @@ static void *process_func(void *data) {
     wqueue_put2(record, res->rq, rec);
 
     destroy_pileup(plp);
-    bam_iter_destroy(iter);
   }
   free_refseq(rs);
   for (sid=0; sid<res->n_bams; ++sid) {
-    samclose(in_fns[sid]);
+    samclose(in_fhs[sid]);
     bam_index_destroy(idxs[sid]);
   }
+  free(in_fhs);
+  free(idxs);
   return 0;
 }
 
@@ -1151,7 +1152,7 @@ void conf_init(conf_t *conf) {
 
 int main_pileup(int argc, char *argv[]) {
 
-  int c;
+  int c, i; unsigned j;
   char *reffn = 0;
   char *reg = 0;
   char **in_fns = 0; int n_fns=0;
@@ -1165,9 +1166,9 @@ int main_pileup(int argc, char *argv[]) {
     switch (c) {
     case 'i':
       for(--optind; optind < argc && *argv[optind] != '-'; optind++){
-	in_fns = realloc(in_fns, n_fns+1);
-	in_fns[n_fns] = argv+optind;
-	n_fns++;
+        in_fns = realloc(in_fns, n_fns+1);
+        in_fns[n_fns] = argv[optind];
+        n_fns++;
       }
       break;
     case 'o': outfn = optarg; break;
@@ -1216,7 +1217,6 @@ int main_pileup(int argc, char *argv[]) {
   wqueue_t(window) *wq = wqueue_init(window, 100000);
   pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
   result_t *results = calloc(conf.n_threads, sizeof(result_t));
-  int i; unsigned j;
   samfile_t *in = samopen(in_fns[0], "rb", 0); /* use first bam, assume the headers are all equal */
 
   /* process header */
@@ -1269,21 +1269,21 @@ int main_pileup(int argc, char *argv[]) {
   /* inference of sample name from bam file name */
   int sid=0;
   for (sid=0; sid<n_fns; ++sid) {
-    kputc("\t");
+    kputc('\t', &header);
     char *path=strdup(in_fns[sid]);
     char *bname = basename(path);
     if (strcmp(bname+strlen(bname)-4,".bam")==0)
       bname[strlen(bname)-4]=0;
-    kputs(&header, bname);
+    kputs(bname, &header);
     free(path);
   }
-  kputc('\n');
+  kputc('\n', &header);
 
   /* setup writer */
   pthread_t writer;
   writer_conf_t writer_conf = {
     .q = wqueue_init(record, 100000),
-    .bam_fns = in_fns;
+    .bam_fns = in_fns,
     .n_bams = n_fns,
     .outfn = outfn,
     .statsfn = statsfn,
