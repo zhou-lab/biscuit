@@ -465,6 +465,24 @@ cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *f
   }
 }
 
+static void top2mutants(int *_cm1, int *_cm2, int *cnts) {
+  int cm1=-1, cm2=-1;
+  int i;
+  for (i=0; i<6; i++) {
+    if (cnts[i] > 0) {
+      if (cm1<0) {
+        cm1 = i;
+      } else if (cnts[i]>cnts[cm1]) {
+        cm2 = cm1;
+        cm1 = i;
+      } else if (cm2<0 || cnts[i]>cnts[cm2]) {
+        cm2 = i;
+      }
+    }
+  }
+  *_cm1 = cm1; *_cm2 = cm2;
+}
+
 static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[NSTATUS], int n_bams, int *_cm1, int *_cm2) {
 
   if (!dv) {
@@ -497,20 +515,7 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[
     for (i=0; i<NSTATUS; ++i)
       allcnts[i] += cnts[sid * NSTATUS + i];
 
-  int cm1=-1, cm2=-1;
-  for (i=0; i<6; i++) {
-    if (allcnts[i] > 0) {
-      if (cm1<0) {
-        cm1 = i;
-      } else if (allcnts[i]>allcnts[cm1]) {
-        cm2 = cm1;
-        cm1 = i;
-      } else if (cm2<0 || allcnts[i]>allcnts[cm2]) {
-        cm2 = i;
-      }
-    }
-  }
-  *_cm1 = cm1; *_cm2 = cm2;
+  top2mutants(_cm1, _cm2, allcnts);
 }
 
 int reference_supp(int *cnts) {
@@ -620,11 +625,6 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     int altsupp = cm1 >= 0?cnts1[cm1]:0;
 
     gl0[sid] = -1; gl1[sid] = -1; gl2[sid] = -1; gq[sid] = 0;
-    /* if (cref[sid] || cm1 >=0) { */
-    /*   pileup_genotype(cref[sid], altsupp, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid); */
-    /*   variant[sid] = 1; */
-    /*   any_variant = 1; */
-    /* } */
     if (cref[sid] || cm1 >= 0) {
       pileup_genotype(cref[sid], altsupp, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid);
       any_variant = 1;
@@ -635,6 +635,24 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     
     if (methcallable[sid]) {
       any_methcallable = 1;
+    }
+  }
+
+  /* determine somatic mutation status */
+  double squal=0.0; int ss=5;
+  if (conf->somatic && cm1>=0) {
+    int cm1_t, cm2_t; top2mutants(&cm1_t, &cm2_t, cnts);
+    int cm1_n, cm2_n; top2mutants(&cm1_n, &cm2_n, cnts+NSTATUS);
+    if (cm1_t) {
+      int altcnt_t = cnts[cm1_t];
+      int altcnt_n = cnts[NSTATUS+cm1_t];
+      squal = pval2qual(somatic_posterior(cref[0], altcnt_t, cref[1], altcnt_n, conf->error, conf->mu, conf->mu_somatic, conf->contam));
+      if (squal>1) ss=2;
+      else if (gt[1][2]=='1') {
+        ss=1;
+      } else {
+        ss=0;
+      }
     }
   }
 
@@ -680,6 +698,10 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
     ctt = fivenuc_context(rs, rpos, rb, fivenuc);
     ksprintf(s, ";CX=%s", conf->is_nome?cytosine_context_nome[ctt]:cytosine_context[ctt]);
     ksprintf(s, ";N5=%.5s", fivenuc);
+  }
+  if (conf->somatic && cm1>=0) {
+    ksprintf(s, ";SS=%d", ss);
+    ksprintf(s, ";SC=%d", (int) squal);
   }
 
   /* FORMAT */
@@ -1111,8 +1133,10 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -N        NOMe-seq mode (skip GCH in bisulfite conversion estimate) [off]\n");
   fprintf(stderr, "     -v        verbose (<5 print additional info for diagnosis, >5 debug).\n");
   fprintf(stderr, "\nGenotyping parameters:\n\n");
+  fprintf(stderr, "     -T        take sample 1 as tumor and sample 2 as normal and call somatic mutations.\n");
   fprintf(stderr, "     -E        error rate [%1.3f].\n", conf->error);
   fprintf(stderr, "     -M        mutation rate [%1.3f].\n", conf->mu);
+  fprintf(stderr, "     -x        somatic mutation rate [%1.3f].\n", conf->mu_somatic);
   fprintf(stderr, "     -C        contamination rate [%1.3f].\n", conf->contam);
   fprintf(stderr, "     -P        prior probability for heterozygous variant [%1.3f].\n", conf->prior1);
   fprintf(stderr, "     -Q        prior probability for homozygous variant [%1.3f].\n", conf->prior2);
@@ -1126,7 +1150,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
   fprintf(stderr, "     -p        NO filtering of improper pair (!BAM_FPROPER_PAIR).\n");
-  fprintf(stderr, "     -S        bsrate maximum position [%d]\n", conf->bsrate_max_pos);
+  fprintf(stderr, "     -S        maximum position in bisulfite rate estimate [%d]\n", conf->bsrate_max_pos);
   fprintf(stderr, "     -n        maximum NM tag [%u].\n", conf->max_nm);
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
@@ -1149,13 +1173,15 @@ void conf_init(conf_t *conf) {
   conf->filter_ppair = 1;
   conf->min_dist_end = 3;
   conf->max_nm = 5;
-  conf->contam = 0.1;
+  conf->contam = 0.01;
   conf->error = 0.001;
   conf->mu = 0.001;
+  conf->mu_somatic = 0.001;
   conf->prior1 = 0.33333;
   conf->prior2 = 0.33333;
   conf->prior0 = 1.0 - conf->prior1 - conf->prior2;
   conf->is_nome = 0;
+  conf->somatic = 0;
   if (conf->prior0 < 0) {
     fprintf(stderr, "[Error] genotype prior0 (%1.3f) must be from 0 to 1. \n", conf->prior0);
     exit(1);
@@ -1185,7 +1211,7 @@ int main_pileup(int argc, char *argv[]) {
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:C:P:Q:t:n:m:l:Ncupv:h"))>=0) {
+  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:x:C:P:Q:t:n:m:l:TNcupv:h"))>=0) {
     switch (c) {
     case 'i':
       for(--optind; optind < argc && *argv[optind] != '-'; optind++){
@@ -1206,6 +1232,7 @@ int main_pileup(int argc, char *argv[]) {
     case 'k': conf.min_cov = atoi(optarg); break;
     case 'E': conf.error = atof(optarg); break;
     case 'M': conf.mu = atof(optarg); break;
+    case 'x': conf.mu_somatic = atof(optarg); break;
     case 'C': conf.contam = atof(optarg); break;
     case 'P': conf.prior1 = atof(optarg); break;
     case 'Q': conf.prior2 = atof(optarg); break;
@@ -1213,6 +1240,7 @@ int main_pileup(int argc, char *argv[]) {
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'n': conf.max_nm = atoi(optarg); break;
     case 'm': conf.min_mapq = atoi(optarg); break;
+    case 'T': conf.somatic = 1; break;
     case 'N': conf.is_nome = 1; break;
     case 'c': conf.filter_secondary = 0; break;
     case 'u': conf.filter_duplicate = 0; break;
@@ -1228,6 +1256,12 @@ int main_pileup(int argc, char *argv[]) {
 
   if (!in_fns || !reffn) {
     usage(&conf);
+    exit(1);
+  }
+
+  if (conf.somatic && n_fns<2) {
+    fprintf(stderr, "[%s:%d] To call somatic events (-T), we need input of 2 bams.\nAbort.\n", __func__, __LINE__);
+    fflush(stderr);
     exit(1);
   }
 
@@ -1267,9 +1301,14 @@ int main_pileup(int argc, char *argv[]) {
     ksprintf(&header, " %s", argv[i]);
   kputs(">\n", &header);
   kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
-  kputs("##INFO=<ID=CX,Number=1,Type=Float,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
+  kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
   kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
-
+  if (conf.somatic) {
+    kputs("##INFO=<ID=SS,Number=1,Type=String,Description=\"Somatic status 0) WILDTYPE; 1) GERMLINE; 2) SOMATIC; 3) LOH; 4) POST_TRX_MOD; 5) UNKNOWN;\">\n", &header);
+    kputs("##INFO=<ID=SC,Number=1,Type=Float,Description=\"Somatic score\">\n", &header);
+    kputs("##INFO=<ID=AF,Number=1,Type=Float,Description=\"Variant allele fraction\">\n", &header);
+  }
+  
   kputs("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Raw read depth\">\n", &header);
   kputs("##FORMAT=<ID=SP,Number=R,Type=String,Description=\"Allele support (before bisulfite conversion, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=CV,Number=1,Type=Integer,Description=\"Effective (strand-specific) coverage on cytosine\">\n", &header);
@@ -1287,7 +1326,7 @@ int main_pileup(int argc, char *argv[]) {
     strcpy(plpbsstrand, "BSC");
     head_append_verbose(plpbsstrand, '1', &header);
   }
-
+  
   kputs("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT", &header);
   /* inference of sample name from bam file name */
   int sid=0;

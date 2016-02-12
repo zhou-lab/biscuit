@@ -32,12 +32,14 @@ typedef struct {
   uint8_t noheader:1;
   double error;
   double mu;
+  double mu_somatic;
   double contam;
   double prior0;
   double prior1;
   double prior2;
   uint8_t verbose;
   int is_nome;
+  int somatic; /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
 } conf_t;
 
 void conf_init(conf_t *conf);
