@@ -14,14 +14,22 @@ function decho() {
 }
 
 function biscuittest_pileup {
-  base=$(pwd)
-  [[ -d raw_bam ]] || cd Smadh3_chr19_chrM
-  [[ -d tmp_pileup ]] || mkdir tmp_pileup
-  rm -f tmp_pileup/*
-  decho "$PROG pileup -i raw_bam/WGBS_Smadh3_chr19_chrM.bam -n 3 -r $GENOME_DIR/mm10/mm10.fa -o tmp_pileup/Smadh3_chr19_chrM.vcf -q 28"
-  decho "bgzip tmp_pileup/Smadh3_chr19_chrM.vcf"
-  decho "tabix -p vcf tmp_pileup/Smadh3_chr19_chrM.vcf.gz"
-  cd $base
+  base=Smadh3_chr19_chrM
+  [[ -d $base/testresult_pileup ]] || mkdir $base/testresult_pileup
+  rm -f $base/testresult_pileup/*
+  decho "$PROG pileup -i $base/raw_bam/WGBS_Smadh3_chr19_chrM.bam -r $GENOME_DIR/mm10/mm10.fa -o $base/testresult_pileup/Smadh3_chr19_chrM.vcf -q 28"
+  decho "bgzip $base/testresult_pileup/Smadh3_chr19_chrM.vcf"
+  decho "tabix -p vcf $base/testresult_pileup/Smadh3_chr19_chrM.vcf.gz"
+}
+
+function biscuittest_somatic_pileup {
+  base=MouseWGBS_APCminTumorVsNormal
+  [[ -d $base/testresult_somatic_pileup ]] || mkdir $base/testresult_somatic_pileup
+  rm -f $base/testresult_somatic_pileup/*
+  rname=$(date +%Y_%m_%d)_tumor_vs_normal.vcf
+  decho "$PROG pileup -i $base/raw_bam/tumor.bam $base/raw_bam/normal.bam -r $GENOME_DIR/mm10/mm10.fa -o $base/testresult_somatic_pileup/$rname -q 28 -T"
+  decho "bgzip $base/testresult_somatic_pileup/rname.gz"
+  decho "tabix -p vcf $base/testresult_somatic_pileup/rname.gz"
 }
 
 function biscuittest_epiread {
