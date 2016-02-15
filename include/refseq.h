@@ -18,6 +18,11 @@ static inline refseq_t* init_refseq(char *ref_fn, uint32_t flank1, uint32_t flan
 	
 	refseq_t *rs = calloc(1, sizeof(refseq_t));
   rs->fai = fai_load(ref_fn);
+  if (!rs->fai) {
+    fprintf(stderr, "[%s:%d] Cannot load reference %s\n", __func__, __LINE__, ref_fn);
+    fflush(stderr);
+    exit(1);
+  }
 	rs->flank1 = flank1;
 	rs->flank2 = flank2;
 	return rs;
