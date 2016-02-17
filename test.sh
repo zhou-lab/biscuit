@@ -20,6 +20,12 @@ function biscuittest_pileup {
   decho "$PROG pileup -i $base/raw_bam/WGBS_Smadh3_chr19_chrM.bam -r $GENOME_DIR/mm10/mm10.fa -o $base/testresult_pileup/Smadh3_chr19_chrM.vcf -q 28"
   decho "bgzip $base/testresult_pileup/Smadh3_chr19_chrM.vcf"
   decho "tabix -p vcf $base/testresult_pileup/Smadh3_chr19_chrM.vcf.gz"
+
+  "biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v 3"
+
+  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:26138808-26138808 -v 1 -n 999
+  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:25847708-25847708 -v 1
+  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:29425717-29425717 -v 1
 }
 
 function biscuittest_somatic_pileup {
@@ -42,6 +48,6 @@ function biscuittest_epiread {
   decho "$PROG epiread -n 3 -r $GENOME_DIR/mm10/mm10.fa -i raw_bam/WGBS_Smadh3_chr19_chrM.bam -B tmp_epiread/Smadh3_chr19_chrM.snp.bed -q 20 | gzip -c >tmp_epiread/Smadh3_chr19_chrM.epiread.gz"
   pecho "Collating paired epireads"
   zcat tmp_epiread/Smadh3_chr19_chrM.epiread.gz | sort -k2,2 -k3,3n | awk 'BEGIN{qname="";rec=""}qname==$2{print rec"\t"$5"\t"$6"\t"$7"\t"$8;qname=""}qname!=$2{qname=$2;rec=$1"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8;pair=$3}' | sort -k1,1 -k3,3n | gzip -c >tmp_epiread/Smadh3_chr19_chrM.epiread.paired.gz
-  
+
   cd $base
 }

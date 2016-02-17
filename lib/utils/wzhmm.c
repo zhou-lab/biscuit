@@ -4,8 +4,17 @@
 #define _HMM_HUGE 10000000000.0
 #define _HMM_SMALL 0.0000000001
 
-/* input o, l. output alpha, scale, p */
-double forward(dsmc_t *m, int t_max, void *o, double *alpha, double *scale) {
+/**** calculate likelihood (p) and partial likelihood (alpha)
+ * input 
+ * o: observation
+ * t_max: total length of Markov Chain
+ *
+ * output:
+ * alpha(t) - partial likelihood of obervation until t
+ * scale - to help prevent numerical underflow when chain is too long
+ * p - likelihood value of the entire observation
+ **/
+double forward(double *alpha, double *scale, dsmc_t *m, int t_max, void *o) {
 
   int i, j;
 
@@ -38,8 +47,16 @@ double forward(dsmc_t *m, int t_max, void *o, double *alpha, double *scale) {
   return p;
 }
 
-/* comput beta */
-void backward(dsmc_t *m, int t_max, void *o, double *beta, double *scale) {
+/* compute backward partial likelihood (beta)
+ * input 
+ * o: observation
+ * t_max: total length of Markov Chain
+ * scale - to help prevent numerical underflow when chain is too long
+ *
+ * output:
+ * beta(t) - partial backward likelihood of obervation until t
+ **/
+void backward(double *beta, dsmc_t *m, int t_max, void *o, double *scale) {
   int i, j;
   int t;
 
@@ -70,8 +87,15 @@ void posterior_decoding(dsmc_t *m, int t_max, double *alpha, double *beta, int *
   }
 }
 
-/* q_init can be arbitrarily set to 0 */
-double viterbi(dsmc_t *m, int t_max, void *o, int *q, int q_init, int verbose) {
+/* Viterbi algorithm
+ * calculate most likely state on each node given the entire observation
+ * might not be feasible in term of transition
+ * q_init can be arbitrarily set to 0
+ * output:
+ * q - state vector
+ * p - likelihood of most optimal state
+ */
+double viterbi(int *q, dsmc_t *m, int t_max, void *o, int q_init, int verbose) {
 
   int i,j;
   double *delta = calloc(m->n, sizeof(double));
@@ -182,8 +206,8 @@ void baum_welch(dsmc_t *m, int t_max, void *o) {
   double p, pp=0.0; double dp=0.001;
   int max_iter=10;
   for (i=0; i<max_iter; ++i) {
-    p = forward(m, t_max, o, alpha, scale);
-    backward(m, t_max, o, scale, &p);
+    p = forward(alpha, scale, m, t_max, o);
+    backward(beta, m, t_max, o, scale);
     compute_gamma(m, t_max, alpha, beta, gamma);
     compute_xi(m, t_max, o, alpha, beta, xi);
 

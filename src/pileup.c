@@ -1,3 +1,27 @@
+/**
+ * multi-way pileup and somatic calling on sodium bisulfite converted bams
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2016 Wanding.Zhou@vai.org
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+**/
 #include "pileup.h"
 
 /* typedef enum {BSS_RETENTION, BSS_CONVERSION, BSS_OTHER} bsstate_t; */
@@ -7,7 +31,7 @@ const char nt256int8_to_mutcode[6] = "ACGTYR";
 /* different representation of context when nome */
 
 const char *cytosine_context[] = {"CG","CHG","CHH","CG","CHG","CHH","CN"};
-const char *cytosine_context_nome[] = {"CG","CHG","CHH","GC","GC","GC","CN"};
+const char *cytosine_context_nome[] = {"HCG","HCHG","HCHH","GCG","GCH","GCH","CN"}; /* TODO: further refine GC to GCH and HCG */
 
 typedef struct {
   int n;                        /* number of sites */

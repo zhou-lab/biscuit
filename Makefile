@@ -24,7 +24,7 @@ release : $(PROG)
 debug : CFLAGS += -g
 debug : $(PROG)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/nome.o src/vcf2bed.o src/epiread.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
 bin/biscuit: $(LIBS) src/main.o
 	mkdir -p bin
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm -lrt
@@ -85,10 +85,10 @@ src/markdup.o: src/markdup.c
 clean_markdup:
 	rm -f src/markdup.o
 
-src/nome.o: src/nome.c
+src/ndr.o: src/ndr.c
 	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
-clean_nome:
-	rm -f src/nome.o
+clean_ndr:
+	rm -f src/ndr.o
 
 src/vcf2bed.o: src/vcf2bed.c
 	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
@@ -107,7 +107,7 @@ clean_epiread:
 
 ####### clean #######
 
-CLEAN_TARGETS=clean_biscuit clean_main clean_aln clean_utils clean_pileup clean_klib clean_markdup clean_nome clean_vcf2bed clean_epiread
+CLEAN_TARGETS=clean_biscuit clean_main clean_aln clean_utils clean_pileup clean_klib clean_markdup clean_ndr clean_vcf2bed clean_epiread
 .PHONY: clean
 clean : $(CLEAN_TARGETS)
 	make -C $(LSAM0119D) clean

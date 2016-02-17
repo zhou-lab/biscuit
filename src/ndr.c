@@ -18,13 +18,22 @@ typedef struct {
 DEFINE_VECTOR(meth_obs1_v, meth_obs1_t);
 
 typedef struct {
-  char *vcf_fn;
-  char *bed_fn;
+  char *bed;
   gzFile FH;
+  char *chrm;
   meth_obs1_t next;             /* next object */
-  kstring_t nextchrom;          /* next chromosome */
-  int8_t isvcf;
-} pileup_t;
+  kstring_t nextchrom;          /* chromosome of next object */
+} methbed_t;
+
+void methbed_close(methbed_t *m) {
+  gzclose(m->FH);
+}
+
+void free_methbed(methbed_t *m) {
+  free(m->chrm);
+  free(m->nextchrom.s);
+  free(m);
+}
 
 double meth_emission(void *d, int t, int state_index) {
   meth_obs1_t *ob1 = (meth_obs1_t*) d;
@@ -121,17 +130,47 @@ static int vcf_parse1(char *line, meth_obs1_t *ob, char *chrom) {
   return 1;
 }
 
-meth_obs1_v *pileup_get_chrom1(pileup_t *in, char **chrom) {
+int methbed_parse1(char *line, meth_obs1_t *ob, char *chrom) {
+
+  char *tok;
+
+  tok=strtok(line, "\t");
+  strcpy(chrom, tok);
+
+  /* start */
+  tok=strtok(NULL, "\t");
+
+  /* end */
+  tok=strtok(NULL, "\t");
+  ensure_number(tok);
+  ob->pos = atoi(tok);          /* 1-based */
+
+  /* beta */
+  tok=strtok(NULL, "\t");
+  ensure_number(tok);
+  double beta = atof(tok);
+
+  /* coverage */
+  tok=strtok(NULL, "\t");
+  ensure_number(tok);
+  ob->cov = atoi(tok);
+
+  ob->ret = (int) (ob->cov*beta);
+
+  return 1;
+}
+
+meth_obs1_v *methbed_get_chrom1(methbed_t *in) {
 
   meth_obs1_v *obs=init_meth_obs1_v(10000);
   meth_obs1_t *ob = try_next_meth_obs1_v(obs);
 
-  *chrom = 0;
-  if (in->nextchrom.l) {
+  in->chrm = 0;
+  if (in->nextchrom.l) {        /* get next object from last run */
     *ob = in->next;
     commit_next_meth_obs1_v(obs);
     ob = try_next_meth_obs1_v(obs);
-    *chrom = strdup(in->nextchrom.s); /* record current chrom once */
+    in->chrm = strdup(in->nextchrom.s); /* record current chrom once */
   }
 
   char ch[1000];
@@ -142,17 +181,19 @@ meth_obs1_v *pileup_get_chrom1(pileup_t *in, char **chrom) {
   while (1) {
     int c=gzgetc(in->FH);
     if (c=='\n' || c==EOF) {
-      if (*chrom && i%100000==0) {
-        fprintf(stderr, "\r%s\t%d\t%zu", *chrom, i, obs->size);
+      
+      if (in->chrm && i%100000==0) {
+        fprintf(stderr, "\r%s\t%d\t%zu", in->chrm, i, obs->size);
         fflush(stderr);
       }
       ++i;
-      if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
-        if (vcf_parse1(str.s, ob, ch)) {
-          if (!in->nextchrom.l) {
+      
+      if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=3) {
+        if (methbed_parse1(str.s, ob, ch)) {
+          if (!in->nextchrom.l) { /* first time read */
             kputs(ch, &in->nextchrom);
-            *chrom = strdup(in->nextchrom.s); /* record current chrom once */
-          } else if (strcmp(ch, in->nextchrom.s) != 0) {
+            in->chrm = strdup(in->nextchrom.s); /* record current chrom once */
+          } else if (strcmp(ch, in->nextchrom.s) != 0) { /* next chromosome encountered */
               in->next = *ob;
               in->nextchrom.l = 0;
               kputs(ch, &in->nextchrom);
@@ -172,46 +213,36 @@ meth_obs1_v *pileup_get_chrom1(pileup_t *in, char **chrom) {
   return obs;
 }
 
-void pileup_open(pileup_t *in) {
+void methbed_open(methbed_t *in) {
 
   memset(&in->next, 0, sizeof(meth_obs1_t));
   in->nextchrom.s = 0;
   in->nextchrom.l = in->nextchrom.m = 0;
-  if (in->vcf_fn) {
-    in->FH = gzopen(in->vcf_fn,"r");
-    in->isvcf = 1;
-  } else if (in->bed_fn) {
-    in->FH = gzopen(in->bed_fn,"r");
-    in->isvcf = 0;
-  } else {
-    fprintf(stderr, "[%s:%d] Please provide pileup input.\n", __func__, __LINE__);
-    fflush(stderr);
-    exit(1);
+  if (in->bed) {
+    in->FH = gzopen(in->bed,"r");
+    if (!in->FH) {
+      fprintf(stderr, "[%s:%d] Cannot open %s\n", __func__, __LINE__, in->bed);
+      fflush(stderr);
+      exit(1);
+    }
   }
 }
 
-void pileup_close(pileup_t *in) {
-  free(in->nextchrom.s);
-  gzclose(in->FH);
-}
-
-int main_nome(int argc, char *argv[]) {
+int main_ndr(int argc, char *argv[]) {
 
   conf_t conf = {.verbose=6};
 
-  pileup_t in = {.vcf_fn=0, .FH=0, .bed_fn=0};
+  methbed_t *in = calloc(1, sizeof(methbed_t));
   int c, i;
   while ((c = getopt(argc, argv, "V:i:h")) >= 0) {
     switch (c) {
     case 'V': conf.verbose = atoi(optarg); break;
-    case 'i': in.vcf_fn = optarg; break;
-    case 'b': in.bed_fn = optarg; break;
+    case 'b': in->bed = optarg; break;
     case 'h': {
       fprintf(stderr, "\n");
-      fprintf(stderr, "Usage: biscuit nome [options] -i in.vcf \n");
+      fprintf(stderr, "Usage: biscuit ndr [options] -i in.vcf \n");
       fprintf(stderr, "Input options:\n");
-      fprintf(stderr, "     -i FILE   input vcf, coordinates-sorted\n");
-      fprintf(stderr, "     -b FILE   bed file of GpC methylation coordinate-sorted\n");
+      fprintf(stderr, "     -b FILE   bed file of GpC retention, coordinate-sorted\n");
       fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose);
       fprintf(stderr, "     -h        this help.\n");
       fprintf(stderr, "\n");
@@ -225,54 +256,49 @@ int main_nome(int argc, char *argv[]) {
     }
   }
 
-  pileup_open(&in);
-  char *chrom;
-  meth_obs1_v *obs=pileup_get_chrom1(&in, &chrom);
+  if (!in->bed) {
+    fprintf(stderr, "[%s:%d] Error, no bed input of GpC retention.\n", __func__, __LINE__);
+    fflush(stderr);
+    exit(1);
+  }
+
+  methbed_open(in);
+  meth_obs1_v *obs=methbed_get_chrom1(in);
 
   if (conf.verbose>3) {
     for (i=0; i<(signed)obs->size; ++i) {
       meth_obs1_t *o = ref_meth_obs1_v(obs,i);
-      fprintf(stdout, "%s\t%"PRId64"\t%d\t%d\n", chrom, o->pos, o->cov, o->ret);
+      fprintf(stdout, "%s\t%"PRId64"\t%d\t%d\n", in->chrm, o->pos, o->cov, o->ret);
     }
   }
   
-  pileup_close(&in);
+  methbed_close(in);
+  free_methbed(in);
 
   /* make a 2-state hmm */
-  dsmc_t *m = (dsmc_t*) calloc(1,sizeof(dsmc_t));
-  m->n = 2;
-  m->a = calloc(m->n*m->n, sizeof(double));
-  m->pi = calloc(m->n, sizeof(double));
-  m->emission = meth_emission;
+  dsmc_t *m = init_dsmc(2, meth_emission);
 
   m->a[0*2] = 0.5;
   m->a[0*2+1] = 0.5;
   m->a[1*2] = 0.5;
   m->a[1*2+1] = 0.5;
 
-  m->pi[0] = 0.5;
-  m->pi[1] = 0.5;
-  
-  /* meth_obs1_t obs[1000]; */
-  for (i=0; i<100; ++i) {
-    if ((i/10)%2==1) {
-      obs->buffer[i].cov = 30;
-      obs->buffer[i].ret = 0;
-    } else {
-      obs->buffer[i].cov = 10;
-      obs->buffer[i].ret = 8;
-    }
-  }
+  /* /\* fake an observation vector, meth_obs1_t obs[1000]; *\/ */
+  /* for (i=0; i<100; ++i) { */
+  /*   if ((i/10)%2==1) { */
+  /*     obs->buffer[i].cov = 30; */
+  /*     obs->buffer[i].ret = 0; */
+  /*   } else { */
+  /*     obs->buffer[i].cov = 10; */
+  /*     obs->buffer[i].ret = 8; */
+  /*   } */
+  /* } */
 
-  /* double p; */
-  /* double *alpha = calloc(100, sizeof(double)); */
-  /* double *scale = calloc(100, sizeof(double)); */
-  /* p=forward(m, 100, obs, alpha, scale); */
-  int *q = calloc(100, sizeof(int));
-  viterbi(m, 100, obs->buffer, q, 0, conf.verbose);
+  int *q = calloc(obs->size, sizeof(int));
+  viterbi(q, m, 100, obs->buffer, 0, conf.verbose);
 
   free(q);
-  free(m->a); free(m->pi); free(m);
-  
+  free_dsmc(m);
+
   return 0;
 }

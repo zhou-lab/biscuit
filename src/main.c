@@ -8,7 +8,7 @@ int main_biscuit_index(int argc, char *argv[]);
 int main_align(int argc, char *argv[]);
 int main_pileup(int argc, char *argv[]);
 int main_markdup(int argc, char *argv[]);
-int main_nome(int argc, char *argv[]);
+int main_ndr(int argc, char *argv[]);
 int main_vcf2bed(int argc, char *argv[]);
 int main_epiread(int argc, char *argv[]);
 
@@ -23,7 +23,7 @@ static int usage()
   fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
   fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and meth-level averages.\n");
-  fprintf(stderr, "         nome          call nucleosome depletion region (NDR) from NOMe-seq\n");
+  fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "         vcf2bed       convert VCF to bed graph\n");
   fprintf(stderr, "         epiread       convert bam to epiread format\n");
   /* fprint */
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
   else if (strcmp(argv[1], "align") == 0) ret = main_align(argc-1, argv+1);
   else if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
   else if (strcmp(argv[1], "markdup") == 0) ret = main_markdup(argc-1, argv+1);
-  else if (strcmp(argv[1], "nome") == 0) ret = main_nome(argc-1, argv+1);
+  else if (strcmp(argv[1], "ndr") == 0) ret = main_ndr(argc-1, argv+1);
   else if (strcmp(argv[1], "vcf2bed") == 0) ret = main_vcf2bed(argc-1, argv+1);
   else if (strcmp(argv[1], "epiread") == 0) ret = main_epiread(argc-1, argv+1);
 
