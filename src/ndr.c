@@ -96,7 +96,7 @@ meth_obs1_v *methbed_get_chrom1(methbed_t *in) {
     if (c=='\n' || c==EOF) {
 
       if (in->chrm && i%100000==0) {
-        fprintf(stderr, "\r%s\t%d\t%zu", in->chrm, i, obs->size);
+        fprintf(stderr, "\r[%s:%d] %s\t%d\t%zu\033[K", __func__, __LINE__, in->chrm, i, obs->size);
         fflush(stderr);
       }
       ++i;
@@ -156,16 +156,20 @@ int main_ndr(int argc, char *argv[]) {
   conf_t conf = {.verbose=6};
 
   methbed_t *in = calloc(1, sizeof(methbed_t));
-  int c, i;
-  while ((c = getopt(argc, argv, "V:b:h")) >= 0) {
+  int c, i; int collapse=0; char *out_fn=0;
+  while ((c = getopt(argc, argv, "V:b:o:ch")) >= 0) {
     switch (c) {
     case 'V': conf.verbose = atoi(optarg); break;
     case 'b': in->bed = optarg; break;
+    case 'o': out_fn = optarg; break;
+    case 'c': collapse = 1; break;
     case 'h': {
       fprintf(stderr, "\n");
       fprintf(stderr, "Usage: biscuit ndr [options] -b in.bed \n");
       fprintf(stderr, "Input options:\n");
       fprintf(stderr, "     -b FILE   bed file of GpC retention, coordinate-sorted\n");
+      fprintf(stderr, "     -c        collapse into regions\n");
+      fprintf(stderr, "     -o FILE   output file\n");
       fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose);
       fprintf(stderr, "     -h        this help.\n");
       fprintf(stderr, "\n");
@@ -185,6 +189,12 @@ int main_ndr(int argc, char *argv[]) {
     exit(1);
   }
 
+  FILE *out;
+  if (out_fn)
+    out = fopen(out_fn, "w");
+  else
+    out = stdout;
+
   methbed_open(in);
 
   while (1) {
@@ -195,7 +205,7 @@ int main_ndr(int argc, char *argv[]) {
     if (conf.verbose>3) {
       for (i=0; i<(signed)obs->size; ++i) {
         meth_obs1_t *o = ref_meth_obs1_v(obs,i);
-        fprintf(stdout, "%s\t%"PRId64"\t%d\t%d\n", in->chrm, o->pos, o->cov, o->ret);
+        fprintf(out, "%s\t%"PRId64"\t%d\t%d\n", in->chrm, o->pos, o->cov, o->ret);
       }
     }
   
@@ -207,31 +217,43 @@ int main_ndr(int argc, char *argv[]) {
     m->a[1*2] = 0.5;
     m->a[1*2+1] = 0.5;
 
-    /* /\* fake an observation vector, meth_obs1_t obs[1000]; *\/ */
-    /* for (i=0; i<100; ++i) { */
-    /*   if ((i/10)%2==1) { */
-    /*     obs->buffer[i].cov = 30; */
-    /*     obs->buffer[i].ret = 0; */
-    /*   } else { */
-    /*     obs->buffer[i].cov = 10; */
-    /*     obs->buffer[i].ret = 8; */
-    /*   } */
-    /* } */
-
     int *q = calloc(obs->size, sizeof(int));
     viterbi(q, m, obs->size, obs->buffer, 0, conf.verbose);
 
     unsigned j;
-    for (j=0; j<obs->size; ++j) {
-      meth_obs1_t *o = ref_meth_obs1_v(obs,j);
-      fprintf(stdout, "%s\t%"PRId64"\t%d\n", in->chrm, o->pos, q[j]);
-      fflush(stdout);
+    if (collapse) {
+      int64_t beg=-1, end;
+      for (j=0; j<obs->size; ++j) {
+        meth_obs1_t *o = ref_meth_obs1_v(obs,j);
+        if (q[j] == 1) {
+          end = o->pos;
+          if (beg<0)            /* start a new region */
+            beg = o->pos-1;
+        } else {
+          if (beg>0) {          /* end a region */
+            fprintf(out, "%s\t%"PRId64"\t%"PRId64"\n", in->chrm, beg, end);
+            beg = -1;
+          }
+        }
+      }
+      if (beg>=0)
+        fprintf(out, "%s\t%"PRId64"\t%"PRId64"\n", in->chrm, beg, end);
+      fflush(out);
+    } else {
+      for (j=0; j<obs->size; ++j) {
+        meth_obs1_t *o = ref_meth_obs1_v(obs,j);
+        fprintf(out, "%s\t%"PRId64"\t%"PRId64"\t%d\n", in->chrm, o->pos-1, o->pos, q[j]);
+      }
+      fflush(out);
     }
+
 
     free_meth_obs1_v(obs);
     free(q);
     free_dsmc(m);
   }
+  fprintf(stderr, "\r[%s:%d] Done\033[K\n", __func__, __LINE__);
+  fflush(stderr);
 
   methbed_close(in);
   free_methbed(in);
