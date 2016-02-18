@@ -151,7 +151,7 @@ double viterbi(int *q, dsmc_t *m, int t_max, void *o, int q_init, int verbose) {
   for (t=t_max-1; t; --t)
     q[t-1] = psi[t*m->n+q[t]];
 
-  if (verbose>1) {
+  if (verbose>6) {
     fprintf(stdout, "q (psi):");
     for (t=0; t<t_max; ++t)
       fprintf(stdout, "\t%d(%d)", q[t], psi[t]);

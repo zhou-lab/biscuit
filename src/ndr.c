@@ -43,93 +43,6 @@ double meth_emission(void *d, int t, int state_index) {
     return beta_binomial(ob1[t].ret, ob1[t].cov, 10, 1);
 }
 
-static int vcf_parse1(char *line, meth_obs1_t *ob, char *chrom) {
-
-  char *tok;
-  char *linerest=0, *fieldrest=0;
-
-  tok=strtok_r(line, "\t", &linerest);
-  strcpy(chrom, tok);
-
-  tok=strtok_r(NULL, "\t", &linerest);
-  ensure_number(tok);
-  int64_t pos = atoi(tok);
-  
-  /* ID */
-  tok=strtok_r(NULL, "\t", &linerest);
-
-  /* REF */
-  tok=strtok_r(NULL, "\t", &linerest);
-
-  /* ALT */
-  tok=strtok_r(NULL, "\t", &linerest);
-
-  /* QUAL */
-  tok=strtok_r(NULL, "\t", &linerest);
-
-  /* PASS FILTER */
-  tok=strtok_r(NULL, "\t", &linerest);
-
-  /* INFO */
-  tok=strtok_r(NULL, "\t", &linerest);
-  int i; int is_gch=0;
-  for (i=0; i<(signed)strlen(tok)-2; ++i) {
-    if (strncmp(tok+i,"N5=",3)==0) {
-      if (tok[i+4]=='G' && tok[i+5]=='C' && tok[i+6]!='G') {
-        is_gch=1;
-        break;
-      }
-    }
-  }
-
-  if (!is_gch) return 0;
-
-  /* FORMAT */
-  tok=strtok_r(NULL, "\t", &linerest);
-  int cv_index=-1, bt_index=-1;
-  char *field;
-  field=strtok_r(tok, ":", &fieldrest);
-  i=0;
-  while(field) {
-    if (field[0]=='C' && field[1]=='V') {
-      cv_index = i;
-    }
-    if (field[0]=='B' && field[1]=='T') {
-      bt_index = i;
-    }
-    ++i;
-    field=strtok_r(NULL, ":", &fieldrest);
-  }
-
-  if (cv_index<0 || bt_index<0) return 0;
-
-  /* FORMAT content */
-  tok = strtok_r(NULL, "\t", &linerest);
-  i=0;
-  int coverage=-1; double beta=-1.0;
-  field=strtok_r(tok, ":", &fieldrest);
-  while (field) {
-    if (i==cv_index) {
-      ensure_number(field);
-      coverage=atoi(field);
-    }
-    if (i==bt_index) {
-      ensure_number(field);
-      beta=atof(field);
-    }
-    ++i;
-    field=strtok_r(NULL, ":", &fieldrest);
-  }
-
-  if (coverage<0||beta<0) return 0;
-
-  ob->pos = pos;
-  ob->cov = coverage;
-  ob->ret = (int) (coverage*beta);
-
-  return 1;
-}
-
 int methbed_parse1(char *line, meth_obs1_t *ob, char *chrom) {
 
   char *tok;
@@ -181,30 +94,34 @@ meth_obs1_v *methbed_get_chrom1(methbed_t *in) {
   while (1) {
     int c=gzgetc(in->FH);
     if (c=='\n' || c==EOF) {
-      
+
       if (in->chrm && i%100000==0) {
         fprintf(stderr, "\r%s\t%d\t%zu", in->chrm, i, obs->size);
         fflush(stderr);
       }
       ++i;
-      
+
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=3) {
         if (methbed_parse1(str.s, ob, ch)) {
           if (!in->nextchrom.l) { /* first time read */
             kputs(ch, &in->nextchrom);
             in->chrm = strdup(in->nextchrom.s); /* record current chrom once */
           } else if (strcmp(ch, in->nextchrom.s) != 0) { /* next chromosome encountered */
-              in->next = *ob;
-              in->nextchrom.l = 0;
-              kputs(ch, &in->nextchrom);
-              break;
+            in->next = *ob;
+            in->nextchrom.l = 0;
+            kputs(ch, &in->nextchrom);
+            break;
           }
           commit_next_meth_obs1_v(obs);
           ob = try_next_meth_obs1_v(obs);
         }
       }
       str.l = 0;                /* clean line */
-      if (c==EOF) break;
+      if (c==EOF) {
+        memset(&in->next, 0, sizeof(meth_obs1_t));
+        in->nextchrom.l = 0;
+        break;
+      }
     } else {
       kputc(c, &str);
     }
@@ -219,12 +136,18 @@ void methbed_open(methbed_t *in) {
   in->nextchrom.s = 0;
   in->nextchrom.l = in->nextchrom.m = 0;
   if (in->bed) {
-    in->FH = gzopen(in->bed,"r");
-    if (!in->FH) {
-      fprintf(stderr, "[%s:%d] Cannot open %s\n", __func__, __LINE__, in->bed);
-      fflush(stderr);
-      exit(1);
+    if (strcmp(in->bed, "-") == 0) {
+      in->FH = gzdopen(fileno(stdin), "r");
+    } else {
+      in->FH = gzopen(in->bed,"r");
+      if (!in->FH) {
+        fprintf(stderr, "[%s:%d] Cannot open %s\n", __func__, __LINE__, in->bed);
+        fflush(stderr);
+        exit(1);
+      }
     }
+  } else {
+    in->FH = gzdopen(fileno(stdin), "r");
   }
 }
 
@@ -234,13 +157,13 @@ int main_ndr(int argc, char *argv[]) {
 
   methbed_t *in = calloc(1, sizeof(methbed_t));
   int c, i;
-  while ((c = getopt(argc, argv, "V:i:h")) >= 0) {
+  while ((c = getopt(argc, argv, "V:b:h")) >= 0) {
     switch (c) {
     case 'V': conf.verbose = atoi(optarg); break;
     case 'b': in->bed = optarg; break;
     case 'h': {
       fprintf(stderr, "\n");
-      fprintf(stderr, "Usage: biscuit ndr [options] -i in.vcf \n");
+      fprintf(stderr, "Usage: biscuit ndr [options] -b in.bed \n");
       fprintf(stderr, "Input options:\n");
       fprintf(stderr, "     -b FILE   bed file of GpC retention, coordinate-sorted\n");
       fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose);
@@ -263,42 +186,55 @@ int main_ndr(int argc, char *argv[]) {
   }
 
   methbed_open(in);
-  meth_obs1_v *obs=methbed_get_chrom1(in);
 
-  if (conf.verbose>3) {
-    for (i=0; i<(signed)obs->size; ++i) {
-      meth_obs1_t *o = ref_meth_obs1_v(obs,i);
-      fprintf(stdout, "%s\t%"PRId64"\t%d\t%d\n", in->chrm, o->pos, o->cov, o->ret);
+  while (1) {
+
+    meth_obs1_v *obs=methbed_get_chrom1(in);
+    if (!obs->size) break;
+
+    if (conf.verbose>3) {
+      for (i=0; i<(signed)obs->size; ++i) {
+        meth_obs1_t *o = ref_meth_obs1_v(obs,i);
+        fprintf(stdout, "%s\t%"PRId64"\t%d\t%d\n", in->chrm, o->pos, o->cov, o->ret);
+      }
     }
-  }
   
+    /* make a 2-state hmm */
+    dsmc_t *m = init_dsmc(2, meth_emission);
+
+    m->a[0*2] = 0.5;
+    m->a[0*2+1] = 0.5;
+    m->a[1*2] = 0.5;
+    m->a[1*2+1] = 0.5;
+
+    /* /\* fake an observation vector, meth_obs1_t obs[1000]; *\/ */
+    /* for (i=0; i<100; ++i) { */
+    /*   if ((i/10)%2==1) { */
+    /*     obs->buffer[i].cov = 30; */
+    /*     obs->buffer[i].ret = 0; */
+    /*   } else { */
+    /*     obs->buffer[i].cov = 10; */
+    /*     obs->buffer[i].ret = 8; */
+    /*   } */
+    /* } */
+
+    int *q = calloc(obs->size, sizeof(int));
+    viterbi(q, m, obs->size, obs->buffer, 0, conf.verbose);
+
+    unsigned j;
+    for (j=0; j<obs->size; ++j) {
+      meth_obs1_t *o = ref_meth_obs1_v(obs,j);
+      fprintf(stdout, "%s\t%"PRId64"\t%d\n", in->chrm, o->pos, q[j]);
+      fflush(stdout);
+    }
+
+    free_meth_obs1_v(obs);
+    free(q);
+    free_dsmc(m);
+  }
+
   methbed_close(in);
   free_methbed(in);
-
-  /* make a 2-state hmm */
-  dsmc_t *m = init_dsmc(2, meth_emission);
-
-  m->a[0*2] = 0.5;
-  m->a[0*2+1] = 0.5;
-  m->a[1*2] = 0.5;
-  m->a[1*2+1] = 0.5;
-
-  /* /\* fake an observation vector, meth_obs1_t obs[1000]; *\/ */
-  /* for (i=0; i<100; ++i) { */
-  /*   if ((i/10)%2==1) { */
-  /*     obs->buffer[i].cov = 30; */
-  /*     obs->buffer[i].ret = 0; */
-  /*   } else { */
-  /*     obs->buffer[i].cov = 10; */
-  /*     obs->buffer[i].ret = 8; */
-  /*   } */
-  /* } */
-
-  int *q = calloc(obs->size, sizeof(int));
-  viterbi(q, m, 100, obs->buffer, 0, conf.verbose);
-
-  free(q);
-  free_dsmc(m);
 
   return 0;
 }

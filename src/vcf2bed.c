@@ -510,11 +510,16 @@ int main_vcf2bed(int argc, char *argv[]) {
     exit(1);
   }
   char *vcf_fn = argv[optind];
-  gzFile FH=gzopen(vcf_fn, "r");
-  if (!FH) {
-    fprintf(stderr, "[%s:%d] Cannot open VCF file: %s\n", __func__, __LINE__, vcf_fn);
-    fflush(stderr);
-    exit(1);
+  gzFile FH;
+  if (strcmp(vcf_fn, "-") == 0) {
+    FH = gzdopen(fileno(stdin), "r");
+  } else {
+    FH = gzopen(vcf_fn, "r");
+    if (!FH) {
+      fprintf(stderr, "[%s:%d] Cannot open VCF file: %s\n", __func__, __LINE__, vcf_fn);
+      fflush(stderr);
+      exit(1);
+    }
   }
   if (strcmp(conf.target, "c")==0) vcf2c(FH, &conf);
   if (strcmp(conf.target, "cg")==0) vcf2cg(FH, &conf);
