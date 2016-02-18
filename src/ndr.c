@@ -6,6 +6,12 @@
 
 typedef struct {
   int verbose;
+  /* for emission probability */
+  int a;
+  int b;
+  /* for transition probability */
+  double p;
+  double q;
 } conf_t;
 
 /* observation of methylation */
@@ -35,12 +41,13 @@ void free_methbed(methbed_t *m) {
   free(m);
 }
 
-double meth_emission(void *d, int t, int state_index) {
+double meth_emission(void *d, int t, int state_index, void *_c) {
   meth_obs1_t *ob1 = (meth_obs1_t*) d;
-  if (state_index == 1) 
-    return beta_binomial(ob1[t].ret, ob1[t].cov, 1, 10);
+  conf_t *c = (conf_t*) _c;
+  if (state_index == 1)
+    return beta_binomial(ob1[t].ret, ob1[t].cov, 1, c->b);
   else
-    return beta_binomial(ob1[t].ret, ob1[t].cov, 10, 1);
+    return beta_binomial(ob1[t].ret, ob1[t].cov, c->a, 1);
 }
 
 int methbed_parse1(char *line, meth_obs1_t *ob, char *chrom) {
@@ -127,6 +134,8 @@ meth_obs1_v *methbed_get_chrom1(methbed_t *in) {
     }
   }
 
+  free(str.s);
+
   return obs;
 }
 
@@ -153,15 +162,19 @@ void methbed_open(methbed_t *in) {
 
 int main_ndr(int argc, char *argv[]) {
 
-  conf_t conf = {.verbose=6};
+  conf_t conf = {.verbose=6, .a=10, .b=10, .p=0.5, .q=0.5};
 
   methbed_t *in = calloc(1, sizeof(methbed_t));
   int c, i; int collapse=0; char *out_fn=0;
-  while ((c = getopt(argc, argv, "V:b:o:ch")) >= 0) {
+  while ((c = getopt(argc, argv, "V:b:o:A:B:P:Q:ch")) >= 0) {
     switch (c) {
     case 'V': conf.verbose = atoi(optarg); break;
     case 'b': in->bed = optarg; break;
     case 'o': out_fn = optarg; break;
+    case 'A': conf.a = atoi(optarg); break;
+    case 'B': conf.b = atoi(optarg); break;
+    case 'P': conf.p = atof(optarg); break;
+    case 'Q': conf.q = atof(optarg); break;
     case 'c': collapse = 1; break;
     case 'h': {
       fprintf(stderr, "\n");
@@ -169,6 +182,10 @@ int main_ndr(int argc, char *argv[]) {
       fprintf(stderr, "Input options:\n");
       fprintf(stderr, "     -b FILE   bed file of GpC retention, coordinate-sorted\n");
       fprintf(stderr, "     -c        collapse into regions\n");
+      fprintf(stderr, "     -A INT    parameter a in beta binomial emission [%d]\n", conf.a);
+      fprintf(stderr, "     -B INT    parameter b in beta binomial emission [%d]\n", conf.b);
+      fprintf(stderr, "     -P FLOAT  parameter p in transition probability [%1.2f]\n", conf.p);
+      fprintf(stderr, "     -Q FLOAT  parameter q in transition probability [%1.2f]\n", conf.q);
       fprintf(stderr, "     -o FILE   output file\n");
       fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose);
       fprintf(stderr, "     -h        this help.\n");
@@ -200,7 +217,10 @@ int main_ndr(int argc, char *argv[]) {
   while (1) {
 
     meth_obs1_v *obs=methbed_get_chrom1(in);
-    if (!obs->size) break;
+    if (!obs->size) {
+      free_meth_obs1_v(obs);
+      break;
+    }
 
     if (conf.verbose>3) {
       for (i=0; i<(signed)obs->size; ++i) {
@@ -210,12 +230,12 @@ int main_ndr(int argc, char *argv[]) {
     }
   
     /* make a 2-state hmm */
-    dsmc_t *m = init_dsmc(2, meth_emission);
+    dsmc_t *m = init_dsmc(2, meth_emission, &conf);
 
-    m->a[0*2] = 0.5;
-    m->a[0*2+1] = 0.5;
-    m->a[1*2] = 0.5;
-    m->a[1*2+1] = 0.5;
+    m->a[0*2] = conf.p;
+    m->a[0*2+1] = 1.0 - conf.p;
+    m->a[1*2] = conf.q;
+    m->a[1*2+1] = 1.0 - conf.q;
 
     int *q = calloc(obs->size, sizeof(int));
     viterbi(q, m, obs->size, obs->buffer, 0, conf.verbose);
@@ -251,12 +271,15 @@ int main_ndr(int argc, char *argv[]) {
     free_meth_obs1_v(obs);
     free(q);
     free_dsmc(m);
+    free(in->chrm);
   }
   fprintf(stderr, "\r[%s:%d] Done\033[K\n", __func__, __LINE__);
   fflush(stderr);
 
   methbed_close(in);
   free_methbed(in);
+
+  if (out_fn) fclose(out);
 
   return 0;
 }

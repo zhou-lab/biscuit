@@ -12,21 +12,24 @@
 #include <zlib.h>
 #include <inttypes.h>
 
-typedef struct {
-  int n;                        /* number of states */
-  double *a;                    /* transition probability, dim: n x n */
-  double *pi;                   /* initial state */
-  double (*emission) (void*, int, int); /* log emission probability, (observation, state_index) */
+typedef struct dsmc_t {
+  int n;                      /* number of states */
+  double *a;                  /* transition probability, dim: n x n */
+  double *pi;                 /* initial state */
+  /* log emission probability, (observation, time, state_index, conf) */
+  double (*emission) (void*, int, int, void*);
+  void *c;                   /* extra configuration */
 } dsmc_t;
 
-static inline dsmc_t *init_dsmc(int n, double (*emission) (void*, int, int))  {
+static inline dsmc_t *init_dsmc(int n, double (*emission) (void*, int, int, void*), void *conf)  {
   dsmc_t *m = (dsmc_t*) calloc(1,sizeof(dsmc_t));
   m->n = n;
   m->a = calloc(m->n*m->n, sizeof(double));
   m->pi = calloc(m->n, sizeof(double));
   m->emission = emission;
+  m->c = conf;
 
-  /* uniform prior probability */
+  /* uniform initial probability */
   int i;
   for (i=0; i<m->n; ++i)
     m->pi[i] = 1.0/(double)m->n;

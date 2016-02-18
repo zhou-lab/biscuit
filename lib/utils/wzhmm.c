@@ -21,7 +21,7 @@ double forward(double *alpha, double *scale, dsmc_t *m, int t_max, void *o) {
   /* initialization */
   scale[0] = 0.0;
   for (i=0; i<m->n; ++i) {
-    alpha[i] = m->pi[i]*m->emission(o, 0, i);
+    alpha[i] = m->pi[i]*m->emission(o, 0, i, m->c);
     scale[i] += alpha[i];
   }
   for (i=0; i<m->n; ++i) alpha[i] /= scale[i]; /* scale alpha */
@@ -35,7 +35,7 @@ double forward(double *alpha, double *scale, dsmc_t *m, int t_max, void *o) {
       for (j=0; j<m->n; ++j)    /* previous state */
         sum += alpha[(t-1)*m->n+j]*m->a[j*m->n+i];
 
-      alpha[t*m->n+i] = sum*m->emission(o, t, i);
+      alpha[t*m->n+i] = sum*m->emission(o, t, i, m->c);
       scale[t] += alpha[t*m->n+i];
     }
     for (i=0; i<m->n; ++i) alpha[t*m->n+i] /= scale[t]; /* scale alpha */
@@ -66,7 +66,7 @@ void backward(double *beta, dsmc_t *m, int t_max, void *o, double *scale) {
   for (t=m->n-1; t; --t) {
     for (i=0; i<m->n; ++i) {
       double sum = 0.0;
-      for (j=0; j<m->n; ++j) sum += m->a[i*m->n+j] * m->emission(o, t, j)*beta[t*m->n+j];
+      for (j=0; j<m->n; ++j) sum += m->a[i*m->n+j] * m->emission(o, t, j, m->c)*beta[t*m->n+j];
       beta[(t-1)*m->n+i] = sum/scale[t-1];
     }
   }
@@ -110,7 +110,7 @@ double viterbi(int *q, dsmc_t *m, int t_max, void *o, int q_init, int verbose) {
 
   /* initialization */
   for (i=0; i<m->n; ++i) {
-    delta0[i] = log(m->pi[i]) + m->emission(o, 0, i);
+    delta0[i] = log(m->pi[i]) + m->emission(o, 0, i, m->c);
     psi[i] = q_init;
   }
 
@@ -129,7 +129,7 @@ double viterbi(int *q, dsmc_t *m, int t_max, void *o, int q_init, int verbose) {
       if (verbose>6) {
         fprintf(stdout, "maxval: %1.3f\t%d\n", maxval, maxvalind);
       }
-      delta[i] = maxval + m->emission(o, t, i);
+      delta[i] = maxval + m->emission(o, t, i, m->c);
       psi[t*m->n+i] = maxvalind;
     }
     memcpy(delta0, delta, m->n*sizeof(double));
@@ -184,7 +184,7 @@ void compute_xi(dsmc_t *m, int t_max, void *o, double *alpha, double *beta, doub
     double sum=0.0;
     for (i=0; i<m->n; ++i) {
       for (j=0; j<m->n; ++j) {
-        xi[t*m->n*m->n+i*m->n+j] = alpha[t*m->n+i]*beta[(t+1)*m->n+j]*m->a[i*m->n+j]*m->emission(o, t+1, j);
+        xi[t*m->n*m->n+i*m->n+j] = alpha[t*m->n+i]*beta[(t+1)*m->n+j]*m->a[i*m->n+j]*m->emission(o, t+1, j, m->c);
         sum += xi[t*m->n*m->n+i*m->n+j];
       }
     }
