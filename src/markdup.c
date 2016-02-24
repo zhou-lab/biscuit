@@ -29,9 +29,11 @@ typedef struct {
   uint32_t cnt_pe;
   uint32_t dup_cnt_se;
   uint32_t cnt_se;
+  uint32_t cnt_dangle;
   uint8_t verbose;
   uint8_t quiet;
   int max_isize;
+  int mate_unmapped_as_se;
 } mkconf_t;
 
 
@@ -40,13 +42,17 @@ typedef struct {
   bam1_t *b2;
   uint32_t sum_qual;
   uint8_t is_dup:1;
-  uint8_t bsstrand;
+  uint8_t is_PE:1;
+  uint8_t bsstrand:1;
 } __attribute__((__packed__)) insert_t;
 
 DEFINE_VECTOR(insert_v, insert_t*)
 
 
 int insert_hash_equal(insert_t *ins1, insert_t *ins2) {
+
+  /* differentiate single-end from paired-end */
+  if (ins1->is_PE!=ins2->is_PE) return 0;
 
   /* compare bsstrand */
   if (ins1->bsstrand != ins2->bsstrand) return 0;
@@ -188,14 +194,13 @@ void resolve_dup(khash_t(IGMap) *igm, samfile_t *out,
                  mkconf_t *conf) {
 
   uint8_t rmdup = conf->rmdup;
-  khint_t k; uint8_t is_pe;
+  khint_t k;
   for (k=kh_begin(igm); k<kh_end(igm); ++k) {
     if (kh_exist(igm, k)) {
       insert_v *ig = kh_val(igm, k);
 
-      if (ig->size && ig->buffer[0]->b1 && ig->buffer[0]->b2) is_pe = 1;
-      else is_pe = 0;
-
+      /* keep the read with the best sum of quality, 
+       * and mark rest as duplicates */
       unsigned i;
       unsigned bestqual;
       insert_t *bestins=0;
@@ -215,13 +220,13 @@ void resolve_dup(khash_t(IGMap) *igm, samfile_t *out,
       }
 
       /* dump the insert group */
-      if (conf->verbose > 2) {
+      if (conf->verbose > 5) {
         if (ig->size) printf("Insert group: %s\n", ig->buffer[0]->b1?bam1_qname(ig->buffer[0]->b1):bam1_qname(ig->buffer[0]->b2));
       }
       for (i=0; i<ig->size; ++i) {
         insert_t *ins = get_insert_v(ig, i);
         if (ins->is_dup) {
-          if (is_pe) conf->dup_cnt_pe += 2;
+          if (ins->is_PE) conf->dup_cnt_pe += 2;
           else ++conf->dup_cnt_se;
           if (ins->b1) ins->b1->core.flag |= BAM_FDUP;
           if (ins->b2) ins->b2->core.flag |= BAM_FDUP;
@@ -246,6 +251,19 @@ void resolve_dup(khash_t(IGMap) *igm, samfile_t *out,
 
 static int8_t bam_get_bsstrand(bam1_t *b) {
   uint8_t *s;
+
+  s = bam_aux_get(b, "ZS");     /* bsmap flag */
+  if (s) {
+    s++;
+    if (*s == '+') return 0;
+    else if (*s == '-') return 1;
+    else {
+      fprintf(stderr, "[%s:%d] Unknown ZS strand tag: %c\n", __func__, __LINE__, *s);
+      fflush(stderr);
+      exit(1);
+    }
+  }
+
   s = bam_aux_get(b, "YD");     /* bwa-meth flag */
   if (s) {
     s++;
@@ -254,7 +272,7 @@ static int8_t bam_get_bsstrand(bam1_t *b) {
     else if (*s == 'u') return -1;
   }
 
-  s = bam_aux_get(b, "XG");     /* bwa-meth flag */
+  s = bam_aux_get(b, "XG");     /* bismark flag */
   if (s) {
     s++;
     if (strcmp((char*)s, "CT")==0) return 0;
@@ -262,29 +280,36 @@ static int8_t bam_get_bsstrand(bam1_t *b) {
   }
 
   /* if no available flag information */
-  fprintf(stderr, "[%s:%d] Warning: bisulfite strand information missing: %s\n", __func__, __LINE__, bam1_qname(b));
+  fprintf(stderr, "[%s:%d] Warning: bisulfite strand information missing, treat as BSW: %s\n", __func__, __LINE__, bam1_qname(b));
   fflush(stderr);
   return 0;
 }
 
-static void flush_dangling_reads(khash_t(RIMap) *rim, kmempool_t(read) *rmp, kmempool_t(insert) *imp, samfile_t *out) {
+static void flush_dangling_reads(khash_t(RIMap) *rim, kmempool_t(read) *rmp, kmempool_t(insert) *imp, samfile_t *out, mkconf_t *conf) {
   khint_t k;
   for (k=kh_begin(rim); k<kh_end(rim); ++k) {
     if (kh_exist(rim, k)) {
       insert_t *ins = kh_val(rim, k);
       if (ins->b1) {
-        fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam1_qname(ins->b1));
-        fflush(stderr);
+        if (conf->verbose > 5) {
+          fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam1_qname(ins->b1));
+          fflush(stderr);
+        }
         samwrite(out, ins->b1);
         kmp_free(read, rmp, ins->b1);
+        conf->cnt_dangle++;
       }
       if (ins->b2) {
-        fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam1_qname(ins->b2));
-        fflush(stderr);
+        if (conf->verbose > 5) {
+          fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam1_qname(ins->b2));
+          fflush(stderr);
+        }
         samwrite(out, ins->b2);
         kmp_free(read, rmp, ins->b2);
+        conf->cnt_dangle++;
       }
       kmp_free(insert, imp, ins);
+      kh_del(RIMap, rim, k);
     }
   }
 }
@@ -328,7 +353,7 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
       resolve_dup(igm, out, rmp, imp, conf);
 
       if (c->tid != last_tid) {
-        flush_dangling_reads(rim, rmp, imp, out);
+        flush_dangling_reads(rim, rmp, imp, out, conf);
       }
 
       last_tid = c->tid; last_pos = c->pos;
@@ -340,10 +365,9 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
       continue;
     }
 
-
     int ret;
-    if ((c->flag & BAM_FPAIRED) && !(c->flag&BAM_FMUNMAP)
-        && (c->tid==c->mtid) && (abs(c->isize)<conf->max_isize)) { /* PE */
+    /* if mate is unmapped in PE, treat as SE */
+    if ((c->flag & BAM_FPAIRED) && !((c->flag&BAM_FMUNMAP) && conf->mate_unmapped_as_se)) { /* PE */
 
       ++conf->cnt_pe;
       khint_t e = kh_put(RIMap, rim, b, &ret);
@@ -356,6 +380,7 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
         ins = kh_val(rim, e);
       }
 
+      ins->is_PE = 1;
       if (c->flag & BAM_FREAD1) {
         ins->b1 = b;
         b = kmp_alloc(read, rmp);
@@ -366,18 +391,32 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
         fprintf(stderr, "[%s:%d] read position undecided, skip.\n", __func__, __LINE__);
       }
 
-      /* If the insert is matched. Push into insert group. */
-      if (ins->b1 && ins->b2) {
+      /* Once the insert is matched or mate-unmapped or mate problematic,
+       * push into insert group.
+       * Dangling reads are handled at the end. */
+      if ((ins->b1 && ins->b2)
+          || (ins->b1 && ins->b1->core.tid != ins->b1->core.mtid) || (ins->b2 && ins->b2->core.tid != ins->b2->core.mtid)
+          || (ins->b1 && abs(ins->b1->core.isize) >conf->max_isize) || (ins->b2 && abs(ins->b2->core.isize) >conf->max_isize)
+          || (ins->b1 && (ins->b1->core.flag&BAM_FMUNMAP)) || (ins->b2 && (ins->b2->core.flag&BAM_FMUNMAP))) {
 
-        /* find bsstrand */
-        int bs1=bam_get_bsstrand(ins->b1);
-        int bs2=bam_get_bsstrand(ins->b2);
+        /* find bsstrand of the whole insert */
+        int bs1=ins->b1 ? bam_get_bsstrand(ins->b1) : -1;
+        int bs2=ins->b2 ? bam_get_bsstrand(ins->b2) : -1;
         if (bs1 == bs2 && bs1 >=0) {
           ins->bsstrand = (unsigned) bs1;
         } else {
+          /* fix mate's bsstrand */
           if (bs1 < 0 && bs2 >= 0) ins->bsstrand = (unsigned) bs2;
           else if (bs2 < 0 && bs1 >= 0) ins->bsstrand = (unsigned) bs1;
-          else {
+          else if (bs1 < 0 && bs2 < 0) {
+            /* in rare circumstances, one is unmapped, the other has
+             * undetermined bsstrand. then assume T-rich conversion strand */
+            if (conf->verbose>0) {
+              fprintf(stderr, "[%s:%d] No valid BS strand info: %s\n", __func__, __LINE__, bam1_qname(ins->b1));
+              fflush(stderr);
+            }
+            ins->bsstrand = 0;
+          } else {
             if (conf->verbose>0) {
               fprintf(stderr, "[%s:%d] Warning: inconsistent bisulfite strand between mate reads of %s\n", __func__, __LINE__, bam1_qname(ins->b1));
               fflush(stderr);
@@ -396,25 +435,22 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
           ig = kh_val(igm, k);
         }
         push_insert_v(ig, ins);
+        /* remove matched reads from read-insert map */
         kh_del(RIMap, rim, e);
       }
-      
-    } else {			 /* SE or mate unmapped */
+
+    } else {			 /* SE */
 
       ++conf->cnt_se;
       insert_t *ins = kmp_alloc(insert, imp);
       memset(ins, 0, sizeof(insert_t));
-      int bs = bam_get_bsstrand(b);
+      ins->is_PE = 0;
+      ins->b1 = b;
+      int bs = bam_get_bsstrand(ins->b1);
       if (bs <= 0) ins->bsstrand = 0;
       else ins->bsstrand = 1;
+      b = kmp_alloc(read, rmp);
 
-      if (c->flag & BAM_FREAD2) {
-        ins->b2 = b;
-        b = kmp_alloc(read, rmp);
-      } else {
-        ins->b1 = b;
-        b = kmp_alloc(read, rmp);
-      }
       insert_v *ig;
       khint_t k = kh_put(IGMap, igm, ins, &ret);
       if (ret) {		/* empty */
@@ -428,12 +464,14 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
 
   }
   resolve_dup(igm, out, rmp, imp, conf);
-  flush_dangling_reads(rim, rmp, imp, out);
+  flush_dangling_reads(rim, rmp, imp, out, conf);
 
   fprintf(stderr, "\r[%s] parsed %u reads\n", __func__, cnt);
-  fprintf(stderr, "[%s] marked %d duplicates from %d paired-end reads (%.3g%%)\n", __func__, conf->dup_cnt_pe, conf->cnt_pe, (float) (conf->dup_cnt_pe) / conf->cnt_pe * 100);
-  fprintf(stderr, "[%s] marked %d duplicates from %d single-end reads (%.3g%%)\n", __func__, conf->dup_cnt_se, conf->cnt_se, (float) (conf->dup_cnt_se) / conf->cnt_se * 100);
-
+  fprintf(stderr, "[%s] marked %d duplicates from %d paired-end reads (%.3g%%)\n", __func__, conf->dup_cnt_pe, conf->cnt_pe, (double) (conf->dup_cnt_pe) / conf->cnt_pe * 100);
+  fprintf(stderr, "[%s] marked %d duplicates from %d single-end reads (%.3g%%)\n", __func__, conf->dup_cnt_se, conf->cnt_se, (double) (conf->dup_cnt_se) / conf->cnt_se * 100);
+  fprintf(stderr, "[%s] identified %d dangling paired-end reads (%.3g%%)\n", __func__, conf->cnt_dangle, (double) conf->cnt_dangle / cnt * 100);
+  fflush(stderr);
+  
   samclose(in);
   samclose(out);
 
@@ -463,7 +501,12 @@ int mark_dup_nosort(char *bam_in_fn, char *bam_out_fn) {
     .dup_cnt_se = 0,
     .dup_cnt_pe = 0,
     .cnt_se = 0,
-    .cnt_pe = 0
+    .cnt_pe = 0,
+    .cnt_dangle = 0,
+    .verbose = 0,
+    .quiet = 0,
+    .max_isize = 10000,
+    .mate_unmapped_as_se = 0,
   };
 
   return mark_dup(bam_in_fn, bam_out_fn, &conf);
@@ -479,8 +522,9 @@ static int usage(mkconf_t *conf) {
   fprintf(stderr, "     -b INT    minimum base quality [30].\n");
   fprintf(stderr, "     -r        toggle to remove marked duplicate.\n");
   fprintf(stderr, "     -s        toggle to turn OFF sorting and indexing after marking duplicates.\n");
-  fprintf(stderr, "     -q        quiet (log friendly) [false]\n");
-  fprintf(stderr, "     -v        verbose level [0].\n");
+  fprintf(stderr, "     -u        treat mate-unmapped paired-end reads as single-end reads\n");
+  fprintf(stderr, "     -q        quiet (log friendly)\n");
+  fprintf(stderr, "     -v        verbose level [%d].\n", conf->verbose);
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
   return 1;
@@ -499,17 +543,19 @@ int main_markdup(int argc, char *argv[]) {
     .verbose = 0,
     .quiet = 0,
     .max_isize = 10000,
+    .mate_unmapped_as_se = 0,
   };
 
   int c;
   if (argc < 2) return usage(&conf);
-  while ((c = getopt(argc, argv, "i:o:b:v:l:q:rmsh")) >= 0) {
+  while ((c = getopt(argc, argv, "b:l:v:rsuqh")) >= 0) {
     switch (c) {
     case 'b': conf.min_baseQ = atoi(optarg); break;
+    case 'l': conf.max_isize = atoi(optarg); break;
+    case 'v': conf.verbose = atoi(optarg); break;
     case 'r': conf.rmdup = 1; break;
     case 's': conf.sort = 0; break;
-    case 'v': conf.verbose = atoi(optarg); break;
-    case 'l': conf.max_isize = atoi(optarg); break;
+    case 'u': conf.mate_unmapped_as_se = 0; break;
     case 'q': conf.quiet = 1; break;
     case 'h': return usage(&conf);
     default:

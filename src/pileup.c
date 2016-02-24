@@ -22,6 +22,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
 **/
+
 #include "pileup.h"
 
 /* typedef enum {BSS_RETENTION, BSS_CONVERSION, BSS_OTHER} bsstate_t; */
@@ -362,7 +363,9 @@ uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
 }
 
 uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
-  uint8_t *s = bam_aux_get(b, "ZS");
+  uint8_t *s;
+  
+  s = bam_aux_get(b, "ZS"); /* bsmap flag */
   if (s) {
     s++;
     if (*s == '+') return 0;
@@ -374,6 +377,13 @@ uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
     s++;
     if (*s == 'f') return 0;
     else if (*s == 'r') return 1;
+  }
+
+  s = bam_aux_get(b, "XG");     /* bismark flag */
+  if (s) {
+    s++;
+    if (strcmp((char*)s, "CT")==0) return 0;
+    else if (strcmp((char*)s, "GA")) return 1;
   }
 
   /* otherwise, guess the bsstrand from nCT and nGA */
