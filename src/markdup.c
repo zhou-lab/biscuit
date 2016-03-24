@@ -1,23 +1,46 @@
-/********** mark duplicates ********
- * This utility requires bam file to be sorted before and after.
+/**
+ * mark duplicates in bisulfite-conserted reads
+ * 
+ * The MIT License (MIT)
  *
+ * Copyright (c) 2016 Wanding.Zhou@vai.org
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ *
+ * This utility requires bam file to be sorted.
  * reads are duplicate if they
  * 1. are mapped to the same coordinate
  * 2. have the same cigar string
  * 3. from the same bisulfite strand
  * 
  * From each insert group, one pick the read with the highest quality score.
- * 
- * run the script on a bam with duplicate marking will re-mark the duplicates
- * 
- * */
+ * run the program on a bam already with duplicate marking will erase
+ * existing marking and re-mark the duplicates
+ *
+**/
 
 #include <stdlib.h>
 #include "sam.h"
 #include "khash.h"
 #include "klist.h"
 #include "wvec.h"
-// #include "wstr.h"
 
 void bam_sort_core_ext(int is_by_qname, const char *fn, const char *prefix, size_t _max_mem, int is_stdout, int n_threads, int level, int full_path);
 

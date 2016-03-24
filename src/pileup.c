@@ -220,8 +220,14 @@ void *write_func(void *data) {
   writer_conf_t *c = (writer_conf_t*) data;
   
   FILE *out;
-  if (c->outfn) out=fopen(c->outfn, "w");
-  else out=stdout;
+  if (c->outfn) {
+    out=fopen(c->outfn, "w");
+    if (!out) {
+      fprintf(stderr, "[%s:%d] Cannot open output file: %s\nAbort.\n", __func__, __LINE__, c->outfn);
+      fflush(stderr);
+      exit(1);
+    }
+  } else out=stdout;
 
   FILE *stats;
   if (c->statsfn) {
@@ -959,13 +965,13 @@ static void *process_func(void *data) {
   for (sid=0; sid<res->n_bams; ++sid) {
     in_fhs[sid] = samopen(res->bam_fns[sid], "rb", 0);
     if (!in_fhs[sid]) {
-      fprintf(stderr, "[%s:%d] cannot open %s\n", __func__, __LINE__, res->bam_fns[sid]);
+      fprintf(stderr, "[%s:%d] Cannot open %s\nAbort.\n", __func__, __LINE__, res->bam_fns[sid]);
       fflush(stderr);
       exit(1);
     }
     idxs[sid] = bam_index_load(res->bam_fns[sid]);
     if (!idxs[sid]) {
-      fprintf(stderr, "[%s:%d] cannot find index for %s\n", __func__, __LINE__, res->bam_fns[sid]);
+      fprintf(stderr, "[%s:%d] Cannot find index for %s\n", __func__, __LINE__, res->bam_fns[sid]);
       fflush(stderr);
       exit(1);
     }
@@ -1309,6 +1315,11 @@ int main_pileup(int argc, char *argv[]) {
   pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
   result_t *results = calloc(conf.n_threads, sizeof(result_t));
   samfile_t *in = samopen(in_fns[0], "rb", 0); /* use first bam, assume the headers are all equal */
+  if (!in) {
+    fprintf(stderr, "[%s:%d] Cannot open %s\nAbort.\n", __func__, __LINE__, in_fns[0]);
+    fflush(stderr);
+    exit(1);
+  }
 
   /***** process header *****/
   kstring_t header; header.l = header.m = 0; header.s = 0;

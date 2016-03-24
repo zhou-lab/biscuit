@@ -21,7 +21,7 @@ typedef struct bed1_t {
   int cov;
 
   /* reference and
-     alternative as in VCF */
+   * alternative as in VCF */
   char *vcfref;
   char *vcfalt;
 } bed1_t;
