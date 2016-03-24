@@ -9,22 +9,22 @@ function pecho() {
 }
 
 function decho() {
-  echo "[$(date)] Running:  "$@ >&2
+  pecho $@
   eval $@
 }
 
 function biscuittest_pileup {
-  base=Smadh3_chr19_chrM
+  base=test/Smadh3_chr19_chrM
   [[ -d $base/testresult_pileup ]] || mkdir $base/testresult_pileup
   rm -f $base/testresult_pileup/*
   decho "$PROG pileup -i $base/raw_bam/WGBS_Smadh3_chr19_chrM.bam -r $GENOME_DIR/mm10/mm10.fa -o $base/testresult_pileup/Smadh3_chr19_chrM.vcf -q 28"
   decho "bgzip $base/testresult_pileup/Smadh3_chr19_chrM.vcf"
   decho "tabix -p vcf $base/testresult_pileup/Smadh3_chr19_chrM.vcf.gz"
 
-  "biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v 3"
+  "biscuit-develop pileup -r ~/references/hg19/hg19.fa -i test/NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v 3"
 
-  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:26138808-26138808 -v 1 -n 999
-  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:25847708-25847708 -v 1
+  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i test/NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:26138808-26138808 -v 1 -n 999
+  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i test/NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:25847708-25847708 -v 1
   biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:29425717-29425717 -v 1
 }
 
