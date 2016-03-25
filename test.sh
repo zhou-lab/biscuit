@@ -1,8 +1,8 @@
 
 # bin/biscuit align ~/reference/mm10/mm10.fa /data/largeS2/pl-bs/2015-06-09-mouse-WGBS/run3_H7CVYBGXX/data/fastq/PL4-10-15WGBS1_L000_R1_001.fastq.gz /data/largeS2/pl-bs/2015-06-09-mouse-WGBS/run3_H7CVYBGXX/data/fastq/PL4-10-15WGBS1_L000_R2_001.fastq.gz -t 70 | samtools view -bS - > /data/largeS2/pl-bs/H7CVYBGXX_WGBS1.bam
 
-PROG=~/tools/biscuit/development/biscuit/bin/biscuit
-GENOME_DIR=~/references/
+export PROG=~/tools/biscuit/development/biscuit/bin/biscuit
+export GENOME_DIR=~/references/
 
 function pecho() {
   echo "[$(date)] Running:  "$@ >&2
@@ -15,17 +15,17 @@ function decho() {
 
 function biscuittest_pileup {
   base=test/Smadh3_chr19_chrM
-  [[ -d $base/testresult_pileup ]] || mkdir $base/testresult_pileup
-  rm -f $base/testresult_pileup/*
-  decho "$PROG pileup -i $base/raw_bam/WGBS_Smadh3_chr19_chrM.bam -r $GENOME_DIR/mm10/mm10.fa -o $base/testresult_pileup/Smadh3_chr19_chrM.vcf -q 28"
-  decho "bgzip $base/testresult_pileup/Smadh3_chr19_chrM.vcf"
-  decho "tabix -p vcf $base/testresult_pileup/Smadh3_chr19_chrM.vcf.gz"
+  [[ -d $base/out_pileup ]] || mkdir $base/out_pileup
+  rm -f $base/out_pileup/*
+  decho "$PROG pileup -i $base/raw_bam/WGBS_Smadh3_chr19_chrM.bam -r $GENOME_DIR/mm10/mm10.fa -o $base/out_pileup/out.vcf -q 18"
+  decho "bgzip $base/out_pileup/out.vcf"
+  decho "tabix -p vcf $base/out_pileup/out.vcf.gz"
 
-  "biscuit-develop pileup -r ~/references/hg19/hg19.fa -i test/NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v 3"
-
-  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i test/NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:26138808-26138808 -v 1 -n 999
-  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i test/NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:25847708-25847708 -v 1
-  biscuit-develop pileup -r ~/references/hg19/hg19.fa -i NIC1254A46/raw_bam/NIC1254A46.bam -q 1 -g chr20:29425717-29425717 -v 1
+  base=test/NIC1254A46
+  decho "$PROG pileup -r $GENOME_DIR/hg19/hg19.fa -i $base/raw_bam/NIC1254A46.bam -q 1 -g chr20:29570686-29570686 -v 3"
+  decho "$PROG pileup -r $GENOME_DIR/hg19/hg19.fa -i $base/raw_bam/NIC1254A46.bam -q 1 -g chr20:26138808-26138808 -v 1 -n 999"
+  decho "$PROG pileup -r $GENOME_DIR/hg19/hg19.fa -i $base/raw_bam/NIC1254A46.bam -q 1 -g chr20:25847708-25847708 -v 1"
+  decho "$PROG pileup -r $GENOME_DIR/hg19/hg19.fa -i $base/raw_bam/NIC1254A46.bam -q 1 -g chr20:29425717-29425717 -v 1"
 }
 
 function biscuittest_somatic_pileup {
