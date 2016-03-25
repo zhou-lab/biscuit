@@ -17,8 +17,8 @@ LUTILS = lib/utils/libutils.a
 
 ########### program ##########
 
-detect :
-	@echo "$$CFLAGS" $(CFLAGS)
+# detect :
+# 	@echo "$$CFLAGS" $(CFLAGS)
 
 PROG = bin/biscuit
 # PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
