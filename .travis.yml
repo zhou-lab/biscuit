@@ -5,6 +5,9 @@ matrix:
   - osx
   
 
-install: make
+script:
+  - make
 
 compiler: gcc
+
+
