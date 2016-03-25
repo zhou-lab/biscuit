@@ -1,18 +1,4 @@
 
-# bin/biscuit align ~/reference/mm10/mm10.fa /data/largeS2/pl-bs/2015-06-09-mouse-WGBS/run3_H7CVYBGXX/data/fastq/PL4-10-15WGBS1_L000_R1_001.fastq.gz /data/largeS2/pl-bs/2015-06-09-mouse-WGBS/run3_H7CVYBGXX/data/fastq/PL4-10-15WGBS1_L000_R2_001.fastq.gz -t 70 | samtools view -bS - > /data/largeS2/pl-bs/H7CVYBGXX_WGBS1.bam
-
-export PROG=~/tools/biscuit/development/biscuit/bin/biscuit
-export GENOME_DIR=~/references/
-
-function pecho() {
-  echo "[$(date)] Running:  "$@ >&2
-}
-
-function decho() {
-  pecho $@
-  eval $@
-}
-
 function biscuittest_pileup {
   base=test/Smadh3_chr19_chrM
   [[ -d $base/out_pileup ]] || mkdir $base/out_pileup

@@ -29,7 +29,7 @@ SOFTWARE.
 """
 import os, sys, re
 
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_call
 
 def wrap(line):
 
@@ -83,6 +83,7 @@ def calloutput(line, capture=True):
     out = out.strip()
     err = err.strip()
     if p.returncode != 0 and capture:
+        print err
         raise Exception('Run error!')
 
     return out, err, p.returncode
@@ -134,7 +135,10 @@ for ifn in ifns:
         # line = line.replace('@VERSION', version)
         line = line.strip()
         line2 = linesub(line, sub)
-        if line.startswith('$$ '): # non-capture run
+        if line.startswith('$$$ '): # non-capture run without print
+            calloutput(line2)
+
+        elif line.startswith('$$ '): # non-capture run
             print
             print '======'+line2+'====='
             calloutput(line2)
@@ -149,7 +153,20 @@ for ifn in ifns:
             if not m:
                 raise Exception('Invalid compare')
             sys.stdout.write('compare %s vs %s ... ' % (m.group(1), m.group(2)))
-            res = calloutput_out('colordiff %s %s' % (m.group(1), m.group(2)), capture=False)
+            if not os.path.exists(m.group(1)):
+                raise Exception("file %s nonexistent" % m.group(1))
+            if not os.path.exists(m.group(2)):
+                cc = raw_input("file %s nonexistent, first-time run? going to create (y or n):" % m.group(2))
+                if cc == 'y': 
+                    check_call(['mkdir','-p',os.path.dirname(m.group(2))])
+                    check_call(['cp',m.group(1),m.group(2)])
+                else:
+                    sys.exit(1)
+                
+            res, err, code = calloutput('colordiff %s %s' % (m.group(1), m.group(2)), capture=False)
+            if code not in [0,1]:
+                print err
+                raise Exception('Run error!')
             if ''.join(res):
                 raw_input('different')
             else:
@@ -160,9 +177,8 @@ for ifn in ifns:
             ofh.write(line)
             print
             print '======'+line2+'======'
-            result = calloutput(line2)
-            print '\n'.join(result)
-            print '\n'.join([rr for rr in result if not (len(rr.strip()) == 0 or rr.startswith('[') or rr.startswith('input'))])
+            result, err, code = calloutput(line2)
+            print '\n'.join([rr for rr in result.split('\n') if not rr.startswith('#')])
             tofill = True
             infill = False
             oldfill = ''
@@ -177,7 +193,7 @@ for ifn in ifns:
             newfill = ''
             for rr in result:
 
-                if len(rr.strip()) == 0 or rr.startswith('[') or rr.startswith('input'):
+                if len(rr.strip()) == 0 or rr.startswith('[') or rr.startswith('input') or rr.startswith('#'):
                     continue
 
                 for r in wrap(rr):
