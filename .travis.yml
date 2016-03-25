@@ -1,8 +1,9 @@
 language: c
 
-os:
+matrix:
   - linux
   - osx
+  
 
 install: make
 
