@@ -1,10 +1,12 @@
 CFLAGS=-W -Wall -finline-functions -fPIC -std=gnu99
 
+CLIB=-lpthread -lz -lm
+
 OS := $(shell uname)
 ifeq ($(OS),  Darwin)
   CFLAGS += -Wno-unused-function
 else
-	CFLAGS += -lrt
+	CLIB += -lrt
 endif
 
 INCLUDE = include
@@ -32,7 +34,7 @@ debug : $(PROG)
 LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
 bin/biscuit: $(LIBS) src/main.o
 	mkdir -p bin
-	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) -lpthread -lz -lm
+	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 clean_biscuit:
 	rm -f bin/biscuit
 
