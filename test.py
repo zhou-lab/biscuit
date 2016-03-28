@@ -34,16 +34,20 @@ from subprocess import Popen, PIPE, check_call
 def wrap(line):
 
     lw = 80
-    fields = line.strip().split('\t')
-    yield '\t'.join(fields[:4])
-    yield ' '*3+'\t'.join(fields[4:6])
-    line = '\t'.join(fields[6:])
+    # fields = line.strip().split('\t')
+    # yield '\t'.join(fields[:4])
+    # yield ' '*3+'\t'.join(fields[4:6])
+    # line = '\t'.join(fields[6:])
 
-    while len(line) > 0:
-        k = lw-3
-        yield ' '*3+line[:k]
-        line = line[k:]
-
+    fields = line.strip().split('\t')[::-1]
+    first = True
+    outfields = []
+    while fields:
+        outfields.append(fields.pop())
+        if len(''.join(outfields)) + 2*(len(outfields)-1) > 80 or len(fields) == 0:
+            yield '  '.join(outfields)
+            outfields = ['  ']
+    
 if len(sys.argv) == 1:
     indir = 'biscuit.wiki'
     outdir = 'outwiki'
@@ -111,7 +115,16 @@ raw_input("confirm version: %s" % version)
 
 def linesub(line, sub):
 
-    return ' '.join([sub[_] if _ in sub else _ for _ in line.split()])
+    fields = []
+    for f in line.split():
+        if f in sub:
+            fields.append(sub[f])
+        elif f[0] == '>' and f[1:] in sub:
+            fields.append('>'+sub[f[1:]])
+        else:
+            fields.append(f)
+
+    return ' '.join(fields)
 
 for ifn in ifns:
     if not ifn.endswith(".md"):
@@ -137,17 +150,28 @@ for ifn in ifns:
         line2 = linesub(line, sub)
         if line.startswith('$$$ '): # non-capture run without print
             calloutput(line2)
+            ofh.write(line+'\n')
 
         elif line.startswith('$$ '): # non-capture run
             print
             print '======'+line2+'====='
             calloutput(line2)
+            ofh.write(line+'\n')
+
+        elif line.startswith('$$+ '): # non-capture run with pipe inside, use shell
+            print
+            print '======'+line2+'====='
+            check_call(line2[4:], shell=True)
+            ofh.write(line+'\n')
 
         elif line.startswith('@@ '):       # udpate substitution
-            sub1 = eval(line[3:])
-            for k,v in sub1.iteritems():
-                sub[k] = v
-            
+            pairs = line[3:].split(':')
+            sub[pairs[0].strip()] = pairs[1].strip()
+            # sub1 = eval(line[3:])
+            # for k,v in sub1.iteritems():
+            #     sub[k] = v
+            ofh.write(line+'\n')
+
         elif line.startswith('##compare'): # compare non-capture runs
             m = re.match('##compare (\S*) vs (\S*)', line)
             if not m:
@@ -163,7 +187,7 @@ for ifn in ifns:
                 else:
                     sys.exit(1)
                 
-            res, err, code = calloutput('colordiff %s %s' % (m.group(1), m.group(2)), capture=False)
+            res, err, code = calloutput('zdiff %s %s' % (m.group(1), m.group(2)), capture=False)
             if code not in [0,1]:
                 print err
                 raise Exception('Run error!')
@@ -172,9 +196,11 @@ for ifn in ifns:
             else:
                 print('same')
 
+            ofh.write(line+'\n')
+
         elif line.startswith('$ '):    # capture run
 
-            ofh.write(line)
+            ofh.write(line+'\n')
             print
             print '======'+line2+'======'
             result, err, code = calloutput(line2)
@@ -186,14 +212,14 @@ for ifn in ifns:
         elif line.startswith('```text') and tofill: # load old output in a capture run
             infill = True
             tofill = False
-            ofh.write(line)
+            ofh.write(line+'\n')
 
         elif line.startswith('```') and infill: # compare capture run
 
             newfill = ''
-            for rr in result:
-
-                if len(rr.strip()) == 0 or rr.startswith('[') or rr.startswith('input') or rr.startswith('#'):
+            for rr in result.split('\n'):
+                if (len(rr.strip()) == 0
+                    or rr.startswith('#')):
                     continue
 
                 for r in wrap(rr):
@@ -218,7 +244,7 @@ for ifn in ifns:
 
         else:
 
-            ofh.write(line)
+            ofh.write(line+'\n')
 
     ifh.close()
     ofh.close()
