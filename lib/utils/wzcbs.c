@@ -1,10 +1,14 @@
 /**
  * Circulat Binary Segmentation
+ * first perform ternary segmentation among blocks
+ * then refine change points within blocks
  ***/
 
-int* compute_partialsums(int *dat, int n, block_t *bk, psum_t *gpsum) {
+#include "wzcbs.h"
 
-  int ps = calloc(n, sizeof(int));
+int *compute_partialsums(int *dat, int n, block_t *bk, psum_t *gpsum) {
+
+  int *ps = calloc(n, sizeof(int));
   
   gpsum->min_index = 0;
   gpsum->max_index = 0;
@@ -38,32 +42,32 @@ int* compute_partialsums(int *dat, int n, block_t *bk, psum_t *gpsum) {
   return ps;
 }
 
-double _t_stats(double rnjov1, int dpsum) {
-  return rnjov1*(dpsum**2);
+static inline double t_stats0(double rnjov1, int dpsum) {
+  return rnjov1*dpsum*dpsum;
 }
 
 /* assert(alen >= 0) i.e., non-negative arc length */
-double rnjov1(int n, int alen) {
+static inline double rnjov1(int n, int alen) {
   return (double) n / (double) alen / (double) (n-alen);
 }
 
-double t_stats(int n, int alen, int psi, int psj) {
-  return _t_stats(rnjov1(n, alen), psi-psj);
+static inline double t_stats(int n, int alen, int dpsum) {
+  return t_stats0(rnjov1(n, alen), dpsum);
 }
 
-int compare_block_pairs(void *_bp1, void *_bp2) {
-  if (((block_pair_t*) _bp1)->b->t_stats > ((block_pair_t*) _bp2)->d->t_stats) return 1;
-  else if (((block_pair_t*) _bp1)->b->t_stats < ((block_pair_t*) _bp2)->d->t_stats) return -1;
+int compare_block_pairs(const void *_bp1, const void *_bp2) {
+  if (((block_pair_t*) _bp1)->t > ((block_pair_t*) _bp2)->t) return 1;
+  else if (((block_pair_t*) _bp1)->t < ((block_pair_t*) _bp2)->t) return -1;
   else return 0;
 }
 
-void refine_tmax_fix_alen(int *ps, block_pair_t *bp, int i2j, int chnpnts[2], double *t_stats_gmax) {
+void refine_tmax_fix_alen(int n, int *ps, block_pair_t *bp, int i2j, int chnpnts[2], double *t_gmax) {
   int i;
-  for (i=max(bp->b->beg, bp->d->beg-i2j); i<=min(bp->b->end, bp->d->end-i2j); ++i) {
+  for (i=MAX(bp->b->beg, bp->d->beg-i2j); i<=MIN(bp->b->end, bp->d->end-i2j); ++i) {
     int j = i+i2j;
-    double t_stats = t_stats(n, i2j, ps[i], ps[j]);
-    if (t_stats > *t_stats_gmax) {
-      *t_stats_gmax = t_stats;
+    double t = t_stats(n, i2j, ps[i]-ps[j]);
+    if (t > *t_gmax) {
+      *t_gmax = t;
       chnpnts[0] = i;
       chnpnts[1] = j;
     }
@@ -72,38 +76,38 @@ void refine_tmax_fix_alen(int *ps, block_pair_t *bp, int i2j, int chnpnts[2], do
 
 /* ternary segment (once)
  * number of change points can be 0,1,2 */
-void seg_once(int *dat, int n, int *n_chnpnts, int chnpnts[2], double *t_stats_gmax) {
+void ternary_segmentation(int *dat, int n, int *n_chnpnts, int chnpnts[2], double *t_gmax) {
 
   block_t *bk = init_blocks(n);
   psum_t gpsum;
   int *ps = compute_partialsums(dat, n, bk, &gpsum);
-  double t_stats_gmax = t_stats(n, abs(gpsum.min_index-gpsum.max_index), gpsum.min, gpsum.max);
+  double t_gmax0 = t_stats(n, abs(gpsum.min_index-gpsum.max_index), gpsum.min-gpsum.max);
 
   /* identify block pairs that contains potential change points
    * this is the change point based on maximum partial sum difference */
   block_pair_v *block_pairs = init_block_pair_v(2);
   int bi, bj;
-  for (bi=0; bi<nb; ++bi) {
-    for (bj=bi; bj<nb; ++bj) {
+  for (bi=0; bi<bk->n; ++bi) {
+    for (bj=bi; bj<bk->n; ++bj) {
       block1_t *b = bk->a+bi;
       block1_t *d = bk->a+bj;
       int alenhi = d->end - b->beg;
       int alenlo = d->beg - b->end;
       int dpsum_bmd = b->psum.max - d->psum.min;
       int dpsum_dmb = d->psum.max - b->psum.min;
-      double t_stats_max = _t_stats((double) n/(double) MIN(alenhi*(n-alenhi), alenlo*(n-alenlo)),
+      double t_max = t_stats0((double) n/(double) MIN(alenhi*(n-alenhi), alenlo*(n-alenlo)),
                                     MAX(dpsum_bmd, dpsum_dmb));
-      if (t_stats_max >= t_stats_gmax) {
+      if (t_max >= t_gmax0) {
         block_pair_t *p = next_ref_block_pair_v(block_pairs);
         p->b = b;
         p->d = d;
-        p->t_stats_max = t_stats_max;
+        p->t_max = t_max;
         if (dpsum_bmd > dpsum_dmb) {
           p->alen = abs(b->psum.max_index - d->psum.min_index);
-          p->t_stats = t_stats(n, p->alen, dpsum_bmd);
+          p->t = t_stats(n, p->alen, dpsum_bmd);
         } else {
           p->alen = abs(d->psum.max_index - b->psum.min_index);
-          p->t_stats = t_stats(n, p->alen, dpsum_dmb);
+          p->t = t_stats(n, p->alen, dpsum_dmb);
         }
       }
     }
@@ -115,34 +119,35 @@ void seg_once(int *dat, int n, int *n_chnpnts, int chnpnts[2], double *t_stats_g
   /* refine change points inside the block pairs
    * this identifies the t-statistic max from partial-sum-difference max
    * to maximize t, we minimize alen*(n-alen), this is monotonous when alen is >n/2 and when alen is <n/2 */
-  for (i=0; i<block_pairs->size; ++i) {
-    block_pair_t *bp = ref_block_pair_v(block_pairs, i);
-    alenhi = bp->d->end - bp->b->beg;
-    alenlo = bp->d->beg - bp->b->end;
+  int bpi, i2j;
+  for (bpi=0; bpi<block_pairs->size; ++bpi) {
+    block_pair_t *bp = ref_block_pair_v(block_pairs, bpi);
+    int alenhi = bp->d->end - bp->b->beg;
+    int alenlo = bp->d->beg - bp->b->end;
 
     /* when alenlo < n/2, there is chance of minimizing alen*(n-alen) by decreasing alen */
     if (alenlo < n/2)
-      for (i2j=alenlo; i2j<alenmax; ++i2j)
-        refine_tmax_fix_alen(ps, bp, i2j, chnpnts, t_stats_gmax);
+      for (i2j=alenlo; i2j<bp->alen; ++i2j)
+        refine_tmax_fix_alen(n, ps, bp, i2j, chnpnts, t_gmax);
 
     /* when alenhi > n/2, there is chance of minimizing alen*(n-alen) by increasing alen */
     if (alenhi > n/2)
-      for (i2j=alenhi; i2j>alenmax; --i2j)
-        refine_tmax_fix_alen(ps, bp, i2j, chnpnts, t_stats_gmax);
+      for (i2j=alenhi; i2j>bp->alen; --i2j)
+        refine_tmax_fix_alen(n, ps, bp, i2j, chnpnts, t_gmax);
   }
 
   /* determine the number of change points */
   if (chnpnts[0] == 0) {
     if (chnpnts[1] == n-1) {
-      *nchnpnts = 0;
+      *n_chnpnts = 0;
     } else {
-      *nchnpnts = 1;
+      *n_chnpnts = 1;
       chnpnts[0] = chnpnts[1];
     }
   } else if (chnpnts[1] == n-1) {
-    *nchnpnts = 1;
+    *n_chnpnts = 1;
   } else {
-    *nchnpnts = 2;
+    *n_chnpnts = 2;
   }
 }
 
@@ -150,7 +155,7 @@ void seg_once(int *dat, int n, int *n_chnpnts, int chnpnts[2], double *t_stats_g
 /* recursively segmentation, allocate segends
  * when no segmentation occurs, segends only have n
  * and n_segends == 1 */
-int seg_recursive(int *dat, int n, int *segends) {
+int recursive_segmentation(int *dat, int n, int *segends) {
 
   segends = NULL;
   int n_segends = 0;
@@ -159,8 +164,9 @@ int seg_recursive(int *dat, int n, int *segends) {
   ends[0] = 0; ends[1] = n;
   int k=1;                      /* k is always size(ends)-1 */
   int n_chnpnts; int chnpnts[2];
+  double t_gmax;
   while (k>0) {
-    seg_once(dat[ends[k-1]], ends[k-1]-ends[k], &n_chnpnts, chnpnts);
+    ternary_segmentation(dat+ends[k-1], ends[k-1]-ends[k], &n_chnpnts, chnpnts, &t_gmax);
     if (n_chnpnts == 0) {
       /* prepend the segment end */
       segends = realloc(segends, sizeof(int)*(n_segends+1));
@@ -184,4 +190,16 @@ int seg_recursive(int *dat, int n, int *segends) {
   free(ends);
 
   return n_segends;
+}
+
+int main(int argc, char *argv[])
+{
+  int dat[20] = {4,4,4,4,4,4,4,4,4,4,
+                 6,6,6,6,6,6,6,6,6,6};
+  int n_chnpnts;
+  int chnpnts[2];
+  double t_gmax;
+  ternary_segmentation(dat, 20, &n_chnpnts, chnpnts, &t_gmax);
+  /* recursive_segmentation() */
+  return 0;
 }

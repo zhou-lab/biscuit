@@ -18,7 +18,7 @@
     __typeof__ (b) _b = (b);    \
     _a > _b ? _a : _b; })
 
-typdef struct psum_t {
+typedef struct psum_t {
   int max;
   int min;
   int max_index;
@@ -35,7 +35,7 @@ typedef struct block1_t {
 
 typedef struct block_pair_t {
   block1_t *b, *d;
-  double t_stats, t_stats_max;
+  double t, t_max;
   int alen;                  /* arc length */
 } block_pair_t;
 
@@ -51,12 +51,12 @@ static inline block_t *init_blocks(int n) {
 
   block_t *bk = calloc(1,sizeof(block_t));
 
-  bk->n = n>50?int(sqrt((double)n)):1;
+  bk->n = n>50 ? (int)sqrt((double)n) : 1;
   bk->bsize = (n-1) / bk->n+1;
   bk->a = calloc(bk->n, sizeof(block1_t));
   int bi;
   for (bi=0; bi<bk->n; ++bi) {
-    block1_t *b = blocks+bi;
+    block1_t *b = bk->a+bi;
     b->beg = bi*bk->bsize;
     b->end = (bi+1)*bk->bsize-1;
   }
