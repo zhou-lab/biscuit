@@ -75,7 +75,8 @@ void refine_tmax_fix_alen(int n, int *ps, block_pair_t *bp, int i2j, int chnpnts
 }
 
 /* ternary segment (once)
- * number of change points can be 0,1,2 */
+ * number of change points can be 0,1,2
+ * Assume data is centered! sum(dat) = 0 */
 void ternary_segmentation(int *dat, int n, int *n_chnpnts, int chnpnts[2], double *t_gmax) {
 
   block_t *bk = init_blocks(n);
@@ -92,7 +93,7 @@ void ternary_segmentation(int *dat, int n, int *n_chnpnts, int chnpnts[2], doubl
       block1_t *b = bk->a+bi;
       block1_t *d = bk->a+bj;
       int alenhi = d->end - b->beg;
-      int alenlo = d->beg - b->end;
+      int alenlo = bi==bj ? 1 : d->beg - b->end;
       int dpsum_bmd = b->psum.max - d->psum.min;
       int dpsum_dmb = d->psum.max - b->psum.min;
       double t_max = t_stats0((double) n/(double) MIN(alenhi*(n-alenhi), alenlo*(n-alenlo)),
@@ -123,7 +124,7 @@ void ternary_segmentation(int *dat, int n, int *n_chnpnts, int chnpnts[2], doubl
   for (bpi=0; bpi<block_pairs->size; ++bpi) {
     block_pair_t *bp = ref_block_pair_v(block_pairs, bpi);
     int alenhi = bp->d->end - bp->b->beg;
-    int alenlo = bp->d->beg - bp->b->end;
+    int alenlo = bp->b==bp->d ? 1 : bp->d->beg-bp->b->end;
 
     /* when alenlo < n/2, there is chance of minimizing alen*(n-alen) by decreasing alen */
     if (alenlo < n/2)
@@ -194,12 +195,17 @@ int recursive_segmentation(int *dat, int n, int *segends) {
 
 int main(int argc, char *argv[])
 {
-  int dat[20] = {4,4,4,4,4,4,4,4,4,4,
-                 6,6,6,6,6,6,6,6,6,6};
+  /* int dat[20] = {4,4,4,4,4,4,4,4,4,4, */
+  /*                6,6,6,6,6,6,6,6,6,6}; */
+
+  int dat[20] = {1,1,1,1,1,1,1,1,1,1,
+                 -1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+
   int n_chnpnts;
   int chnpnts[2];
   double t_gmax;
   ternary_segmentation(dat, 20, &n_chnpnts, chnpnts, &t_gmax);
+  
   /* recursive_segmentation() */
   return 0;
 }

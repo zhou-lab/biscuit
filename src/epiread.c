@@ -113,15 +113,21 @@ static void *epiread_write_func(void *data) {
 #define episnp_test(snps, i) snps[(i)>>3]&(1<<((i)&0x7))
 #define episnp_set(snps, i) snps[(i)>>3] |= 1<<((i)&0x7)
 
-static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, uint32_t snp_beg) {
+static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, uint32_t snp_beg, conf_t *conf) {
 
-  kstring_t es; int first_snp_loc = -1;
+  kstring_t es; int first_snp = -1;
   es.s = 0; es.l = es.m = 0;
-  
+
+  kstring_t ecg; int first_cg = -1; /* this is hcg in the nome-seq mode */
+  ecg.s = 0; ecg.l = ecg.m = 0;
+
+  kstring_t egc; int first_gc = -1;
+  egc.s = 0; egc.l = egc.m = 0;
+
   int i; uint32_t j;
   bam1_core_t *c = &b->core;
   uint32_t rpos = c->pos+1, qpos = 0;
-  int first_cpg_loc = -1;
+  
   char qb, rb;
   for (i=0; i<c->n_cigar; ++i) {
     uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
@@ -129,43 +135,96 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
+        
         rb = toupper(getbase_refseq(rs, rpos+j));
         qb = bscall(b, qpos+j);
+
         if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
-          char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
-          if (rb0 == 'C') {	/* CpG context */
-            if (first_cpg_loc < 0) {
-              first_cpg_loc = (int) rpos+j-1; /* C in CpG, 1-based */
-              if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
-                return;
-              ksprintf(epi, "%s\t%s\t%c\t-\t%d\t", chrm, bam1_qname(b),
-                       (b->core.flag&BAM_FREAD2)?'2':'1', first_cpg_loc-1); /* 0-based */
+
+          if (conf->is_nome) {  /* NOMe-seq */
+
+            if (rpos+j+1 <= rs->end) { /* to prevent overflow */
+              char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
+              char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
+              if (rb0 == 'C' && rb1 != 'C') { /* HCG context */
+                /* Note: measure G in CpG context, record location of C */
+                if (first_cg < 0) first_cg = (int) rpos+j-1;
+                if (qb == 'A') {
+                  kputc('T', &ecg);
+                } else if (qb == 'G') {
+                  kputc('C', &ecg);
+                } else {
+                  kputc('N', &ecg);
+                }
+              } else if (rb0 != 'C' && rb1 == 'C') { /* GCH context */
+                if (first_gc < 0) first_gc = (int) rpos+j;
+                if (qb == 'A') {
+                  kputc('T', &egc);
+                } else if (qb == 'G') {
+                  kputc('C', &egc);
+                } else {
+                  kputc('N', &egc);
+                }
+              }
             }
-            if (qb == 'A') {
-              kputc('T', epi);
-            } else if (qb == 'G') {
-              kputc('C', epi);
-            } else {
-              kputc('N', epi);
+
+          } else {              /* BS-seq */
+            
+            char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
+            if (rb0 == 'C') {	/* CpG context */
+              /* Note: measure G in CpG context, record location of C */
+              if (first_cg < 0) first_cg = (int) rpos+j-1;
+              if (qb == 'A') {
+                kputc('T', &ecg);
+              } else if (qb == 'G') {
+                kputc('C', &ecg);
+              } else {
+                kputc('N', &ecg);
+              }
             }
           }
         }
+        
         if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
-          char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
-          if (rb1 == 'G') {	/* CpG context */
-            if (first_cpg_loc < 0) {
-              first_cpg_loc = (int) rpos+j; /* C in CpG, 1-based */
-              if ((unsigned) first_cpg_loc < w->beg || (unsigned) first_cpg_loc >= w->end)
-                return;
-              ksprintf(epi, "%s\t%s\t%c\t+\t%d\t", chrm, bam1_qname(b),
-                       (b->core.flag&BAM_FREAD2)?'2':'1', first_cpg_loc-1); /* 0-based */
+
+          if (conf->is_nome) {  /* NOMe-seq */
+
+            if (rpos+j+1 <= rs->end) { /* to prevent overflow */
+              char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
+              char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
+              if (rb0 != 'G' && rb1 == 'G') { /* HCG context */
+                /* measure C in CpG context */
+                if (first_cg < 0) first_cg = (int) rpos+j;
+                if (qb == 'T') {
+                  kputc('T', &ecg);
+                } else if (qb == 'C') {
+                  kputc('C', &ecg);
+                } else {
+                  kputc('N', &ecg);
+                }
+              } else if (rb0 == 'G' && rb1 != 'G') { /* GCH context */
+                if (first_gc < 0) first_gc = (int) rpos+j;
+                if (qb == 'T') {
+                  kputc('T', &egc);
+                } else if (qb == 'C') {
+                  kputc('C', &egc);
+                } else {
+                  kputc('N', &egc);
+                }
+              }
             }
-            if (qb == 'T') {
-              kputc('T', epi);
-            } else if (qb == 'C') {
-              kputc('C', epi);
-            } else {
-              kputc('N', epi);
+
+          } else {              /* BS-seq */
+            char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
+            if (rb1 == 'G') {	/* CpG context */
+              if (first_cg < 0) first_cg = (int) rpos+j;
+              if (qb == 'T') {
+                kputc('T', &ecg);
+              } else if (qb == 'C') {
+                kputc('C', &ecg);
+              } else {
+                kputc('N', &ecg);
+              }
             }
           }
         }
@@ -174,8 +233,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
         uint32_t snp_ind = rpos+j-snp_beg;
         if (snps && episnp_test(snps, snp_ind)) {
           kputc(qb, &es);
-          if (first_snp_loc < 0)
-            first_snp_loc = rpos+j;
+          if (first_snp < 0) first_snp = rpos+j;
         }
       }
       rpos += oplen;
@@ -198,15 +256,51 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
       abort();
     }
   }
-  if (first_cpg_loc >= 0) {
-    if (first_snp_loc >= 0)
-      ksprintf(epi, "\t%d\t%s", first_snp_loc-1, es.s); /* 0-based */
-    else if (snps)
-      kputs("\t.\t.", epi);
-    kputc('\n', epi);
+
+  if (conf->is_nome) {
+    int first_epi = first_cg < first_gc ? first_cg : first_gc;
+    if (first_epi > 0 && (unsigned) first_epi >= w->beg && (unsigned) first_epi < w->end) {
+      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam1_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
+      /* CpG */
+      if (first_cg >= 0)
+        ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s); /* 0-based */
+      else
+        kputs("\t.\t.", epi);
+
+      /* GpC */
+      if (first_gc >= 0)
+        ksprintf(epi, "\t%d\t%s", first_gc-1, egc.s); /* 0-based */
+      else
+        kputs("\t.\t.", epi);
+
+      /* SNP */
+      if (first_snp >= 0)
+        ksprintf(epi, "\t%d\t%s", first_snp-1, es.s); /* 0-based */
+      else if (snps)
+        kputs("\t.\t.", epi);
+      kputc('\n', epi);
+    }
+  } else {
+    if (first_cg > 0 && (unsigned) first_cg >= w->beg && (unsigned) first_cg < w->end) {
+      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam1_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
+      /* CpG */
+      if (first_cg >= 0)
+        ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s); /* 0-based */
+      else
+        kputs("\t.\t.", epi);
+
+      /* SNP */
+      if (first_snp >= 0)
+        ksprintf(epi, "\t%d\t%s", first_snp-1, es.s); /* 0-based */
+      else if (snps)
+        kputs("\t.\t.", epi);
+      kputc('\n', epi);
+    }
   }
 
   free(es.s);
+  free(ecg.s);
+  free(egc.s);
 }
 
 static void *process_func(void *data) {
@@ -273,7 +367,7 @@ static void *process_func(void *data) {
       if (cnt_ret > conf->max_retention) continue;
 
       /* produce epiread */
-      format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg);
+      format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
     }
 
     /* run through cytosines */
