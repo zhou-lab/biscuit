@@ -31,6 +31,16 @@ import os, sys, re
 
 from subprocess import Popen, PIPE, check_call
 
+def opengz(fn,m='r'):
+    
+    if fn.endswith('.gz'):
+        import gzip
+        fh = gzip.open(fn,m)
+    else:
+        fh = open(fn,m)
+
+    return fh
+
 def wrap(line):
 
     lw = 80
@@ -146,7 +156,7 @@ for ifn in ifns:
     for line in ifh:
 
         # line = line.replace('@VERSION', version)
-        line = line.strip()
+        line = line.rstrip()
         line2 = linesub(line, sub)
         if line.startswith('$$$ '): # non-capture run without print
             calloutput(line2)
@@ -205,6 +215,18 @@ for ifn in ifns:
             print '======'+line2+'======'
             result, err, code = calloutput(line2)
             print '\n'.join([rr for rr in result.split('\n') if not rr.startswith('#')])
+            tofill = True
+            infill = False
+            oldfill = ''
+
+        elif line.startswith('$+ '):    # pure file display
+
+            ofh.write(line+'\n')
+            result = ''
+            for i,l in enumerate(opengz(line2[3:])):
+                if i>5:
+                    break
+                result += l
             tofill = True
             infill = False
             oldfill = ''

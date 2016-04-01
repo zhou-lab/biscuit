@@ -96,8 +96,7 @@ void ternary_segmentation(int *dat, int n, int *n_chnpnts, int chnpnts[2], doubl
       int alenlo = bi==bj ? 1 : d->beg - b->end;
       int dpsum_bmd = b->psum.max - d->psum.min;
       int dpsum_dmb = d->psum.max - b->psum.min;
-      double t_max = t_stats0((double) n/(double) MIN(alenhi*(n-alenhi), alenlo*(n-alenlo)),
-                                    MAX(dpsum_bmd, dpsum_dmb));
+      double t_max = t_stats0((double) n/(double) MIN(alenhi*(n-alenhi), alenlo*(n-alenlo)), MAX(dpsum_bmd, dpsum_dmb));
       if (t_max >= t_gmax0) {
         block_pair_t *p = next_ref_block_pair_v(block_pairs);
         p->b = b;
@@ -117,6 +116,7 @@ void ternary_segmentation(int *dat, int n, int *n_chnpnts, int chnpnts[2], doubl
   /* order by t-statistics */
   qsort(block_pairs->buffer, block_pairs->size, sizeof(block_pair_t), compare_block_pairs);
 
+  *t_gmax = -1.0;
   /* refine change points inside the block pairs
    * this identifies the t-statistic max from partial-sum-difference max
    * to maximize t, we minimize alen*(n-alen), this is monotonous when alen is >n/2 and when alen is <n/2 */
