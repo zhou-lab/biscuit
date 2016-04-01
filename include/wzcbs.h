@@ -19,8 +19,8 @@
     _a > _b ? _b : _a; })
 
 typedef struct psum_t {
-  int max;
-  int min;
+  double max;
+  double min;
   int max_index;
   int min_index;
 } psum_t;
