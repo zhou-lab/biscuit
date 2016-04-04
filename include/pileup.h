@@ -24,7 +24,7 @@ typedef struct {
   uint32_t min_read_len;
   uint8_t min_dist_end;
   uint8_t min_mapq;
-  uint8_t max_nm;
+  int max_nm;
   uint8_t filter_ppair:1;       /* filter BAM_FPROPER_PAIR */
   uint8_t filter_secondary:1;
   uint8_t filter_duplicate:1;

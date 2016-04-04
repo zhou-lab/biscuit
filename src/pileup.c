@@ -1191,7 +1191,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
   fprintf(stderr, "     -p        NO filtering of improper pair (!BAM_FPROPER_PAIR).\n");
   fprintf(stderr, "     -S        maximum position in bisulfite rate estimate [%d]\n", conf->bsrate_max_pos);
-  fprintf(stderr, "     -n        maximum NM tag [%u].\n", conf->max_nm);
+  fprintf(stderr, "     -n        maximum NM tag [%d].\n", conf->max_nm);
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
 
@@ -1212,7 +1212,7 @@ void conf_init(conf_t *conf) {
   conf->filter_duplicate = 1;
   conf->filter_ppair = 1;
   conf->min_dist_end = 3;
-  conf->max_nm = 5;
+  conf->max_nm = 999999;
   conf->contam = 0.01;
   conf->error = 0.001;
   conf->mu = 0.001;

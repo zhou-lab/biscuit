@@ -400,17 +400,14 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -N        NOMe-seq mode [off]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "\nPileup filtering:\n\n");
-  fprintf(stderr, "     -k        min read coverage [%d]\n", conf->min_cov);
-  fprintf(stderr, "     -b        min base quality [%u].\n", conf->min_base_qual);
   fprintf(stderr, "     -m        minimum mapping quality [%u].\n", conf->min_mapq);
   fprintf(stderr, "     -t        max cytosine retention in a read [%u].\n", conf->max_retention);
   fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
-  fprintf(stderr, "     -e        minimum distance to end of a read [%u].\n", conf->min_dist_end);
   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
   fprintf(stderr, "     -p        NO filtering of improper pair (!BAM_FPROPER_PAIR).\n");
   fprintf(stderr, "     -S        bsrate maximum position [%d]\n", conf->bsrate_max_pos);
-  fprintf(stderr, "     -n        maximum NM tag [%u].\n", conf->max_nm);
+  fprintf(stderr, "     -n        maximum NM tag [%d].\n", conf->max_nm);
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
 
@@ -470,22 +467,19 @@ int main_epiread(int argc, char *argv[]) {
   conf.step = 100000;
   conf.n_threads = 3;
   conf.bsrate_max_pos = 1000;
-  conf.min_base_qual = 20;
   conf.min_mapq = 40;
-  conf.min_cov = 3;
   conf.max_retention = 999999;
   conf.min_read_len = 10;
   conf.filter_qcfail = 1;
   conf.filter_secondary = 1;
   conf.filter_duplicate = 1;
   conf.filter_ppair = 1;
-  conf.min_dist_end = 3;
-  conf.max_nm = 5;
+  conf.max_nm = 999999;
   conf.is_nome = 0;
   conf.verbose = 0;
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:B:o:r:g:q:e:s:b:S:k:t:n:m:l:Ncupvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:B:o:r:g:q:s:S:t:l:n:m:Ncupvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'B': snp_bed_fn = optarg; break;
@@ -494,10 +488,7 @@ int main_epiread(int argc, char *argv[]) {
     case 'g': reg = optarg; break;
     case 'q': conf.n_threads = atoi(optarg); break;
     case 's': conf.step = atoi(optarg); break;
-    case 'e': conf.min_dist_end = atoi(optarg); break;
-    case 'b': conf.min_base_qual = atoi(optarg); break;
     case 'S': conf.bsrate_max_pos = atoi(optarg); break;
-    case 'k': conf.min_cov = atoi(optarg); break;
     case 't': conf.max_retention = atoi(optarg); break;
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'n': conf.max_nm = atoi(optarg); break;
