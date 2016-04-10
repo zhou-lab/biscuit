@@ -30,6 +30,7 @@ Contents:
    align_bisulfite_converted_reads
    measure_cytosine_retention_and_snp
    duplicate_marking
+   nucleosome_depleted_region
 
 
 Indices and tables
