@@ -8,29 +8,23 @@ BISCUIT User Guide
 
 BISCUIT is a software suite for analyzing sodium bisulfite conversion-based DNA methylation data.
 
-Download and Install
-######################
-
-The latest release is available `here <https://github.com/zwdzwd/biscuit/releases/latest>`_.
-
-To install, simply unzip and make,
-
-.. code:: bash
-	  
-   unzip download
-   make
-
-The binaries will be created at bin/.
-
 Contents:
 
 .. toctree::
    :maxdepth: 2
 
+   download_and_install
    align_bisulfite_converted_reads
    measure_cytosine_retention_and_snp
    duplicate_marking
    nucleosome_depleted_region
+   epiread
+   license
+   help
+
+.. faq
+..
+   If you use BISCUIT in your work please cite
 
 
 Indices and tables

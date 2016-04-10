@@ -1,5 +1,5 @@
 **************************************************
-PCR duplicates in bisulfite-sequencing
+Mark PCR Duplicates in Bisulfite-sequencing
 **************************************************
 
 Compared with non-bisulfite treated sequencing, PCR-duplication can be further resolved using bisulfite conversion strand information (T-rich or A-rich) since sodium-bisulfite conversion occurs before PCR amplification. In BISCUIT, one read is not considered the duplicate of another if the two reads are on different conversion strands. 
