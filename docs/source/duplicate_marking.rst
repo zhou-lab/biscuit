@@ -10,7 +10,14 @@ The following command mark duplicates in before.bam
 
    biscuit markdup before.bam after.bam
 
-BISCUIT considers two paired-end reads as duplication if 1) the mates are on the same chromosome; 2) the insert size is smaller than a threshold (defined by `-l` option); 3) Both mates are mapped to the same location; 4) Both inserts are with the same conversion strand. All reads/inserts are marked as duplication except the one with the highest base quality sum. `-u` option let mate-unmapped paired-end reads be treated as pure single-end reads. By default, BISCUIT does not consider mate-unmapped paired-end reads as purely single-end reads. This further utilizes the read position in pair information in resolving PCR duplication (when two reads are both mate-unmapped, first read in pair is not the duplicate of the second read in another pair even if the coordinates match). Dangling reads are treated as single-end reads. Secondary mapping and unmapped reads are not processed and are directly flushed to output. `-r` option allows duplicate reads be removed instead of duplicate-marked. 
+BISCUIT considers two paired-end reads as duplication if 
+
+  + the mates are on the same chromosome;
+  + the insert size is smaller than a threshold (defined by `-l` option);
+  + Both mates are mapped to the same location;
+  + Both inserts are with the same conversion strand.
+
+All reads/inserts are marked as duplication except the one with the highest base quality sum. `-u` option let mate-unmapped paired-end reads be treated as pure single-end reads. By default, BISCUIT does not consider mate-unmapped paired-end reads as purely single-end reads. This further utilizes the read position in pair information in resolving PCR duplication (when two reads are both mate-unmapped, first read in pair is not the duplicate of the second read in another pair even if the coordinates match). Dangling reads are treated as single-end reads. Secondary mapping and unmapped reads are not processed and are directly flushed to output. `-r` option allows duplicate reads be removed instead of duplicate-marked. 
 
 Supported tags
 ^^^^^^^^^^^^^^^^^^^^^
