@@ -19,16 +19,16 @@ for example, I create a "mydata" dir and put my fastq's (R1.fastq and R2.fastq) 
 	[user@vai ~]# ls mydata
 	NC_001416.fa r1.fastq r2.fastq
 
-3.) start the container.  you will need to specifiy the local data dir(for examlple "mydata") with your refs and fastq
+3.) start the container.  you will need to specify the local data dir(for examlple "mydata") with your refs and fastq
 
 	docker run -ti -d --name=biscuit_docker -v mydata:/data -w /data zackramjan/biscuit
 
-4.) use biscuit. you can now perform alignemnts etc, remember that biscuit command are executed as if you're within your specified "data" directory (ie "mydata" in our example)
+4.) use biscuit. you can now perform alignments etc, remember that biscuit command are executed as if you're within your specified "data" directory (ie "mydata" in our example)
 for example: first I index my genome
 
 	docker exec -it biscuit_docker biscuit index NC_001416.fa
 
-then I perform an alignment. The resulting sam is printed to stdout
+then I perform an alignment. The resulting SAM is printed to the display (STDOUT)
 
 	docker exec -it biscuit_docker biscuit align NC_001416.fa r1.fastq r2.fastq 
 
