@@ -1,5 +1,10 @@
-This explains how to run the dockerized version of biscuit. For general biscuit instructions see https://github.com/zwdzwd/biscuit/wiki
+This explains how to run the dockerized version of biscuit. 
 
+For general biscuit instructions see https://github.com/zwdzwd/biscuit/wiki
+or the biscuit documentation/wiki: https://github.com/zwdzwd/biscuit/wiki
+
+This docker project only aims to create a dockerized container for biscuit. For anything to do with biscuit itself, please see the biscuit project or contact the biscuit developers.
+ 
 
 Using biscuit with docker
 
@@ -16,7 +21,7 @@ for example, I create a "mydata" dir and put my fastq's (R1.fastq and R2.fastq) 
 
 3.) start the container.  you will need to specifiy the local data dir(for examlple "mydata") with your refs and fastq
 
-docker run -ti -d --name=biscuit_docker -v mydata:/data -w /data zackramjan/biscuit
+	docker run -ti -d --name=biscuit_docker -v mydata:/data -w /data zackramjan/biscuit
 
 4.) use biscuit. you can now perform alignemnts etc, remember that biscuit command are executed as if you're within your specified "data" directory (ie "mydata" in our example)
 for example: first I index my genome
