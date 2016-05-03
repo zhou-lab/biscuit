@@ -1,7 +1,7 @@
 This explains how to run the dockerized version of biscuit. 
 
-For general biscuit instructions see https://github.com/zwdzwd/biscuit/wiki
-or the biscuit documentation/wiki: https://github.com/zwdzwd/biscuit/wiki
+For the biscuit project repo see http://github.com/zwdzwd/biscuit
+or the biscuit documentation/wiki: http://github.com/zwdzwd/biscuit/wiki
 
 This docker project only aims to create a dockerized container for biscuit. For anything to do with biscuit itself, please see the biscuit project or contact the biscuit developers.
  
