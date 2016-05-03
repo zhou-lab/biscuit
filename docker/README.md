@@ -5,15 +5,14 @@ Using biscuit with docker
 
 1.) get the container 
 
-docker pull zackramjan/biscuit
+	docker pull zackramjan/biscuit
 
 2.) prepare your data
 since the container can only see explicitely specified dirs, put your data and reference in a directoy that will be passed to the docker container
 for example, I create a "mydata" dir and put my fastq's (R1.fastq and R2.fastq) and ref genome (NC_001416.fa) in it.
 
-[user@vai ~]# ls mydata
-
-NC_001416.fa r1.fastq r2.fastq
+	[user@vai ~]# ls mydata
+	NC_001416.fa r1.fastq r2.fastq
 
 3.) start the container.  you will need to specifiy the local data dir(for examlple "mydata") with your refs and fastq
 
