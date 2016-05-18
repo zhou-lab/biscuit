@@ -432,6 +432,10 @@ uint8_t *bns_get_seq(int64_t l_pac, const uint8_t *pac, int64_t beg, int64_t end
 	return seq;
 }
 
+/**
+ * @param bns, pac, beg, mid, end
+ * @return rid, seq
+ */
 uint8_t *bns_fetch_seq(const bntseq_t *bns, const uint8_t *pac, int64_t *beg, int64_t mid, int64_t *end, int *rid)
 {
 	int64_t far_beg, far_end, len;

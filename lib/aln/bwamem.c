@@ -96,8 +96,9 @@ mem_opt_t *mem_opt_init()
 #define intv_lt(a, b) ((a).info < (b).info)
 KSORT_INIT(mem_intv, bwtintv_t, intv_lt)
 
-/* mem is the final product from mem_collect_inv
-   mem1 is raw from bwt_smem1, before filtering from min_seed_len
+/**
+ * mem is the final product from mem_collect_inv
+ * mem1 is raw from bwt_smem1, before filtering from min_seed_len
 */
 typedef struct {
 	bwtintv_v mem, mem1, *tmpv[2];
@@ -120,7 +121,13 @@ static void smem_aux_destroy(smem_aux_t *a)
 	free(a);
 }
 
-/* len is read length */
+/**
+ * @param opt mapping options
+ * @param bwt, bwtc bwt index
+ * @param len read length
+ * @param seq read sequence, 0-3 for A-T
+ * @return a (a->mem for a vector of bwtintv)
+ */
 static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *seq, smem_aux_t *a) {
 	int k, x = 0, old_n;
   uint32_t i;
@@ -175,6 +182,12 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t
  * Chaining *
  ************/
 
+/**
+ * rbeg - coordinate on forward-reverse reference
+ *      - to convert to normal coordinate,
+ *      - pos = bns_depos(bns, rbeg, &is_rev)
+ *      - then pos - bns->anns[p->rid].offset + 1
+ */
 typedef struct {
 	int64_t rbeg;
 	int32_t qbeg, len;
@@ -260,7 +273,34 @@ void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn)
 
 #define mem_getbss(parent, bns, rb) ((rb>bns->l_pac)==(parent)?1:0)
 
-mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, int len, const uint8_t *seq, void *buf, uint8_t parent) {
+static int assymetric_flt_seed(mem_seed_t *s, uint8_t *pac, const bntseq_t *bns, bseq1_t *bseq) {
+  int is_rev;
+  bwtint_t pos = bns_depos(bns, s->rbeg, &is_rev);
+  if (is_rev) pos -= s->len - 1;
+  int64_t rb = s->rbeg;
+  int64_t re = rb + s->len;
+  int rid;
+  uint8_t *ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
+  int i;
+  for (i=0; i<s->len; ++i) {
+    /* filter seeds with T(ref)>C(read) or A(ref)>G(read) */
+    if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) ||
+        (ref[i]==2&&bseq->seq[s->qbeg+i]==0))
+      return 1;
+  }
+  return 0;
+  /* printf("ref:\n"); */
+  /* for (i=0; i<s->len; ++i) putchar("ACGTN"[ref[i]]); */
+  /* putchar('\n'); */
+  /* for (i=0; i<s->len; ++i) putchar("ACGTN"[bseq->seq[s->qbeg+i]]); */
+  /* putchar('\n'); */
+  /* printf("======\n"); */
+  /* return 1; */
+}
+
+mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, uint8_t parent) {
+  int len=bseq->l_seq;
+  uint8_t *bisseq=bseq->bisseq[parent];
   uint32_t i;
 	int b, e, l_rep;
 	int64_t l_pac = bns->l_pac;
@@ -273,8 +313,9 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	tree = kb_init(chn, KB_DEFAULT_SIZE);
 
 	aux = buf? (smem_aux_t*)buf : smem_aux_init();
-	mem_collect_intv(opt, &bwt[parent], &bwt[!parent], len, seq, aux);
-	for (i = 0, b = e = l_rep = 0; i < aux->mem.n; ++i) { // compute frac_rep
+  /* generate bwtintv_v (seeds) in aux->mem */
+	mem_collect_intv(opt, &bwt[parent], &bwt[!parent], len, bisseq, aux);
+	for (i = 0, b = e = l_rep = 0; i < aux->mem.n; ++i) { // compute l_rep - number of repetitive seeds
 		bwtintv_t *p = &aux->mem.a[i];
 		int sb = (p->info>>32), se = (uint32_t)p->info;
 		if (p->x[2] <= opt->max_occ) continue;
@@ -282,12 +323,17 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 		else e = e > se? e : se;
 	}
 	l_rep += e - b;
+
+  /* cluster seeds, add seeds to kbtree_t(chn) *tree */
 	for (i = 0; i < aux->mem.n; ++i) {
+    /* change bwtintv_t into mem_seed_t s */
 		bwtintv_t *p = &aux->mem.a[i];
-		int step, slen = (uint32_t)p->info - (p->info>>32); // seed length
+		int step, slen = (uint32_t)p->info - (p->info>>32); /* seed length */
     uint32_t count; uint64_t k;
-		// if (slen < opt->min_seed_len) continue; // ignore if too short or too repetitive
-    /* if the interval is small (small p->x[2])
+		// if (slen < opt->min_seed_len) continue;
+    // ignore if too short or too repetitive
+    /**
+     * if the interval is small (small p->x[2])
      * record every position in the interval
      * otherwise, record max_occ positions as seeds.
      * This is to avoid highly repetitive regions. lowering max_occ increase sensitivity. */
@@ -296,11 +342,14 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 			mem_chain_t tmp, *lower, *upper;
 			mem_seed_t s;
 			int rid, to_add = 0;
-			s.rbeg = tmp.pos = bwt_sa(&bwt[parent], p->x[0] + k); // this is the base coordinate in the forward-reverse reference
+      /* this is the base coordinate in the forward-reverse reference */
+			s.rbeg = tmp.pos = bwt_sa(&bwt[parent], p->x[0] + k);
 			s.qbeg = p->info>>32;
-			s.score= s.len = slen;
+			s.score = s.len = slen;
 			rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
 			if (rid < 0) continue; // bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!!
+      /* filter seeds that do not conform to the assymetric scoring matrix */
+      if (assymetric_flt_seed(&s, pac, bns, bseq)) continue;
 
       /* force to a certain strand */
       if ((opt->bsstrand & 1) && mem_getbss(parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
@@ -321,8 +370,10 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	}
 	if (buf == 0) smem_aux_destroy(aux);
 
+  /* kbtree_t(chn) *tree to mem_chain_v *chain */
 	kv_resize(mem_chain_t, chain, kb_size(tree));
 
+  /* traverse tree and build mem_chain_v *chain */
 	#define traverse_func(p_) (chain.a[chain.n++] = *(p_))
 	__kb_traverse(mem_chain_t, tree, traverse_func);
 	#undef traverse_func
@@ -408,6 +459,7 @@ int mem_chain_flt(const mem_opt_t *opt, uint32_t n_chn, mem_chain_t *a)
  * De-overlap single-end hits *
  ******************************/
 
+/* v2 further differentiate by bss */
 #define alnreg_slt2(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).re < (b).re)))
 KSORT_INIT(mem_ars2, mem_alnreg_t, alnreg_slt2)
 
@@ -547,6 +599,9 @@ static void mem_mark_primary_se_core(const mem_opt_t *opt, int n, mem_alnreg_t *
 	}
 }
 
+/**
+ * select which alignment is the primary for SE
+ */
 int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id)
 {
 	int i, n_pri;
@@ -558,6 +613,8 @@ int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id
 	}
 	ks_introsort(mem_ars_hash, n, a);
 	mem_mark_primary_se_core(opt, n, a, &z);
+
+  /* set alt_sc for secondary */
 	for (i = 0; i < n; ++i) {
 		mem_alnreg_t *p = &a[i];
 		p->secondary_all = i; // keep the rank in the first round
@@ -660,6 +717,16 @@ static inline int cal_max_gap(const mem_opt_t *opt, int qlen)
 
 #define MAX_BAND_TRY  2
 
+/**
+ * build mem_alnreg_v (av) from mem_chain_t (c)
+ * @param c mem_chain_t
+ * @param opt parameter
+ * @param bns reference meta
+ * @param pac reference
+ * @param l_query length of query
+ * @param query query sequence, raw WITHOUT bisulfite conversion
+ * @return mem_alnreg_v *av / reg
+ */
 void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *av, uint8_t parent)
 {
   uint32_t i;
@@ -1090,7 +1157,7 @@ static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq
 	/* for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so */
 	/* 	seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]]; */
 
-	chn = mem_chain(opt, bwt, bns, l_seq, bisseq, buf, parent); /* use bisseq here */
+	chn = mem_chain(opt, bwt, bns, pac, bseq, buf, parent); /* use bisseq here */
 	chn.n = mem_chain_flt(opt, chn.n, chn.a);
 	mem_flt_chained_seeds(opt, bns, pac, l_seq, bseq->seq, chn.n, chn.a, parent);
 	if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
@@ -1099,12 +1166,17 @@ static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq
 	for (i = 0; i < chn.n; ++i) {
 		mem_chain_t *p = &chn.a[i];
 		if (bwa_verbose >= 4) err_printf("* ---> Processing chain(%d) <---\n", i);
+    /* add mem_chain_t *p to mem_alnreg_v *regs */
 		mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, parent);
 		free(chn.a[i].seeds);
 	}
 	free(chn.a);
 }
 
+/**
+ * @param regs mem_alnreg_v
+ * @return regs
+ */
 void mem_merge_reg1(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, mem_alnreg_v *regs) {
   uint32_t i;
 	regs->n = mem_sort_dedup_patch(opt, bns, pac, bseq->seq, regs->n, regs->a);

@@ -78,7 +78,7 @@ typedef struct {
 	int score;      // best local SW score
 	int truesc;     // actual score corresponding to the aligned region; possibly smaller than $score
 	int sub;        // 2nd best SW score
-	int alt_sc;
+	int alt_sc;     /* score of secondary, see mem_mark_primary_se */
 	int csub;       // SW score of a tandem hit
 	int sub_n;      // approximate number of suboptimal hits
 	int w;          // actual band width used in extension

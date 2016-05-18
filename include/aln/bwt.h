@@ -58,11 +58,13 @@ typedef struct {
   uint8_t parent;               /* parent or daughter */
 } bwt_t;
 
-/* x[0] - forward index location;
-   x[1] - reverse complement index location;
-   x[2] - occurrence number (number of substrings);
-   info<<32 - beg;
-   (uint32_t) info - end; */
+/**
+ * x[0] - forward index location;
+ * x[1] - reverse complement index location;
+ * x[2] - occurrence number (number of substrings);
+ * info>>32 - beg;
+ * (uint32_t) info - end;
+ */
 typedef struct {
 	bwtint_t x[3], info;
 } bwtintv_t;
