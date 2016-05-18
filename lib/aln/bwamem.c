@@ -282,20 +282,22 @@ static int assymetric_flt_seed(mem_seed_t *s, uint8_t *pac, const bntseq_t *bns,
   int rid;
   uint8_t *ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
   int i;
-  for (i=0; i<s->len; ++i) {
-    /* filter seeds with T(ref)>C(read) or A(ref)>G(read) */
-    if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) ||
-        (ref[i]==2&&bseq->seq[s->qbeg+i]==0))
-      return 1;
-  }
-  return 0;
   /* printf("ref:\n"); */
   /* for (i=0; i<s->len; ++i) putchar("ACGTN"[ref[i]]); */
   /* putchar('\n'); */
   /* for (i=0; i<s->len; ++i) putchar("ACGTN"[bseq->seq[s->qbeg+i]]); */
   /* putchar('\n'); */
   /* printf("======\n"); */
-  /* return 1; */
+  for (i=0; i<s->len; ++i) {
+    /* filter seeds with T(ref)>C(read) or A(ref)>G(read) */
+    if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) ||
+        (ref[i]==0&&bseq->seq[s->qbeg+i]==2)) {
+      /* printf("fail\n"); */
+      return 1;
+    }
+  }
+  /* printf("pass\n"); */
+  return 0;
 }
 
 mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, uint8_t parent) {
