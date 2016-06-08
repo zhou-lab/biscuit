@@ -296,6 +296,7 @@ static int assymetric_flt_seed(mem_seed_t *s, uint8_t *pac, const bntseq_t *bns,
       return 1;
     }
   }
+  free(ref);
   /* printf("pass\n"); */
   return 0;
 }
