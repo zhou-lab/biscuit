@@ -180,13 +180,11 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t
  ************/
 
 /**
- * rbeg - coordinate on forward-reverse reference
- *      - to convert to normal coordinate,
- *      - pos = bns_depos(bns, rbeg, &is_rev)
- *      - then pos - bns->anns[p->rid].offset + 1
- */
+ * To convert to normal coordinate:
+ *  - pos = bns_depos(bns, rbeg, &is_rev)
+ *  - then pos - bns->anns[p->rid].offset + 1 */
 typedef struct {
-  int64_t rbeg;
+  int64_t rbeg; // coordinate on forward-reverse reference
   int32_t qbeg, len;
   int score;
 } mem_seed_t; // unaligned memory
@@ -230,9 +228,9 @@ static int test_and_merge(const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, c
 }
 
 /**
-   chain weight is defined as the minimum base coverage
-   of all the seeds in query and in reference
- */
+ * chain weight is defined as the minimum of
+ * base coverage of all the seeds in query
+ * and that in reference */
 int mem_chain_weight(const mem_chain_t *c) {
   int64_t end;
   int j, w = 0, tmp;
@@ -278,7 +276,7 @@ void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn) {
 #define mem_getbss(parent, bns, rb) ((rb>bns->l_pac)==(parent)?1:0)
 
 /**
-   decide if seed violates asymmetric scoring  */
+ * decide if seed violates asymmetric scoring  */
 static int asymmetric_flt_seed(mem_seed_t *s, const uint8_t *pac, const bntseq_t *bns, bseq1_t *bseq) {
   int is_rev;
   bwtint_t pos = bns_depos(bns, s->rbeg, &is_rev);
@@ -306,8 +304,9 @@ static int asymmetric_flt_seed(mem_seed_t *s, const uint8_t *pac, const bntseq_t
 }
 
 /**
-   @param buf smem_aux_t*, container for aux, seeds are stored in aux->mem
-   @return mem_chain_v chain
+ * @param opt, bwt, bns, pac, bseq, parent
+ * @param buf smem_aux_t*, container for aux, seeds are stored in aux->mem
+ * @return mem_chain_v chain
  */
 mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, uint8_t parent) {
 
