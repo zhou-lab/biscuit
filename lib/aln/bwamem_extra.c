@@ -87,81 +87,83 @@ void smem_config(smem_i *itr, int min_intv, int max_len, uint64_t max_intv)
 /* 	return ar; */
 /* } */
 
-void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a)
-{
-	uint32_t i;
+/**
+ * instead of outputing sam, output tab-delimited table of aligned region
+ * currently for debugging only */
+void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a) {
+  uint32_t i;
 
-	kstring_t str = {0,0,0};
-	for (i = 0; i < a->n; ++i) {
-		const mem_alnreg_t *p = &a->a[i];
-		int is_rev, rid, qb = p->qb, qe = p->qe;
-		int64_t pos, rb = p->rb, re = p->re;
-		pos = bns_depos(bns, rb < bns->l_pac? rb : re - 1, &is_rev);
-		rid = bns_pos2rid(bns, pos);
-		assert(rid == p->rid);
-		pos -= bns->anns[rid].offset;
-		kputs(s->name, &str); kputc('\t', &str);
-		kputw(s->l_seq, &str); kputc('\t', &str);
-		if (is_rev) qb ^= qe, qe ^= qb, qb ^= qe; // swap
-		kputw(qb, &str); kputc('\t', &str); kputw(qe, &str); kputc('\t', &str);
-		kputs(bns->anns[rid].name, &str); kputc('\t', &str);
-		kputw(bns->anns[rid].len, &str); kputc('\t', &str);
-		kputw(pos, &str); kputc('\t', &str); kputw(pos + (re - rb), &str); kputc('\t', &str);
-		ksprintf(&str, "%.3f", (double)p->truesc / opt->a / (qe - qb > re - rb? qe - qb : re - rb));
-		kputc('\n', &str);
-	}
-	s->sam = str.s;
+  kstring_t str = {0,0,0};
+  for (i = 0; i < a->n; ++i) {
+    const mem_alnreg_t *p = &a->a[i];
+    int is_rev, rid, qb = p->qb, qe = p->qe;
+    int64_t pos, rb = p->rb, re = p->re;
+    pos = bns_depos(bns, rb < bns->l_pac? rb : re - 1, &is_rev);
+    rid = bns_pos2rid(bns, pos);
+    assert(rid == p->rid);
+    pos -= bns->anns[rid].offset;
+    kputs(s->name, &str); kputc('\t', &str);
+    kputw(s->l_seq, &str); kputc('\t', &str);
+    if (is_rev) qb ^= qe, qe ^= qb, qb ^= qe; // swap
+    kputw(qb, &str); kputc('\t', &str); kputw(qe, &str); kputc('\t', &str);
+    kputs(bns->anns[rid].name, &str); kputc('\t', &str);
+    kputw(bns->anns[rid].len, &str); kputc('\t', &str);
+    kputw(pos, &str); kputc('\t', &str); kputw(pos + (re - rb), &str); kputc('\t', &str);
+    ksprintf(&str, "%.3f", (double)p->truesc / opt->a / (qe - qb > re - rb? qe - qb : re - rb));
+    kputc('\n', &str);
+  }
+  s->sam = str.s;
 }
 
 static inline int get_pri_idx(double XA_drop_ratio, const mem_alnreg_t *a, int i)
 {
-	int k = a[i].secondary_all;
-	if (k >= 0 && a[i].score >= a[k].score * XA_drop_ratio) return k;
-	return -1;
+  int k = a[i].secondary_all;
+  if (k >= 0 && a[i].score >= a[k].score * XA_drop_ratio) return k;
+  return -1;
 }
 
-// Okay, returning strings is bad, but this has happened a lot elsewhere. If I have time, I need serious code cleanup.
-char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const uint8_t *query) // ONLY work after mem_mark_primary_se()
-{
+/* Okay, returning strings is bad, but this has happened a lot elsewhere. If I have time, I need serious code cleanup. */
+/* ONLY work after mem_mark_primary_se() */
+char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const uint8_t *query) {
   uint32_t i;
-	int k, r, *cnt, tot;
-	kstring_t *aln = 0, str = {0,0,0};
-	char **XA = 0, *has_alt;
+  int k, r, *cnt, tot;
+  kstring_t *aln = 0, str = {0,0,0};
+  char **XA = 0, *has_alt;
 
-	cnt = calloc(a->n, sizeof(int));
-	has_alt = calloc(a->n, 1);
-	for (i = 0, tot = 0; i < a->n; ++i) {
-		r = get_pri_idx(opt->XA_drop_ratio, a->a, i);
-		if (r >= 0) {
-			++cnt[r], ++tot;
-			if (a->a[i].is_alt) has_alt[r] = 1;
-		}
-	}
-	if (tot == 0) goto end_gen_alt;
-	aln = calloc(a->n, sizeof(kstring_t));
-	for (i = 0; i < a->n; ++i) {
-		mem_aln_t t;
-		if ((r = get_pri_idx(opt->XA_drop_ratio, a->a, i)) < 0) continue;
-		if (cnt[r] > opt->max_XA_hits_alt || (!has_alt[r] && cnt[r] > opt->max_XA_hits)) continue;
-		t = mem_reg2aln(opt, bns, pac, l_query, query, &a->a[i]);
-		str.l = 0;
-		kputs(bns->anns[t.rid].name, &str);
-		kputc(',', &str); kputc("+-"[t.is_rev], &str); kputl(t.pos + 1, &str);
-		kputc(',', &str);
-		for (k = 0; k < t.n_cigar; ++k) {
-			kputw(t.cigar[k]>>4, &str);
-			kputc("MIDSHN"[t.cigar[k]&0xf], &str);
-		}
-		kputc(',', &str); kputw(t.NM, &str);
-		kputc(';', &str);
-		free(t.cigar);
-		kputsn(str.s, str.l, &aln[r]);
-	}
-	XA = calloc(a->n, sizeof(char*));
-	for (k = 0; k < a->n; ++k)
-		XA[k] = aln[k].s;
+  cnt = calloc(a->n, sizeof(int));
+  has_alt = calloc(a->n, 1);
+  for (i = 0, tot = 0; i < a->n; ++i) {
+    r = get_pri_idx(opt->XA_drop_ratio, a->a, i);
+    if (r >= 0) {
+      ++cnt[r], ++tot;
+      if (a->a[i].is_alt) has_alt[r] = 1;
+    }
+  }
+  if (tot == 0) goto end_gen_alt;
+  aln = calloc(a->n, sizeof(kstring_t));
+  for (i = 0; i < a->n; ++i) {
+    mem_aln_t t;
+    if ((r = get_pri_idx(opt->XA_drop_ratio, a->a, i)) < 0) continue;
+    if (cnt[r] > opt->max_XA_hits_alt || (!has_alt[r] && cnt[r] > opt->max_XA_hits)) continue;
+    t = mem_reg2aln(opt, bns, pac, l_query, query, &a->a[i]);
+    str.l = 0;
+    kputs(bns->anns[t.rid].name, &str);
+    kputc(',', &str); kputc("+-"[t.is_rev], &str); kputl(t.pos + 1, &str);
+    kputc(',', &str);
+    for (k = 0; k < t.n_cigar; ++k) {
+      kputw(t.cigar[k]>>4, &str);
+      kputc("MIDSHN"[t.cigar[k]&0xf], &str);
+    }
+    kputc(',', &str); kputw(t.NM, &str);
+    kputc(';', &str);
+    free(t.cigar);
+    kputsn(str.s, str.l, &aln[r]);
+  }
+  XA = calloc(a->n, sizeof(char*));
+  for (k = 0; k < a->n; ++k)
+    XA[k] = aln[k].s;
 
 end_gen_alt:
-	free(has_alt); free(cnt); free(aln); free(str.s);
-	return XA;
+  free(has_alt); free(cnt); free(aln); free(str.s);
+  return XA;
 }

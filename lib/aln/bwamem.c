@@ -192,7 +192,7 @@ typedef struct {
 } mem_seed_t; // unaligned memory
 
 typedef struct {
-  int n, m, first, rid;         /* check if they can be unsigned */
+  int n, m, first, rid;         /* check if they can be unsigned; first: index of the first chain in overlap */
   uint32_t w:29, kept:2, is_alt:1; /* w: weight; kept: flag for keeping in filtering */
   float frac_rep;		   /* fraction of repeats */
   int64_t pos;
@@ -409,6 +409,9 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 #define flt_lt(a, b) ((a).w > (b).w)
 KSORT_INIT(mem_flt, mem_chain_t, flt_lt) /* sort by chain weight */
 
+/**
+ filter whole chain in a by chain weight and overlap with existing chains
+*/
 int mem_chain_flt(const mem_opt_t *opt, uint32_t n_chn, mem_chain_t *a) {
   uint32_t i, k;
   kvec_t(int) chains = {0,0,0}; // this keeps int indices of the non-overlapping chains
@@ -425,7 +428,7 @@ int mem_chain_flt(const mem_opt_t *opt, uint32_t n_chn, mem_chain_t *a) {
   n_chn = k;
   ks_introsort(mem_flt, n_chn, a); /* sort by chain weight */
   
-  /* pairwise chain comparisons */
+  /* pairwise chain comparisons, decide which chain to discard by overlap */
   a[0].kept = 3;
   kv_push(int, chains, 0);	/* always include the "heaviest" chain */
   for (i = 1; i < n_chn; ++i) {
@@ -446,23 +449,25 @@ int mem_chain_flt(const mem_opt_t *opt, uint32_t n_chn, mem_chain_t *a) {
 	}
       }
     }
-    if (k == chains.n) {	/* no overlap with any included chain */
+    if (k == chains.n) {	/* no overlap with any included chain, then keep the chain */
       kv_push(int, chains, i);
       a[i].kept = large_ovlp? 2 : 3;
     }
   }
+  /* when a chain is pointed by another chain, 
+     the pointed chain is always kept */
   for (i = 0; i < chains.n; ++i) {
     mem_chain_t *c = &a[chains.a[i]];
     if (c->first >= 0) a[c->first].kept = 1;
   }
   free(chains.a);
-  for (i = k = 0; i < n_chn; ++i) { // don't extend more than opt->max_chain_extend .kept=1/2 chains
+  for (i = k = 0; i < n_chn; ++i) { /* don't extend more than opt->max_chain_extend .kept=1/2 chains */
     if (a[i].kept == 0 || a[i].kept == 3) continue;
     if (++k >= opt->max_chain_extend) break;
   }
   for (; i < n_chn; ++i)
     if (a[i].kept < 3) a[i].kept = 0;
-  for (i = k = 0; i < n_chn; ++i) { // free discarded chains
+  for (i = k = 0; i < n_chn; ++i) { /* free discarded chains */
     mem_chain_t *c = &a[i];
     if (c->kept == 0) free(c->seeds);
     else a[k++] = a[i];
@@ -490,8 +495,7 @@ KSORT_INIT(mem_ars_hash2, mem_alnreg_t, alnreg_hlt2)
 #define PATCH_MAX_R_BW 0.05f
 #define PATCH_MIN_SC_RATIO 0.90f
 
-int mem_patch_reg(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, const mem_alnreg_t *a, const mem_alnreg_t *b, int *_w)
-{
+int mem_patch_reg(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, const mem_alnreg_t *a, const mem_alnreg_t *b, int *_w) {
   int w, score, q_s, r_s;
   double r;
   if (bns == 0 || pac == 0 || query == 0) return 0;
@@ -696,7 +700,7 @@ int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, i
   return x.score;
 }
 
-/* filter seeds in chain (a) */
+/* filter seeds in chain (a) by seed extension*/
 void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, int n_chn, mem_chain_t *a, uint8_t parent) {
   double min_l = opt->min_chain_weight? MEM_HSP_COEF * opt->min_chain_weight : MEM_MINSC_COEF * log(l_query);
   int i, j, k, min_HSP_score = (int)(opt->a * min_l + .499);
@@ -907,6 +911,12 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
  * Basic hit->SAM conversion *
  *****************************/
 
+/**
+ * bandwidth for Smith-Waterman
+ * @param a matching score
+ * @param q gap opening penalty
+ * @param r gap extension penalty
+ **/
 static inline int infer_bw(int l1, int l2, int score, int a, int q, int r) {
   int w;
   if (l1 == l2 && l1 * a - score < (q + r - a)<<1) return 0; // to get equal alignment length, we need at least two gaps
@@ -1092,6 +1102,10 @@ int mem_approx_mapq_se(const mem_opt_t *opt, const mem_alnreg_t *a)
 }
 
 // TODO (future plan): group hits into a uint64_t[] array. This will be cleaner and more flexible
+
+/**
+ * @return s->sam
+ */
 void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a, int extra_flag, const mem_aln_t *m) {
   kstring_t str;
   kvec_t(mem_aln_t) aa;
@@ -1102,11 +1116,13 @@ void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, 
     XA = mem_gen_alt(opt, bns, pac, a, s->l_seq, s->seq);
   kv_init(aa);
   str.l = str.m = 0; str.s = 0;
+
+  /* reg to aln */
   for (k = l = 0; k < a->n; ++k) {
     mem_alnreg_t *p = &a->a[k];
     mem_aln_t *q;
     if (p->score < opt->T) continue;
-    if (p->secondary >= 0 && (p->is_alt || !(opt->flag&MEM_F_ALL))) continue;
+    if (p->secondary >= 0 && (p->is_alt || !(opt->flag & MEM_F_ALL))) continue;
     if (p->secondary >= 0 && p->secondary < INT_MAX && p->score < a->a[p->secondary].score * opt->drop_ratio) continue;
     q = kv_pushp(mem_aln_t, aa);
     *q = mem_reg2aln(opt, bns, pac, s->l_seq, s->seq, p);
@@ -1119,6 +1135,8 @@ void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, 
     if (l && !p->is_alt && q->mapq > aa.a[0].mapq) q->mapq = aa.a[0].mapq;
     ++l;
   }
+
+  /* aln to sam */
   if (aa.n == 0) { // no alignments good enough; then write an unaligned record
     mem_aln_t t;
     t = mem_reg2aln(opt, bns, pac, s->l_seq, s->seq, 0);
@@ -1213,6 +1231,11 @@ void mem_merge_reg1(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   }
 }
 
+/**
+ * make a mem_aln_t from mem_alnreg_t for sam output preparation
+ * @param ar mem_alnreg_t, when 0 means unmapped
+ * @return a mem_aln_t
+*/
 mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query_, const mem_alnreg_t *ar) {
   mem_aln_t a;
   int i, w2, tmp, qb, qe, NM, score, is_rev, last_sc = -(1<<30), l_MD;
@@ -1232,11 +1255,14 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
     query[i] = query_[i] < 5? query_[i] : nst_nt4_table[(int)query_[i]];
   a.mapq = ar->secondary < 0? mem_approx_mapq_se(opt, ar) : 0;
   if (ar->secondary >= 0) a.flag |= 0x100; // secondary alignment
+
+  /* bandwidth is larger of insertion and deletion */
   tmp = infer_bw(qe - qb, re - rb, ar->truesc, opt->a, opt->o_del, opt->e_del);
   w2  = infer_bw(qe - qb, re - rb, ar->truesc, opt->a, opt->o_ins, opt->e_ins);
   w2 = w2 > tmp? w2 : tmp;
   if (bwa_verbose >= 4) printf("* Band width: inferred=%d, cmd_opt=%d, alnreg=%d\n", w2, opt->w, ar->w);
   if (w2 > opt->w) w2 = w2 < ar->w? w2 : ar->w;
+
   i = 0; a.cigar = 0;
   do {
     free(a.cigar);
@@ -1250,6 +1276,7 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
     last_sc = score;
     w2 <<= 1;
   } while (++i < 3 && score < ar->truesc - opt->a);
+
   l_MD = strlen((char*)(a.cigar + a.n_cigar)) + 1;
   a.NM = NM;
   a.ZC = ZC;
@@ -1307,6 +1334,7 @@ typedef struct {
 /***** bisulfite adaptation *****/
 /**
  * @param i i-th read is under consideration
+ * @param tid thread id
  * @return w->regs[i] mem_alnreg_v*
  */
 static void bis_worker1(void *data, int i, int tid)
@@ -1345,27 +1373,37 @@ static void bis_worker1(void *data, int i, int tid)
   }
 }
 
+/**
+ * @param i i-th read is under consideration
+ * @param tid thread id
+ */
 static void bis_worker2(void *data, int i, int tid) {
   worker_t *w = (worker_t*)data;
   if (!(w->opt->flag&MEM_F_PE)) { /* single-end */
-    if (bwa_verbose >= 4) printf("=====> Finalizing read '%s' <=====\n", w->seqs[i].name);
+    if (bwa_verbose >= 4)
+      printf("=====> Finalizing read '%s' <=====\n", w->seqs[i].name);
 
-    if (w->opt->flag & MEM_F_ALN_REG) {
+    if (w->opt->flag & MEM_F_ALN_REG) { /* output mem_alnreg_t directly */
       mem_reg2ovlp(w->opt, w->bns, &w->seqs[i], &w->regs[i]);
-    } else {
+    } else {			/* output sam */
       mem_mark_primary_se(w->opt, w->regs[i].n, w->regs[i].a, w->n_processed + i);
       mem_reg2sam(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], 0, 0);
     }
     free(w->regs[i].a);
   } else {			/* paired-end */
-    if (bwa_verbose >= 4) printf("=====> Finalizing read pair '%s' <=====\n", w->seqs[i<<1|0].name);
+    if (bwa_verbose >= 4)
+      printf("=====> Finalizing read pair '%s' <=====\n", w->seqs[i<<1|0].name);
     mem_sam_pe(w->opt, w->bns, w->pac, w->pes, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1]);
     free(w->regs[i<<1|0].a); free(w->regs[i<<1|1].a);
   }
 }
 
-void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0)
-{
+/**
+ * @param n: number of reads (n includes both ends for paired-end)
+ * @param seqs: query sequences
+ * @param pes0: paired-end statistics
+ */
+void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0) {
   extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);
   worker_t w;
   mem_pestat_t pes[4];
@@ -1373,24 +1411,31 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   int i;
 
   ctime = cputime(); rtime = realtime();
-  global_bns = bns;
+  global_bns = bns;		/* get rid of this */
   w.regs = malloc(n * sizeof(mem_alnreg_v));
   w.opt = opt; w.bwt = bwt; w.bns = bns; w.pac = pac;
   w.seqs = seqs; w.n_processed = n_processed;
   w.pes = &pes[0];
+
   w.aux = malloc(opt->n_threads * sizeof(smem_aux_t));
   for (i = 0; i < opt->n_threads; ++i)
     w.aux[i] = smem_aux_init();
+
   kt_for(opt->n_threads, bis_worker1, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // find mapping positions
+
   for (i = 0; i < opt->n_threads; ++i)
     smem_aux_destroy(w.aux[i]);
   free(w.aux);
-  if (opt->flag&MEM_F_PE) { // infer insert sizes if not provided
+
+  if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
     if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0
     else mem_pestat(opt, bns->l_pac, n, w.regs, pes); // otherwise, infer the insert size distribution from data
   }
+
   kt_for(opt->n_threads, bis_worker2, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // generate alignment
+
   free(w.regs);
+
   if (bwa_verbose >= 3)
     fprintf(stderr, "[M::%s] Processed %d reads in %.3f CPU sec, %.3f real sec\n", __func__, n, cputime() - ctime, realtime() - rtime);
 }

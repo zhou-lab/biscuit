@@ -23,8 +23,8 @@ typedef struct {
 } bwaidx_t;
 
 typedef struct {
-	int l_seq, id;                /* check if l_seq can be unsigned? */
-	char *name, *comment, *qual, *sam;
+  int l_seq, id;                /* check if l_seq can be unsigned? */
+  char *name, *comment, *qual, *sam; /* sam stored the end output of sam record */
   uint8_t *seq, *bisseq[2];
 } bseq1_t;
 
