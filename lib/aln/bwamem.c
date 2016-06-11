@@ -296,6 +296,7 @@ static int asymmetric_flt_seed(mem_seed_t *s, const uint8_t *pac, const bntseq_t
     /* filter seeds with T(ref)>C(read) or A(ref)>G(read) */
     if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) ||
         (ref[i]==0&&bseq->seq[s->qbeg+i]==2)) {
+      free(ref);
       return 1;
     }
   }
