@@ -41,13 +41,13 @@ void free_bed1(bed1_t *b) {
   free(b->vcfalt);
 }
 
-static void format_cytosine_bed1(bed1_t *b, conf_t *conf) {
+static void format_cytosine_bed1(bed1_t *b, conf_t *conf, char cx[4]) {
   fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%1.3f", b->chrm, b->pos-1, b->end, b->beta);
   if (conf->showcov) {
     if (b->end == b->pos+1) {
-      fprintf(stdout, "\t%d\tCG", b->cov);
+      fprintf(stdout, "\t%d\tCG\t%s", b->cov, cx);
     } else if (b->end == b->pos) {
-      fprintf(stdout, "\t%d\t%c", b->cov, b->ref);
+      fprintf(stdout, "\t%d\t%c\t%s", b->cov, b->ref, cx);
     } else {
       fprintf(stderr, "[%s:%d] Error, abnormal record length: %s:%"PRId64"-%"PRId64". Abort.\n", __func__, __LINE__, b->chrm, b->pos, b->end);
       fflush(stderr);
@@ -68,7 +68,7 @@ static void format_snp_bed1(bed1_t *b, conf_t *conf) {
 #define ET_HCG 0x4
 #define ET_GCH 0x8
 
-static int vcf_parse1(char *line, bed1_t *b, uint8_t *et) {
+static int vcf_parse1(char *line, bed1_t *b, uint8_t *et, char *cx) {
 
   char *tok;
   char *linerest=0, *fieldrest=0;
@@ -108,6 +108,11 @@ static int vcf_parse1(char *line, bed1_t *b, uint8_t *et) {
   *et=0;
   int i;
   for (i=0; i<(signed)strlen(tok)-2; ++i) {
+    if (strncmp(tok+i,"CX=",3)==0) {
+      memcpy(cx, tok+i+3, 3);
+      if (cx[2]==';' || cx[2]=='\t') cx[2]=NULL;
+      else cx[3]=NULL;
+    }
     if (strncmp(tok+i,"N5=",3)==0) {
       if (tok[i+5]=='C') {
         *et |= ET_C;
@@ -180,13 +185,14 @@ void vcf2cg(gzFile FH, conf_t *conf) {
   str.s = 0; str.l = str.m = 0;
 
   uint8_t et;
+  char cx[4] = "";
   int p_valid=0;
   while (1) {
     int c=gzgetc(FH);
     if (c=='\n' || c==EOF) {
       int merged=0;
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
-        int parse_ok = vcf_parse1(str.s, b, &et);
+        int parse_ok = vcf_parse1(str.s, b, &et, cx);
         if (conf->destrand && parse_ok && p_valid && (et&ET_CG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge CG */
           p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
           p->cov += b->cov;
@@ -199,7 +205,7 @@ void vcf2cg(gzFile FH, conf_t *conf) {
               if (p->ref == 'C') p->end++;
               if (p->ref == 'G') p->pos--;
             }
-            format_cytosine_bed1(p, conf);
+            format_cytosine_bed1(p, conf, cx);
           }
           p_valid=0;
         }
@@ -226,7 +232,7 @@ void vcf2cg(gzFile FH, conf_t *conf) {
         if (p->ref == 'C') p->end++;
         if (p->ref == 'G') p->pos--;
       }
-      format_cytosine_bed1(p, conf);
+      format_cytosine_bed1(p, conf, cx);
     }
   }
 }
@@ -244,12 +250,13 @@ void vcf2hcg(gzFile FH, conf_t *conf) {
   str.s = 0; str.l = str.m = 0;
   uint8_t et;
   int p_valid=0;
+  char cx[4] = "";
   while (1) {
     int c=gzgetc(FH);
     if (c=='\n' || c==EOF) {
       int merged=0;
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
-        int parse_ok = vcf_parse1(str.s, b, &et);
+        int parse_ok = vcf_parse1(str.s, b, &et, cx);
         if (conf->destrand && parse_ok && p_valid && (et&ET_HCG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge when both are HCG */
           p->end++;
           p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
@@ -257,7 +264,7 @@ void vcf2hcg(gzFile FH, conf_t *conf) {
           merged=1;
         }
         if (p_valid) {
-          if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf);
+          if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf, cx);
           p_valid = 0;
         }
 
@@ -274,7 +281,7 @@ void vcf2hcg(gzFile FH, conf_t *conf) {
     }
   }
   if (p_valid) {
-    if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf);
+    if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf, cx);
   }
 }
 
@@ -284,13 +291,14 @@ void vcf2ch(gzFile FH, conf_t *conf) {
   kstring_t str;
   str.s = 0; str.l = str.m = 0;
   uint8_t et;
+  char cx[4] = "";
   while (1) {
     int c=gzgetc(FH);
     if (c=='\n' || c==EOF) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
-        int parse_ok = vcf_parse1(str.s, b, &et);
+        int parse_ok = vcf_parse1(str.s, b, &et, cx);
         if (parse_ok && (et&ET_C) && !(et&ET_CG) && b->cov >= conf->mincov)
-          format_cytosine_bed1(b, conf);
+          format_cytosine_bed1(b, conf, cx);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;
@@ -306,13 +314,14 @@ void vcf2gch(gzFile FH, conf_t *conf) {
   kstring_t str;
   str.s = 0; str.l = str.m = 0;
   uint8_t et;
+  char cx[4] = "";
   while (1) {
     int c=gzgetc(FH);
     if (c=='\n' || c==EOF) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
-        int parse_ok = vcf_parse1(str.s, b, &et);
+        int parse_ok = vcf_parse1(str.s, b, &et, cx);
         if (parse_ok && (et&ET_GCH) && b->cov >= conf->mincov)
-          format_cytosine_bed1(b, conf);
+          format_cytosine_bed1(b, conf, cx);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;
@@ -328,13 +337,14 @@ void vcf2c(gzFile FH, conf_t *conf) {
   kstring_t str;
   str.s = 0; str.l = str.m = 0;
   uint8_t et;
+  char cx[4] = "";
   while (1) {
     int c=gzgetc(FH);
     if (c=='\n' || c==EOF) {
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
-        int parse_ok = vcf_parse1(str.s, b, &et); 
+        int parse_ok = vcf_parse1(str.s, b, &et, cx); 
         if (parse_ok && (et&ET_C) && b->cov >= conf->mincov)
-          format_cytosine_bed1(b, conf);
+          format_cytosine_bed1(b, conf, cx);
       }
       str.l = 0;                /* clean line */
       if (c==EOF) break;

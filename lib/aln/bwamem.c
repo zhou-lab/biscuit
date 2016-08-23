@@ -1064,7 +1064,7 @@ void mem_aln2sam(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq
       if (str->s[i] == '\t') str->s[i] = ' ';
   }
   /* WZBS */
-  kputsn("\tYD:A:", 6, str);
+  kputsn("\tYD:A:", 6, str);    /* whether it's BSW or BSC */
   if (p->bss < 0) kputc('u', str);
   else kputc("fr"[p->bss], str);
 

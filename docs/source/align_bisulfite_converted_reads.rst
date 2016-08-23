@@ -19,3 +19,12 @@ Design
 - support for both single- and paired-end reads
 - Optional parent strand and daughter strand restriction for both single- and paired-end reads.
 - Optional BSW/top/BSC/bottom strand restriction, tightly integrated in mapping.
+
+Force mapping to a particular strand
+#####################################
+
+Force mapping to the parent strand
+-B 3
+
+Force mapping to the daughter strand (mapping probes, for example)
+-B  1
