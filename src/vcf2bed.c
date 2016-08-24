@@ -193,12 +193,12 @@ void vcf2cg(gzFile FH, conf_t *conf) {
       int merged=0;
       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) {
         int parse_ok = vcf_parse1(str.s, b, &et, cx);
+        strcpy(cx, "CG");
         if (conf->destrand && parse_ok && p_valid && (et&ET_CG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /* merge CG */
           p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov);
           p->cov += b->cov;
           merged=1;
         }
-        
         if (p_valid) {
           if (p->cov >= conf->mincov) { /* adjust coordinates for de-stranding */
             if (conf->destrand) {
