@@ -32,6 +32,8 @@ static inline void trim_readno(kstring_t *s)
 {
   if (s->l > 2 && s->s[s->l-2] == '/' && isdigit(s->s[s->l-1]))
     s->l -= 2, s->s[s->l] = 0;
+  /* if (s->l > 2 && s->s[s->l-2] == '.' && isdigit(s->s[s->l-1])) */
+  /* s->l -= 2, s->s[s->l] = 0; */
 }
 
 static inline void kseq2bseq1(const kseq_t *ks, bseq1_t *s)
