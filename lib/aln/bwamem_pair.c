@@ -279,6 +279,14 @@ void mem_aln2sam(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq
 
 #define raw_mapq(diff, a) ((int)(6.02 * (diff) / (a) + .499))
 
+void check_paired_read_names(const char *name1, const char *name2) {
+  if (strcmp(name1, name2) == 0) return;
+  int l=strlen(name1);
+  if (name1[l-1]=='1' && name2[l-1]=='2')
+    if (strncmp(name1, name2,l-1)==0) return;
+  err_fatal(__func__,"paired reads have different names: \"%s\", \"%s\"\n", name1, name2);
+}
+
 int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], uint64_t id, bseq1_t s[2], mem_alnreg_v a[2]) {
 
   int n = 0, i, j, z[2], o, subo, n_sub, extra_flag = 1, n_pri[2], n_aa[2];
@@ -380,7 +388,8 @@ int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
     for (i = 0; i < n_aa[1]; ++i)
       mem_aln2sam(opt, bns, &str, &s[1], n_aa[1], aa[1], i, &h[0]); // write read2 hits
     s[1].sam = str.s;
-    if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name);
+    /* if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name); */
+    check_paired_read_names(s[0].name, s[1].name);
     // free
     for (i = 0; i < 2; ++i) {
       free(h[i].cigar); free(g[i].cigar);
@@ -410,7 +419,8 @@ int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
   }
   mem_reg2sam(opt, bns, pac, &s[0], &a[0], 0x41|extra_flag, &h[1]);
   mem_reg2sam(opt, bns, pac, &s[1], &a[1], 0x81|extra_flag, &h[0]);
-  if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name);
+  /* if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name); */
+  check_paired_read_names(s[0].name, s[1].name);
   free(h[0].cigar); free(h[1].cigar);
   return n;
 }
