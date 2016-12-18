@@ -42,6 +42,7 @@ void destroy_episnp(episnp_chrom1_v *episnp) {
   free_episnp_chrom1_v(episnp);
 }
 
+/* get all episnps from one chromosomes */
 static inline episnp_chrom1_t *get_episnp1(episnp_chrom1_v *episnp, char *chrm) {
   uint32_t i;
   episnp_chrom1_t *episnp1;
@@ -303,6 +304,183 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
   free(egc.s);
 }
 
+/* format one bam record to epi-read format
+   snp_p, cpg_p: positions in the target read
+   snp_c, cpg_c: identities in the target read
+ */
+static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, uint32_t snp_beg, conf_t *conf, int_v *snp_p, int_v *cpg_p, char_v *snp_c, char_v *cpg_c) {
+
+  int i; uint32_t j;
+  bam1_core_t *c = &b->core;
+  uint32_t rpos = c->pos+1, qpos = 0;
+  
+  char qb, rb;
+  for (i=0; i<c->n_cigar; ++i) {
+    uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
+    uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+    switch(op) {
+    case BAM_CMATCH:
+      for (j=0; j<oplen; ++j) {
+        
+        rb = toupper(getbase_refseq(rs, rpos+j));
+        qb = bscall(b, qpos+j);
+
+        if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
+
+          if (conf->is_nome) {  /* NOMe-seq */
+
+            if (rpos+j+1 <= rs->end) { /* to prevent overflow */
+              char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
+              char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
+              if (rb0 == 'C' && rb1 != 'C') { /* HCG context */
+                /* Note: measure G in CpG context, record location of C */
+                if (first_cg < 0) first_cg = (int) rpos+j-1;
+                if (qb == 'A') {
+                  kputc('T', &ecg);
+                } else if (qb == 'G') {
+                  kputc('C', &ecg);
+                } else {
+                  kputc('N', &ecg);
+                }
+              } else if (rb0 != 'C' && rb1 == 'C') { /* GCH context */
+                if (first_gc < 0) first_gc = (int) rpos+j;
+                if (qb == 'A') {
+                  kputc('T', &egc);
+                } else if (qb == 'G') {
+                  kputc('C', &egc);
+                } else {
+                  kputc('N', &egc);
+                }
+              }
+            }
+
+          } else {              /* BS-seq */
+            
+            char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
+            if (rb0 == 'C') {	/* CpG context */
+              /* Note: measure G in CpG context, record location of C */
+              push_intv(cpg_p, (int) rpos+j-1);
+              if (qb == 'A') {
+                push_charv(cpg_c, 'T');
+              } else if (qb == 'G') {
+                push_charv(cpg_c, 'C');
+              } else {
+                push_charv(cpg_c, 'N');
+              }
+            }
+          }
+        }
+        
+        if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
+
+          if (conf->is_nome) {  /* NOMe-seq */
+
+            if (rpos+j+1 <= rs->end) { /* to prevent overflow */
+              char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
+              char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
+              if (rb0 != 'G' && rb1 == 'G') { /* HCG context */
+                /* measure C in CpG context */
+                if (first_cg < 0) first_cg = (int) rpos+j;
+                if (qb == 'T') {
+                  kputc('T', &ecg);
+                } else if (qb == 'C') {
+                  kputc('C', &ecg);
+                } else {
+                  kputc('N', &ecg);
+                }
+              } else if (rb0 == 'G' && rb1 != 'G') { /* GCH context */
+                if (first_gc < 0) first_gc = (int) rpos+j;
+                if (qb == 'T') {
+                  kputc('T', &egc);
+                } else if (qb == 'C') {
+                  kputc('C', &egc);
+                } else {
+                  kputc('N', &egc);
+                }
+              }
+            }
+
+          } else {              /* BS-seq */
+            char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
+            if (rb1 == 'G') {	/* CpG context */
+              push_intv(cpg_p, (int) rpos+j-1);
+              if (qb == 'T') {
+                push_charv(cpg_c, 'T');
+              } else if (qb == 'C') {
+                push_charv(cpg_c, 'C');
+              } else {
+                push_charv(cpg_c, 'N');
+              }
+            }
+          }
+        }
+
+        /* append SNP info if present */
+        uint32_t snp_ind = rpos+j-snp_beg;
+        if (snps && episnp_test(snps, snp_ind)) {
+          push_intv(snp_p, rpos+j);
+          push_charv(snp_c, qb);
+        }
+      }
+      rpos += oplen;
+      qpos += oplen;
+      break;
+    case BAM_CINS:
+      qpos += oplen;
+      break;
+    case BAM_CDEL:
+      rpos += oplen;
+      break;
+    case BAM_CSOFT_CLIP:
+      qpos += oplen;
+      break;
+    case BAM_CHARD_CLIP:
+      qpos += oplen;
+      break;
+    default:
+      fprintf(stderr, "Unknown cigar, %u\n", op);
+      abort();
+    }
+  }
+
+  if (conf->is_nome) {
+    int first_epi = first_cg < first_gc ? first_cg : first_gc;
+    if (first_epi > 0 && (unsigned) first_epi >= w->beg && (unsigned) first_epi < w->end) {
+      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam1_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
+      /* CpG */
+      if (first_cg >= 0)
+        ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s); /* 0-based */
+      else
+        kputs("\t.\t.", epi);
+
+      /* GpC */
+      if (first_gc >= 0)
+        ksprintf(epi, "\t%d\t%s", first_gc-1, egc.s); /* 0-based */
+      else
+        kputs("\t.\t.", epi);
+
+      /* SNP */
+      if (first_snp >= 0)
+        ksprintf(epi, "\t%d\t%s", first_snp-1, es.s); /* 0-based */
+      else if (snps)
+        kputs("\t.\t.", epi);
+      kputc('\n', epi);
+    }
+  } else {
+    for (i=0; i<snp_p.n; ++i) {
+      for (j=0; j<cpg_p.n; ++i) {
+        /* chrm, snp position, cpg position, snp calling, cytosine calling */
+        ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", get_intv(snp_p, i), get_intv(snp_p, j), get_intv(snp_c, i), get_intv(snp_c, j));
+      }
+    }
+  }
+
+  free(es.s);
+  free(ecg.s);
+  free(egc.s);
+}
+
+
 static void *process_func(void *data) {
 
   result_t *res = (result_t*) data;
@@ -367,7 +545,11 @@ static void *process_func(void *data) {
       if (cnt_ret > conf->max_retention) continue;
 
       /* produce epiread */
-      format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
+      if (conf->epiread_pair) {
+        format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
+      } else {
+        format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
+      }
     }
 
     /* run through cytosines */
@@ -397,6 +579,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -q        number of threads [%d].\n", conf->n_threads);
   fprintf(stderr, "\nOutputing format:\n\n");
   fprintf(stderr, "     -o        output file [stdout]\n");
+  fprintf(stderr, "     -P        pairwise mode [off]\n");
   fprintf(stderr, "     -N        NOMe-seq mode [off]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
   fprintf(stderr, "\nPileup filtering:\n\n");
@@ -477,6 +660,7 @@ int main_epiread(int argc, char *argv[]) {
   conf.max_nm = 999999;
   conf.is_nome = 0;
   conf.verbose = 0;
+  conf.epiread_pair = 0;
 
   if (argc<2) return usage(&conf);
   while ((c=getopt(argc, argv, "i:B:o:r:g:q:s:S:t:l:n:m:Ncupvh"))>=0) {
@@ -497,6 +681,7 @@ int main_epiread(int argc, char *argv[]) {
     case 'c': conf.filter_secondary = 0; break;
     case 'u': conf.filter_duplicate = 0; break;
     case 'p': conf.filter_ppair = 0; break;
+    case 'P': conf.epiread_pair = 1; break;
     case 'v': conf.verbose = 1; break;
     case 'h': return usage(&conf);
     default:

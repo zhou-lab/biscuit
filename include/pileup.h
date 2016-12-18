@@ -40,6 +40,7 @@ typedef struct {
   uint8_t verbose;
   int is_nome;
   int somatic; /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
+  int epiread_pair;             /* pair output mode in epireads, doesn't mean "paired-end" */
 } conf_t;
 
 void conf_init(conf_t *conf);
