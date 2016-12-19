@@ -4,21 +4,20 @@ BISulfite CUI Toolkit (BISCUIT) is a utility suite for analyzing sodium bisulfit
 
 # Download and Install
 
-The latest release can be downloaded [here](https://github.com/zwdzwd/biscuit/releases/latest)
-
 To install BISCUIT,
 
 ```bash
 $ wget https://github.com/zwdzwd/biscuit/archive/master.zip
-$ unzip biscuit-master.zip
+$ unzip master.zip
 $ cd biscuit-master
 $ make
 ```
 
-This create BISCUIT binary.
+The created `biscuit` binary is the main entry point.
 
+Stable releases can be downloaded [here](https://github.com/zwdzwd/biscuit/releases/).
 
-User Guide is available [here](https://github.com/zwdzwd/biscuit/wiki).
+<!-- User Guide is available [here](https://github.com/zwdzwd/biscuit/wiki). -->
 
 # Acknowledgements
 
