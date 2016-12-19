@@ -93,31 +93,30 @@ clean :
 	rm -f src/*.o
 
 purge : clean
-	make -C $(KLIB_DIR) clean
-	make -C $(LHTSLIB) clean
+	make -C $(LKLIB_DIR) clean
+	make -C $(LHTSLIB_DIR) clean
 	make -C $(LUTILS_DIR) clean
 
 ####### archived #######
-
-.PHONY: correct_bsstrand
-correct_bsstrand : bin/correct_bsstrand
-bin/correct_bsstrand: $(LSAM0119)
-	gcc $(CFLAGS) -o $@ -I$(INCLUDE) -I$(LSAM0119D) src/correct_bsstrand/correct_bsstrand.c $(LSAM0119) -lz -lpthread
-clean_correct_bsstrand:
-	rm -f bin/correct_bsstrand
+# .PHONY: correct_bsstrand
+# correct_bsstrand : bin/correct_bsstrand
+# bin/correct_bsstrand: $(LSAM0119)
+# 	gcc $(CFLAGS) -o $@ -I$(INCLUDE) -I$(LSAM0119D) src/correct_bsstrand/correct_bsstrand.c $(LSAM0119) -lz -lpthread
+# clean_correct_bsstrand:
+# 	rm -f bin/correct_bsstrand
 
 # get trinuc spectrum
-.PHONY: sample_trinuc
-sample_trinuc : bin/sample_trinuc
-bin/sample_trinuc: $(LSAM0119) src/sample_trinuc/sample_trinuc.c
-	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/sample_trinuc/sample_trinuc.c -lpthread $(LSAM0119) $(LUTILS) -lz
-clean_sample_trinuc:
-	rm -f bin/sample_trinuc
+# .PHONY: sample_trinuc
+# sample_trinuc : bin/sample_trinuc
+# bin/sample_trinuc: $(LSAM0119) src/sample_trinuc/sample_trinuc.c
+# 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/sample_trinuc/sample_trinuc.c -lpthread $(LSAM0119) $(LUTILS) -lz
+# clean_sample_trinuc:
+# 	rm -f bin/sample_trinuc
 
 # find hemi methylation
-.PHONY: hemifinder
-hemifinder : bin/hemifinder
-bin/hemifinder: $(LSAM0119) $(LUTILS) src/hemifinder/hemifinder.c
-	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/hemifinder/hemifinder.c $(LSAM0119) $(LUTILS) -lpthread  -lz
-clean_hemifinder:
-	rm -f bin/hemifinder
+# .PHONY: hemifinder
+# hemifinder : bin/hemifinder
+# bin/hemifinder: $(LSAM0119) $(LUTILS) src/hemifinder/hemifinder.c
+# 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/hemifinder/hemifinder.c $(LSAM0119) $(LUTILS) -lpthread  -lz
+# clean_hemifinder:
+# 	rm -f bin/hemifinder
