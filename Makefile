@@ -27,11 +27,6 @@ debug : $(PROG)
 
 ######### libraries ###########
 
-LSAM0119D = lib/libsamtools-0.1.19
-LSAM0119 = $(LSAM0119D)/libsam.a
-$(LSAM0119) :
-	make -C $(LSAM0119_DIR) libsam.a
-
 LHTSLIB_DIR = lib/htslib
 LHTSLIB_INCLUDE = lib/htslib/htslib
 LHTSLIB = $(LHTSLIB_DIR)/libhts.a
@@ -73,28 +68,18 @@ clean_aln:
 
 src/pileup.o: src/pileup.c
 	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
-clean_pileup:
-	rm -f src/pileup.o
 
 src/markdup.o: src/markdup.c
 	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
-clean_markdup:
-	rm -f src/markdup.o
 
 src/ndr.o: src/ndr.c
 	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
-clean_ndr:
-	rm -f src/ndr.o
 
 src/vcf2bed.o: src/vcf2bed.c
 	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(INCLUDE)/klib $< -o $@
-clean_vcf2bed:
-	rm -f src/vcf2bed.o
 
 src/epiread.o: src/epiread.c
 	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
-clean_epiread:
-	rm -f src/epiread.o
 
 ####### general #######
 
@@ -103,10 +88,14 @@ clean_epiread:
 
 ####### clean #######
 
-CLEAN_TARGETS=clean_biscuit clean_main clean_aln clean_utils clean_pileup clean_klib clean_markdup clean_ndr clean_vcf2bed clean_epiread
 .PHONY: clean
-clean : $(CLEAN_TARGETS)
-	make -C $(LSAM0119D) clean
+clean :
+	rm -f src/*.o
+
+purge : clean
+	make -C $(KLIB_DIR) clean
+	make -C $(LHTSLIB) clean
+	make -C $(LUTILS_DIR) clean
 
 ####### archived #######
 
@@ -116,14 +105,6 @@ bin/correct_bsstrand: $(LSAM0119)
 	gcc $(CFLAGS) -o $@ -I$(INCLUDE) -I$(LSAM0119D) src/correct_bsstrand/correct_bsstrand.c $(LSAM0119) -lz -lpthread
 clean_correct_bsstrand:
 	rm -f bin/correct_bsstrand
-
-# get unmapped reads from bam
-.PHONY: get_unmapped
-get_unmapped : bin/get_unmapped
-bin/get_unmapped : $(LSAM0119)
-	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) src/get_unmapped/get_unmapped.c $(LSAM0119) -lz -lpthread
-clean_get_unmapped:
-	rm -f bin/get_unmapped
 
 # get trinuc spectrum
 .PHONY: sample_trinuc
