@@ -27,6 +27,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 change version in src/biscuit.h
+
+python scripts/test.py 
 """
 import os, sys, re
 
