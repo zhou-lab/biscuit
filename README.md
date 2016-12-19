@@ -67,6 +67,21 @@ $ biscuit vcf2bed -k 10 -t cg input.vcf.gz
   * `hcg` - HCG for NOMe-seq
   * `gch` - GCH for NOMe-seq
 
+## EPI-reads and allele-specific methylation
+
+Following illustrates how to produce `epiread` which carries the information of epi-haplotype.
+```bash
+$ biscuit epiread -r GRCh38.fa -i input.bam -B snp.bed
+```
+
+To test all SNP-CpG pair,
+```bash
+$ biscuit epiread -r GRCh38.fa -P -i input.bam -B snp.bed
+```
+Details can be found [here](https://github.com/zwdzwd/biscuit/wiki/Convert-to-epiread-format).
+
+
+
 # Acknowledgements
 
  * lib/aln was adapted from Heng Li's BWA-mem code.
