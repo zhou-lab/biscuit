@@ -11,9 +11,6 @@ endif
 
 INCLUDE = include
 
-LUTILSD = lib/utils
-LUTILS = lib/utils/libutils.a
-
 ########### program ##########
 
 # detect :
@@ -52,6 +49,10 @@ LKLIB_DIR = lib/klib
 LKLIB = $(LKLIB_DIR)/klib.a
 $(LKLIB) :
 	make -C $(LKLIB_DIR) klib.a
+
+LUTILS_DIR = lib/utils
+LUTILS = lib/utils/libutils.a
+$(LUTILS):
 
 ####### libraries #######
 
