@@ -51,20 +51,9 @@ $(LKLIB) :
 	make -C $(LKLIB_DIR) klib.a
 
 LUTILS_DIR = lib/utils
-LUTILS = lib/utils/libutils.a
+LUTILS = $(LUTILS_DIR)/libutils.a
 $(LUTILS):
-
-####### libraries #######
-
-.PHONY: utils
-utils: $(LUTILS)
-LUTILSOBJ = $(LUTILSD)/encode.o $(LUTILSD)/stats.o $(LUTILSD)/wzhmm.o
-$(LUTILS): $(LUTILSOBJ)
-	ar -csru $@ $(LUTILSOBJ)
-$(LUTILSD)/%.o: $(LUTILSD)/%.c
-	gcc -c $(CFLAGS) -I$(INCLUDE) $< -o $@
-clean_utils:
-	rm -f $(LUTILSD)/*.o $(LUTILS)
+	make -C $(LUTILS_DIR) libutils.a
 
 ####### subcommands #######
 
@@ -83,7 +72,7 @@ clean_aln:
 	rm -f $(LALND)/*.o lib/aln/libaln.a
 
 src/pileup.o: src/pileup.c
-	gcc -c $(CFLAGS) -o $@ -I$(LHTSLIB_INCLUDE) src/pileup.c
+	gcc -c $(CFLAGS) -o $@ -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) src/pileup.c
 clean_pileup:
 	rm -f src/pileup.o
 
