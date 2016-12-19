@@ -12,7 +12,7 @@
 #include "stats.h"
 #include "biscuit.h"
 
-#define bscall(b, pos) bam_nt16_rev_table[bam1_seqi(bam1_seq(b), pos)]
+#define bscall(b, pos) seq_nt16_str[bam1_seqi(bam_get_seq(b), pos)]
 
 typedef struct {
   int step;

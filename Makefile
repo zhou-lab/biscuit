@@ -11,9 +11,6 @@ endif
 
 INCLUDE = include
 
-LSAM0119D = lib/libsamtools-0.1.19
-LSAM0119 = $(LSAM0119D)/libsam.a
-
 LUTILSD = lib/utils
 LUTILS = lib/utils/libutils.a
 
@@ -31,7 +28,7 @@ release : $(PROG)
 debug : CFLAGS += -g
 debug : $(PROG)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o lib/klib/klib.a $(LSAM0119) $(LUTILS)
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o lib/klib/klib.a $(LUTILS) $(LKLIB) $(LHTSLIB)
 bin/biscuit: $(LIBS) src/main.o
 	mkdir -p bin
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
@@ -40,19 +37,21 @@ clean_biscuit:
 
 ######### external ###########
 
+LSAM0119D = lib/libsamtools-0.1.19
+LSAM0119 = $(LSAM0119D)/libsam.a
 $(LSAM0119) :
-	make -C $(LSAM0119D) libsam.a
+	make -C $(LSAM0119_DIR) libsam.a
 
-.PHONY: klib
-klib: lib/klib/klib.a
-KLIBD = lib/klib
-KLIBOBJ = $(KLIBD)/kstring.o $(KLIBD)/kopen.o $(KLIBD)/kthread.o $(KLIBD)/ksw.o
-lib/klib/klib.a: $(KLIBOBJ)
-	ar -csru $@ $(KLIBOBJ)
-$(KLIBD)/%.o: $(KLIBD)/%.c
-	gcc -c $(CFLAGS) -I$(INCLUDE)/klib $< -o $@
-clean_klib:
-	rm -f $(KLIBD)/*.o lib/klib/klib.a
+LHTSLIB_DIR = lib/htslib
+LHTSLIB_INCLUDE = lib/htslib/htslib
+LHTSLIB = $(LHTSLIB_DIR)/libhts.a
+$(LHTSLIB) :
+	make -C $(LHTSLIB_DIR) libhts.a
+
+LKLIB_DIR = lib/klib
+LKLIB = $(LKLIB_DIR)/klib.a
+$(LKLIB) :
+	make -C $(LKLIB_DIR) klib.a
 
 ####### libraries #######
 
@@ -83,7 +82,7 @@ clean_aln:
 	rm -f $(LALND)/*.o lib/aln/libaln.a
 
 src/pileup.o: src/pileup.c
-	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/pileup.c
+	gcc -c $(CFLAGS) -o $@ -I$(LHTSLIB_INCLUDE) src/pileup.c
 clean_pileup:
 	rm -f src/pileup.o
 
@@ -103,7 +102,7 @@ clean_vcf2bed:
 	rm -f src/vcf2bed.o
 
 src/epiread.o: src/epiread.c
-	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(LSAM0119D) -I$(INCLUDE)/klib $< -o $@
+	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(LHTSLIB_INCLUDE) -I$(INCLUDE)/klib $< -o $@
 clean_epiread:
 	rm -f src/epiread.o
 

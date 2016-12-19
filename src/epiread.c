@@ -22,8 +22,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
 **/
+#include <unistd.h>
 #include "pileup.h"
 #include "wstr.h"
+
+DEFINE_VECTOR(int_v, int)
+DEFINE_VECTOR(char_v, char)
 
 typedef struct episnp_chrom1_t {
   char *chrm;
@@ -131,8 +135,8 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
   
   char qb, rb;
   for (i=0; i<c->n_cigar; ++i) {
-    uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
-    uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+    uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
+    uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
@@ -261,7 +265,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
   if (conf->is_nome) {
     int first_epi = first_cg < first_gc ? first_cg : first_gc;
     if (first_epi > 0 && (unsigned) first_epi >= w->beg && (unsigned) first_epi < w->end) {
-      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam1_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
+      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam_get_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
       /* CpG */
       if (first_cg >= 0)
         ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s); /* 0-based */
@@ -283,7 +287,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
     }
   } else {
     if (first_cg > 0 && (unsigned) first_cg >= w->beg && (unsigned) first_cg < w->end) {
-      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam1_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
+      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam_get_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
       /* CpG */
       if (first_cg >= 0)
         ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s); /* 0-based */
@@ -305,19 +309,33 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsst
 }
 
 /* format one bam record to epi-read format
-   snp_p, cpg_p: positions in the target read
-   snp_c, cpg_c: identities in the target read
+   snp_beg: start location of snps
  */
-static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, uint32_t snp_beg, conf_t *conf, int_v *snp_p, int_v *cpg_p, char_v *snp_c, char_v *cpg_c) {
+static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, uint32_t snp_beg, conf_t *conf) {
 
-  int i; uint32_t j;
+  /* snp positions and characters */
+  int_v *snp_p = init_int_v(10);
+  char_v *snp_c = init_char_v(10);
+  int_v *cg_p, *hcg_p, *gch_p;
+  char_v *cg_c, *hcg_c, *gch_c;
+  if (conf->is_nome) {
+    hcg_p = init_int_v(10);     /* hcg positions */
+    hcg_c = init_char_v(10);    /* hcg character */
+    gch_p = init_int_v(10);     /* gch positions */
+    gch_c = init_char_v(10);    /* gch character */
+  } else {
+    cg_p = init_int_v(10);      /* cpg positions */
+    cg_c = init_char_v(10);     /* cpg character */
+  }
+
+  int i; uint32_t j, k;
   bam1_core_t *c = &b->core;
   uint32_t rpos = c->pos+1, qpos = 0;
   
   char qb, rb;
   for (i=0; i<c->n_cigar; ++i) {
-    uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
-    uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+    uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
+    uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
@@ -325,6 +343,7 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
         rb = toupper(getbase_refseq(rs, rpos+j));
         qb = bscall(b, qpos+j);
 
+        /* cytosine info */
         if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
 
           if (conf->is_nome) {  /* NOMe-seq */
@@ -334,22 +353,22 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
               char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
               if (rb0 == 'C' && rb1 != 'C') { /* HCG context */
                 /* Note: measure G in CpG context, record location of C */
-                if (first_cg < 0) first_cg = (int) rpos+j-1;
+                push_int_v(hcg_p, (int) rpos+j-1);
                 if (qb == 'A') {
-                  kputc('T', &ecg);
+                  push_char_v(hcg_c, 'T');
                 } else if (qb == 'G') {
-                  kputc('C', &ecg);
+                  push_char_v(hcg_c, 'C');
                 } else {
-                  kputc('N', &ecg);
+                  push_char_v(hcg_c, 'N');
                 }
               } else if (rb0 != 'C' && rb1 == 'C') { /* GCH context */
-                if (first_gc < 0) first_gc = (int) rpos+j;
+                push_int_v(gch_p, (int) rpos+j);
                 if (qb == 'A') {
-                  kputc('T', &egc);
+                  push_char_v(gch_c, 'T');
                 } else if (qb == 'G') {
-                  kputc('C', &egc);
+                  push_char_v(gch_c, 'C');
                 } else {
-                  kputc('N', &egc);
+                  push_char_v(gch_c, 'N');
                 }
               }
             }
@@ -359,13 +378,13 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
             char rb0 = toupper(getbase_refseq(rs, rpos+j-1));
             if (rb0 == 'C') {	/* CpG context */
               /* Note: measure G in CpG context, record location of C */
-              push_intv(cpg_p, (int) rpos+j-1);
+              push_int_v(cg_p, (int) rpos+j-1);
               if (qb == 'A') {
-                push_charv(cpg_c, 'T');
+                push_char_v(cg_c, 'T');
               } else if (qb == 'G') {
-                push_charv(cpg_c, 'C');
+                push_char_v(cg_c, 'C');
               } else {
-                push_charv(cpg_c, 'N');
+                push_char_v(cg_c, 'N');
               }
             }
           }
@@ -380,22 +399,22 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
               char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
               if (rb0 != 'G' && rb1 == 'G') { /* HCG context */
                 /* measure C in CpG context */
-                if (first_cg < 0) first_cg = (int) rpos+j;
+                push_int_v(hcg_p, (int) rpos+j);
                 if (qb == 'T') {
-                  kputc('T', &ecg);
+                  push_char_v(hcg_c, 'T');
                 } else if (qb == 'C') {
-                  kputc('C', &ecg);
+                  push_char_v(hcg_c, 'C');
                 } else {
-                  kputc('N', &ecg);
+                  push_char_v(hcg_c, 'N');
                 }
               } else if (rb0 == 'G' && rb1 != 'G') { /* GCH context */
-                if (first_gc < 0) first_gc = (int) rpos+j;
+                push_int_v(gch_p, (int) rpos+j);
                 if (qb == 'T') {
-                  kputc('T', &egc);
+                  push_char_v(gch_c, 'T');
                 } else if (qb == 'C') {
-                  kputc('C', &egc);
+                  push_char_v(gch_c, 'C');
                 } else {
-                  kputc('N', &egc);
+                  push_char_v(gch_c, 'N');
                 }
               }
             }
@@ -403,23 +422,23 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
           } else {              /* BS-seq */
             char rb1 = toupper(getbase_refseq(rs, rpos+j+1));
             if (rb1 == 'G') {	/* CpG context */
-              push_intv(cpg_p, (int) rpos+j-1);
+              push_int_v(cg_p, (int) rpos+j-1);
               if (qb == 'T') {
-                push_charv(cpg_c, 'T');
+                push_charv(cg_c, 'T');
               } else if (qb == 'C') {
-                push_charv(cpg_c, 'C');
+                push_charv(cg_c, 'C');
               } else {
-                push_charv(cpg_c, 'N');
+                push_charv(cg_c, 'N');
               }
             }
           }
         }
 
-        /* append SNP info if present */
+        /* SNP info */
         uint32_t snp_ind = rpos+j-snp_beg;
         if (snps && episnp_test(snps, snp_ind)) {
-          push_intv(snp_p, rpos+j);
-          push_charv(snp_c, qb);
+          push_int_v(snp_p, rpos+j);
+          push_char_v(snp_c, qb);
         }
       }
       rpos += oplen;
@@ -443,41 +462,31 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
     }
   }
 
-  if (conf->is_nome) {
-    int first_epi = first_cg < first_gc ? first_cg : first_gc;
-    if (first_epi > 0 && (unsigned) first_epi >= w->beg && (unsigned) first_epi < w->end) {
-      ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam1_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
-      /* CpG */
-      if (first_cg >= 0)
-        ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s); /* 0-based */
-      else
-        kputs("\t.\t.", epi);
-
-      /* GpC */
-      if (first_gc >= 0)
-        ksprintf(epi, "\t%d\t%s", first_gc-1, egc.s); /* 0-based */
-      else
-        kputs("\t.\t.", epi);
-
-      /* SNP */
-      if (first_snp >= 0)
-        ksprintf(epi, "\t%d\t%s", first_snp-1, es.s); /* 0-based */
-      else if (snps)
-        kputs("\t.\t.", epi);
-      kputc('\n', epi);
-    }
-  } else {
-    for (i=0; i<snp_p.n; ++i) {
-      for (j=0; j<cpg_p.n; ++i) {
+  /* output */
+  for (k=0; k<snp_p->size; ++k) {
+    if (conf->is_nome) {
+      for (j=0; j<hcg_p->size; ++j) {
+        ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(hcg_p, j), get_char_v(snp_c, k), get_char_v(hcg_c, j));
+      }
+      for (j=0; j<gch_p->size; ++j) {
+        ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(gch_p, j), get_char_v(snp_c, k), get_char_v(gch_c, j));
+      }
+    } else {
+      for (j=0; j<cg_p->size; ++j) {
         /* chrm, snp position, cpg position, snp calling, cytosine calling */
-        ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", get_intv(snp_p, i), get_intv(snp_p, j), get_intv(snp_c, i), get_intv(snp_c, j));
+        ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(cg_p, j), get_char_v(snp_c, k), get_char_v(cg_c, j));
       }
     }
   }
 
-  free(es.s);
-  free(ecg.s);
-  free(egc.s);
+  /* clean up */
+  free_int_v(snp_p); free_char_v(snp_c);
+  if (conf->is_nome) {
+    free_int_v(hcg_p); free_char_v(hcg_c);
+    free_int_v(gch_p); free_char_v(gch_c);
+  } else {
+    free_int_v(cg_p); free_char_v(cg_c);
+  }
 }
 
 
@@ -485,8 +494,9 @@ static void *process_func(void *data) {
 
   result_t *res = (result_t*) data;
   conf_t *conf = (conf_t*) res->conf;
-  samfile_t *in = samopen(res->bam_fn, "rb", 0);
-  bam_index_t *idx = bam_index_load(res->bam_fn);
+  htsFile *in = hts_open(res->bam_fn, "rb");
+  hts_idx_t *idx = sam_index_load(in, res->bam_fn);
+  bam_hdr_t *header = sam_hdr_read(in);
   refseq_t *rs = init_refseq(res->ref_fn, 1000, 1000);
   uint32_t j;
 
@@ -499,7 +509,7 @@ static void *process_func(void *data) {
     if (w.tid == -1) break;
 
     rec.tid = w.tid;
-    char *chrm = in->header->target_name[w.tid];
+    char *chrm = header->target_name[w.tid];
 
     uint32_t snp_beg = w.beg>1000?w.beg-1000:1;
     uint32_t snp_end = w.end+1000;
@@ -521,10 +531,11 @@ static void *process_func(void *data) {
     rec.s.l = rec.s.m = 0; rec.s.s = 0; /* the epiread string */
 
     fetch_refseq(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
-    bam_iter_t iter = bam_iter_query(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
+    hts_itr_t *iter = sam_itr_queryi(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
     bam1_t *b = bam_init1();
     int ret;
-    while ((ret = bam_iter_read(in->x.bam, iter, b))>0) {
+
+    while ((ret = sam_itr_next(in, iter, b))>0) {
 
       uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
 
@@ -546,7 +557,7 @@ static void *process_func(void *data) {
 
       /* produce epiread */
       if (conf->epiread_pair) {
-        format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
+        format_epiread_pairwise(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
       } else {
         format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
       }
@@ -562,8 +573,9 @@ static void *process_func(void *data) {
     free(snps);
   }
   free_refseq(rs);
-  samclose(in);
-  bam_index_destroy(idx);
+  hts_close(in);
+  bam_hdr_destroy(header);
+  hts_idx_destroy(idx);
   return 0;
 }
 
@@ -702,16 +714,17 @@ int main_epiread(int argc, char *argv[]) {
   pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
   result_t *results = calloc(conf.n_threads, sizeof(result_t));
   int i; unsigned j;
-  samfile_t *in = samopen(infn, "rb", 0);
+  htsFile *in = hts_open(infn, "rb");
+  bam_hdr_t *header = sam_hdr_read(in);
 
   /* sort sequence name by alphabetic order, chr1, chr10, chr11 ... */
   target_v *targets = init_target_v(50);
   target_t *t;
-  for (i=0; i<in->header->n_targets; ++i) {
+  for (i=0; i<header->n_targets; ++i) {
     t = next_ref_target_v(targets);
     t->tid = i;
-    t->name = in->header->target_name[i];
-    t->len = in->header->target_len[i];
+    t->name = header->target_name[i];
+    t->len = header->target_len[i];
   }
   qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
 
@@ -744,11 +757,11 @@ int main_epiread(int argc, char *argv[]) {
   if (reg) {                    /* regional */
     int tid;
     uint32_t beg, end;
-    bam_parse_region(in->header, reg, &tid, (int*) &beg, (int*) &end);
+    bam_parse_region(header, reg, &tid, (int*) &beg, (int*) &end);
     /* chromosome are assumed to be less than 2**29 */
     beg++; end++;
     if (beg<=0) beg = 1;
-    if (end>in->header->target_len[tid]) end = in->header->target_len[tid];
+    if (end>header->target_len[tid]) end = header->target_len[tid];
     for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
       w.tid = tid;
       w.block_id = block_id;
@@ -788,7 +801,8 @@ int main_epiread(int argc, char *argv[]) {
   free(results);
   free(processors);
   wqueue_destroy(window, wq);
-  samclose(in);
+  hts_close(in);
+  bam_hdr_destroy(header);
 
   return 0;
 }
