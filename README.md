@@ -60,6 +60,13 @@ The following extract CpG beta values from the VCF file.
 $ biscuit vcf2bed -k 10 -t cg input.vcf.gz
 ```
 
+`-t` can also take
+
+  * `snp` - SNP information
+  * `c` - all cytosines
+  * `hcg` - HCG for NOMe-seq
+  * `gch` - GCH for NOMe-seq
+
 # Acknowledgements
 
  * lib/aln was adapted from Heng Li's BWA-mem code.
