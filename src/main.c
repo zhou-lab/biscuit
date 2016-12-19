@@ -24,9 +24,24 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include "kstring.h"
-#include "utils.h"
+/* #include "utils.h" */
 #include "biscuit.h"
+
+static double cputime() {
+  struct rusage r;
+  getrusage(RUSAGE_SELF, &r);
+  return r.ru_utime.tv_sec + r.ru_stime.tv_sec + 1e-6 * (r.ru_utime.tv_usec + r.ru_stime.tv_usec);
+}
+
+static double realtime() {
+  struct timeval tp;
+  struct timezone tzp;
+  gettimeofday(&tp, &tzp);
+  return tp.tv_sec + tp.tv_usec * 1e-6;
+}
 
 int main_biscuit_index(int argc, char *argv[]);
 int main_align(int argc, char *argv[]);
@@ -81,8 +96,8 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  err_fflush(stdout);
-  err_fclose(stdout);
+  fflush(stdout);               /* not enough for remote file systems */
+  fclose(stdout);
   if (ret == 0) {
     fprintf(stderr, "[%s] Version: %s\n", __func__, PACKAGE_VERSION);
     fprintf(stderr, "[%s] CMD:", __func__);

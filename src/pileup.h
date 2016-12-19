@@ -1,4 +1,4 @@
-
+#include <unistd.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -6,13 +6,14 @@
 #include "wqueue.h"
 #include "encode.h"
 #include "sam.h"
+#include "hts.h"
 #include "refseq.h"
 #include "kstring.h"
 #include "wvec.h"
 #include "stats.h"
 #include "biscuit.h"
 
-#define bscall(b, pos) seq_nt16_str[bam1_seqi(bam_get_seq(b), pos)]
+#define bscall(b, pos) seq_nt16_str[bam_seqi(bam_get_seq(b), pos)]
 
 typedef struct {
   int step;
@@ -186,6 +187,21 @@ typedef struct {
 
 void *write_func(void *data);
 
+static inline void pileup_parse_region(const char *reg, void *hdr, int *tid, int *beg, int *end) {
+  const char *q = hts_parse_reg(reg, beg, end);
+  if (q) {
+    char *tmp = (char*)malloc(q - reg + 1);
+    strncpy(tmp, reg, q - reg);
+    tmp[q - reg] = 0;
+    *tid = bam_name2id(hdr, tmp);
+    free(tmp);
+  }
+  else {
+    // not parsable as a region, but possibly a sequence named "foo:a"
+    *tid = bam_name2id(hdr, reg);
+    *beg = 0; *end = INT_MAX;
+  }
+}
 
 #ifndef kroundup32
 /*! @function

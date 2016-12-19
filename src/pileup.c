@@ -340,7 +340,7 @@ uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
       for (j=0; j<oplen; ++j) {
         rb = toupper(getbase_refseq(rs, rpos+j));
         qb = bscall(b, qpos+j);
-        if (bam1_qual(b)[qpos+j] < min_base_qual) continue;
+        if (bam_get_qual(b)[qpos+j] < min_base_qual) continue;
         if (rb == 'C' && qb == 'T') nC2T++;
         if (rb == 'G' && qb == 'A') nG2A++;
       }
@@ -824,8 +824,8 @@ uint32_t cnt_retention(refseq_t *rs, bam1_t *b, uint8_t bsstrand) {
   char rb, qb;
   int i; unsigned j;
   for (i=0; i<c->n_cigar; ++i) {
-    op = bam_cigar_op(bam1_cigar(b)[i]);
-    oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+    op = bam_cigar_op(bam_get_cigar(b)[i]);
+    oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
@@ -867,8 +867,8 @@ static void read_update_basecov(bam1_t *b, int *basecov, int *basecov_uniq, uint
   int i; unsigned j;
   uint32_t rpos = c->pos+1, qpos = 0;
   for (i=0; i<c->n_cigar; ++i) {
-    uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
-    uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+    uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
+    uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
@@ -958,24 +958,27 @@ static void *process_func(void *data) {
   result_t *res = (result_t*) data;
   conf_t *conf = (conf_t*) res->conf;
 
+  /* TODO: protect against res->n_bams == 0 */
+
   /* open bam files */
   int sid=0;
-  samfile_t **in_fhs = calloc(res->n_bams, sizeof(samfile_t*));
-  bam_index_t **idxs = calloc(res->n_bams, sizeof(bam_index_t*));
+  htsFile **in_fhs = calloc(res->n_bams, sizeof(htsFile*));
+  hts_idx_t **idxs = calloc(res->n_bams, sizeof(hts_idx_t*));
   for (sid=0; sid<res->n_bams; ++sid) {
-    in_fhs[sid] = samopen(res->bam_fns[sid], "rb", 0);
+    in_fhs[sid] = hts_open(res->bam_fns[sid], "rb");
     if (!in_fhs[sid]) {
       fprintf(stderr, "[%s:%d] Cannot open %s\nAbort.\n", __func__, __LINE__, res->bam_fns[sid]);
       fflush(stderr);
       exit(1);
     }
-    idxs[sid] = bam_index_load(res->bam_fns[sid]);
+    idxs[sid] = sam_index_load(in_fhs[sid], res->bam_fns[sid]);
     if (!idxs[sid]) {
       fprintf(stderr, "[%s:%d] Cannot find index for %s\n", __func__, __LINE__, res->bam_fns[sid]);
       fflush(stderr);
       exit(1);
     }
   }
+  bam_hdr_t *hdr = sam_hdr_read(in_fhs[0]);
 
   refseq_t *rs = init_refseq(res->ref_fn, 1000, 1000);
   int i; uint32_t j;
@@ -1007,22 +1010,22 @@ static void *process_func(void *data) {
     /* loop over samples */
     char qb, rb;
     /* chrm based on the first bam */
-    char *chrm = in_fhs[0]->header->target_name[w.tid];
+    char *chrm = hdr->target_name[w.tid];
     fetch_refseq(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
     uint8_t is_mito=0;
     if (strcmp(chrm, "chrM")==0 || strcmp(chrm, "MT")==0) is_mito=1;
 
     for (sid=0; sid<res->n_bams; ++sid) {
-      samfile_t *in = in_fhs[sid];
-      bam_index_t *idx = idxs[sid];
+      htsFile *in = in_fhs[sid];
+      hts_idx_t *idx = idxs[sid];
 
       int *basecov = calloc(w.end-w.beg, sizeof(int));
       int *basecov_uniq = calloc(w.end-w.beg, sizeof(int));
 
-      bam_iter_t iter = bam_iter_query(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
+      hts_itr_t *iter = sam_itr_queryi(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
       bam1_t *b = bam_init1();
       int ret;
-      while ((ret = bam_iter_read(in->x.bam, iter, b))>0) {
+      while ((ret = sam_itr_next(in, iter, b))>0) {
 
         uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
         read_update_basecov(b, basecov, basecov_uniq, w.beg, w.end, conf);
@@ -1045,8 +1048,8 @@ static void *process_func(void *data) {
 
         uint32_t rpos = c->pos+1, qpos = 0;
         for (i=0; i<c->n_cigar; ++i) {
-          uint32_t op = bam_cigar_op(bam1_cigar(b)[i]);
-          uint32_t oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+          uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
+          uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
           switch(op) {
           case BAM_CMATCH:
             for (j=0; j<oplen; ++j) {
@@ -1057,7 +1060,7 @@ static void *process_func(void *data) {
               if (!*plp_data_vec) *plp_data_vec = init_pileup_data_v(2);
               pileup_data_t *d = next_ref_pileup_data_v(*plp_data_vec);
               d->sid = sid;
-              d->qual = bam1_qual(b)[qpos+j];
+              d->qual = bam_get_qual(b)[qpos+j];
               d->cnt_ret = (unsigned) cnt_ret;
               d->strand = (c->flag&BAM_FREVERSE)?1:0;
               d->qpos = qpos+j+1;
@@ -1121,7 +1124,7 @@ static void *process_func(void *data) {
       free(basecov);
       free(basecov_uniq);
       bam_destroy1(b);
-      bam_iter_destroy(iter);
+      hts_itr_destroy(iter);
 
     }
 
@@ -1141,11 +1144,12 @@ static void *process_func(void *data) {
   }
   free_refseq(rs);
   for (sid=0; sid<res->n_bams; ++sid) {
-    samclose(in_fhs[sid]);
-    bam_index_destroy(idxs[sid]);
+    hts_close(in_fhs[sid]);
+    hts_idx_destroy(idxs[sid]);
   }
   free(in_fhs);
   free(idxs);
+  bam_hdr_destroy(hdr);
   return 0;
 }
 
@@ -1314,7 +1318,8 @@ int main_pileup(int argc, char *argv[]) {
   wqueue_t(window) *wq = wqueue_init(window, 100000);
   pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
   result_t *results = calloc(conf.n_threads, sizeof(result_t));
-  samfile_t *in = samopen(in_fns[0], "rb", 0); /* use first bam, assume the headers are all equal */
+  htsFile *in = hts_open(in_fns[0], "rb"); /* use first bam, assume the headers are all equal */
+  bam_hdr_t *hdr = sam_hdr_read(in);
   if (!in) {
     fprintf(stderr, "[%s:%d] Cannot open %s\nAbort.\n", __func__, __LINE__, in_fns[0]);
     fflush(stderr);
@@ -1330,11 +1335,11 @@ int main_pileup(int argc, char *argv[]) {
   /* sort sequence name by alphabetic order, chr1, chr10, chr11 ... */
   target_v *targets = init_target_v(50);
   target_t *t;
-  for (i=0; i<in->header->n_targets; ++i) {
+  for (i=0; i<hdr->n_targets; ++i) {
     t = next_ref_target_v(targets);
     t->tid = i;
-    t->name = in->header->target_name[i];
-    t->len = in->header->target_len[i];
+    t->name = hdr->target_name[i];
+    t->len = hdr->target_len[i];
   }
   qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
   for (j=0; j<targets->size; ++j) {
@@ -1417,11 +1422,11 @@ int main_pileup(int argc, char *argv[]) {
   if (reg) {                    /* regional */
     int tid;
     uint32_t beg, end;
-    bam_parse_region(in->header, reg, &tid, (int*) &beg, (int*) &end);
+    pileup_parse_region(reg, hdr, &tid, (int*) &beg, (int*) &end);
     /* chromosome are assumed to be less than 2**29 */
     beg++; end++;
     if (beg<=0) beg = 1;
-    if (end>in->header->target_len[tid]) end = in->header->target_len[tid];
+    if (end>hdr->target_len[tid]) end = hdr->target_len[tid];
     for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
       w.tid = tid;
       w.block_id = block_id;
@@ -1462,7 +1467,8 @@ int main_pileup(int argc, char *argv[]) {
   free(processors);
   free(header.s);
   wqueue_destroy(window, wq);
-  samclose(in);
+  hts_close(in);
+  bam_hdr_destroy(hdr);
   free(in_fns);
 
   return 0;

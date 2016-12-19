@@ -58,7 +58,7 @@ $(LUTILS):
 ####### subcommands #######
 
 src/main.o: src/main.c
-	gcc -c $(CFLAGS) src/main.c -o $@ -I$(INCLUDE) -I$(INCLUDE)/aln -I$(INCLUDE)/klib
+	gcc -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(INCLUDE)/klib
 clean_main:
 	rm -f src/main.o
 
@@ -72,12 +72,12 @@ clean_aln:
 	rm -f $(LALND)/*.o lib/aln/libaln.a
 
 src/pileup.o: src/pileup.c
-	gcc -c $(CFLAGS) -o $@ -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) src/pileup.c
+	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 clean_pileup:
 	rm -f src/pileup.o
 
 src/markdup.o: src/markdup.c
-	gcc -c $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/markdup.c
+	gcc -c $(CFLAGS) -I$(LSAM0119D) -I$(INCLUDE) src/markdup.c -o $@
 clean_markdup:
 	rm -f src/markdup.o
 
@@ -92,7 +92,7 @@ clean_vcf2bed:
 	rm -f src/vcf2bed.o
 
 src/epiread.o: src/epiread.c
-	gcc -c $(CFLAGS) -I$(INCLUDE) -I$(LHTSLIB_INCLUDE) -I$(INCLUDE)/klib $< -o $@
+	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 clean_epiread:
 	rm -f src/epiread.o
 

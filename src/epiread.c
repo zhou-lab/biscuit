@@ -22,7 +22,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
 **/
-#include <unistd.h>
 #include "pileup.h"
 #include "wstr.h"
 
@@ -316,8 +315,8 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
   /* snp positions and characters */
   int_v *snp_p = init_int_v(10);
   char_v *snp_c = init_char_v(10);
-  int_v *cg_p, *hcg_p, *gch_p;
-  char_v *cg_c, *hcg_c, *gch_c;
+  int_v *cg_p=0, *hcg_p=0, *gch_p=0;
+  char_v *cg_c=0, *hcg_c=0, *gch_c=0;
   if (conf->is_nome) {
     hcg_p = init_int_v(10);     /* hcg positions */
     hcg_c = init_char_v(10);    /* hcg character */
@@ -424,11 +423,11 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
             if (rb1 == 'G') {	/* CpG context */
               push_int_v(cg_p, (int) rpos+j-1);
               if (qb == 'T') {
-                push_charv(cg_c, 'T');
+                push_char_v(cg_c, 'T');
               } else if (qb == 'C') {
-                push_charv(cg_c, 'C');
+                push_char_v(cg_c, 'C');
               } else {
-                push_charv(cg_c, 'N');
+                push_char_v(cg_c, 'N');
               }
             }
           }
@@ -464,6 +463,8 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
 
   /* output */
   for (k=0; k<snp_p->size; ++k) {
+    if (!((unsigned) get_int_v(snp_p, k) >= w->beg && (unsigned) get_int_v(snp_p, k) < w->end))
+      continue;                  /* avoid double counting between windows */
     if (conf->is_nome) {
       for (j=0; j<hcg_p->size; ++j) {
         ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(hcg_p, j), get_char_v(snp_c, k), get_char_v(hcg_c, j));
@@ -474,7 +475,7 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refseq_t *rs, uin
     } else {
       for (j=0; j<cg_p->size; ++j) {
         /* chrm, snp position, cpg position, snp calling, cytosine calling */
-        ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(cg_p, j), get_char_v(snp_c, k), get_char_v(cg_c, j));
+          ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(cg_p, j), get_char_v(snp_c, k), get_char_v(cg_c, j));
       }
     }
   }
@@ -569,7 +570,7 @@ static void *process_func(void *data) {
     wqueue_put2(record, res->rq, rec);
 
     bam_destroy1(b);
-    bam_iter_destroy(iter);
+    hts_itr_destroy(iter);
     free(snps);
   }
   free_refseq(rs);
@@ -757,7 +758,7 @@ int main_epiread(int argc, char *argv[]) {
   if (reg) {                    /* regional */
     int tid;
     uint32_t beg, end;
-    bam_parse_region(header, reg, &tid, (int*) &beg, (int*) &end);
+    pileup_parse_region(reg, header, &tid, (int*) &beg, (int*) &end);
     /* chromosome are assumed to be less than 2**29 */
     beg++; end++;
     if (beg<=0) beg = 1;
