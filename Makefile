@@ -1,4 +1,4 @@
-CFLAGS=-W -Wall -finline-functions -fPIC -std=gnu99
+CFLAGS=-W -Wall -finline-functions -fPIC -std=gnu99 -Wno-unused-result
 
 CLIB=-lpthread -lz -lm
 
@@ -77,7 +77,7 @@ clean_pileup:
 	rm -f src/pileup.o
 
 src/markdup.o: src/markdup.c
-	gcc -c $(CFLAGS) -I$(LSAM0119D) -I$(INCLUDE) src/markdup.c -o $@
+	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 clean_markdup:
 	rm -f src/markdup.o
 

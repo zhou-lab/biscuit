@@ -36,6 +36,7 @@
  *
 **/
 
+#include <unistd.h>
 #include <stdlib.h>
 #include "sam.h"
 #include "khash.h"
@@ -111,10 +112,10 @@ int insert_hash_equal(insert_t *ins1, insert_t *ins2) {
 
 KHASH_INIT(IGMap, insert_t*, insert_v*, 1, insert_hash_func, insert_hash_equal)
 
-#define qname_hash_func(b) kh_str_hash_func(bam1_qname(b))
+#define qname_hash_func(b) kh_str_hash_func(bam_get_qname(b))
 
 int read_match(bam1_t *b1, bam1_t *b2) {
-  if ((strcmp(bam1_qname(b1), bam1_qname(b2)) == 0) &&
+  if ((strcmp(bam_get_qname(b1), bam_get_qname(b2)) == 0) &&
       (b1->core.mpos == b2->core.pos) &&
       (b1->core.pos == b2->core.mpos)) return 1;
   else return 0;
@@ -133,7 +134,7 @@ sum_qual(const bam1_t *b)
 {
   if (!b) return 0;
   int i, q;
-  uint8_t *qual = bam1_qual(b);
+  uint8_t *qual = bam_get_qual(b);
   for (i = q = 0; i < b->core.l_qseq; ++i) q += qual[i];
   return q;
 }
@@ -150,13 +151,13 @@ void maximize_qual1(insert_t *ins1, insert_t *ins2) {
   uint8_t *q2;
   int x;
   if (ins1->b1) {
-    q1 = bam1_qual(ins1->b1);
-    q2 = bam1_qual(ins2->b1);
+    q1 = bam_get_qual(ins1->b1);
+    q2 = bam_get_qual(ins2->b1);
     for (x = 0; x<ins1->b1->core.l_qseq; ++x) if (q1[x] < q2[x]) q1[x] = q2[x];
   }
   if (ins1->b2) {
-    q1 = bam1_qual(ins1->b2);
-    q2 = bam1_qual(ins2->b2);
+    q1 = bam_get_qual(ins1->b2);
+    q2 = bam_get_qual(ins2->b2);
     for (x = 0; x<ins1->b2->core.l_qseq; ++x) if (q1[x] < q2[x]) q1[x] = q2[x];
   }
 }
@@ -174,14 +175,14 @@ highqual_equal(insert_t *good, insert_t *test, uint32_t min_baseQ) {
   bam1_t *b21 = test->b1;
   if (b11) {
     if (b21) {
-      uint8_t *s11 = bam1_seq(b11);
-      uint8_t *s21 = bam1_seq(b21);
-      uint8_t *q21 = bam1_qual(b21);
+      uint8_t *s11 = bam_get_seq(b11);
+      uint8_t *s21 = bam_get_seq(b21);
+      uint8_t *q21 = bam_get_qual(b21);
       bam1_core_t *c11 = &b11->core;
       bam1_core_t *c21 = &b21->core;
       if (c11->l_qseq != c21->l_qseq) return 0;
       for (i=0; i<c21->l_qseq; ++i) {
-        if (bam1_seqi(s11, i) != bam1_seqi(s21, i) &&
+        if (bam_seqi(s11, i) != bam_seqi(s21, i) &&
             q21[i] > min_baseQ)
           return 0;
       }
@@ -193,14 +194,14 @@ highqual_equal(insert_t *good, insert_t *test, uint32_t min_baseQ) {
   bam1_t *b22 = test->b2;
   if (b12) {
     if (b22) {
-      uint8_t *s12 = bam1_seq(b12);
-      uint8_t *s22 = bam1_seq(b22);
-      uint8_t *q22 = bam1_qual(b22);
+      uint8_t *s12 = bam_get_seq(b12);
+      uint8_t *s22 = bam_get_seq(b22);
+      uint8_t *q22 = bam_get_qual(b22);
       bam1_core_t *c12 = &b12->core;
       bam1_core_t *c22 = &b22->core;
       if (c12->l_qseq != c22->l_qseq) return 0;
       for (i=0; i<c22->l_qseq; ++i) {
-        if (bam1_seqi(s12, i) != bam1_seqi(s22, i) &&
+        if (bam_seqi(s12, i) != bam_seqi(s22, i) &&
             q22[i] > min_baseQ)
           return 0;
       }
@@ -211,9 +212,10 @@ highqual_equal(insert_t *good, insert_t *test, uint32_t min_baseQ) {
   
 }
 
-void resolve_dup(khash_t(IGMap) *igm, samfile_t *out,
+void resolve_dup(khash_t(IGMap) *igm, htsFile *out,
                  kmempool_t(read) *rmp,
                  kmempool_t(insert) *imp,
+                 bam_hdr_t *hdr,
                  mkconf_t *conf) {
 
   uint8_t rmdup = conf->rmdup;
@@ -244,7 +246,7 @@ void resolve_dup(khash_t(IGMap) *igm, samfile_t *out,
 
       /* dump the insert group */
       if (conf->verbose > 5) {
-        if (ig->size) printf("Insert group: %s\n", ig->buffer[0]->b1?bam1_qname(ig->buffer[0]->b1):bam1_qname(ig->buffer[0]->b2));
+        if (ig->size) printf("Insert group: %s\n", ig->buffer[0]->b1?bam_get_qname(ig->buffer[0]->b1):bam_get_qname(ig->buffer[0]->b2));
       }
       for (i=0; i<ig->size; ++i) {
         insert_t *ins = get_insert_v(ig, i);
@@ -256,11 +258,11 @@ void resolve_dup(khash_t(IGMap) *igm, samfile_t *out,
         }
         if (!(ins->is_dup && rmdup)) {
           if (ins->b1) {
-            samwrite(out, ins->b1);
+            sam_write1(out, hdr, ins->b1);
             kmp_free(read, rmp, ins->b1);
           }
           if (ins->b2) {
-            samwrite(out, ins->b2);
+            sam_write1(out, hdr, ins->b2);
             kmp_free(read, rmp, ins->b2);
           }
         }
@@ -303,31 +305,31 @@ static int8_t bam_get_bsstrand(bam1_t *b) {
   }
 
   /* if no available flag information */
-  fprintf(stderr, "[%s:%d] Warning: bisulfite strand information missing, treat as BSW: %s\n", __func__, __LINE__, bam1_qname(b));
+  fprintf(stderr, "[%s:%d] Warning: bisulfite strand information missing, treat as BSW: %s\n", __func__, __LINE__, bam_get_qname(b));
   fflush(stderr);
   return 0;
 }
 
-static void flush_dangling_reads(khash_t(RIMap) *rim, kmempool_t(read) *rmp, kmempool_t(insert) *imp, samfile_t *out, mkconf_t *conf) {
+static void flush_dangling_reads(khash_t(RIMap) *rim, kmempool_t(read) *rmp, kmempool_t(insert) *imp, htsFile *out, bam_hdr_t *hdr, mkconf_t *conf) {
   khint_t k;
   for (k=kh_begin(rim); k<kh_end(rim); ++k) {
     if (kh_exist(rim, k)) {
       insert_t *ins = kh_val(rim, k);
       if (ins->b1) {
         if (conf->verbose > 5) {
-          fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam1_qname(ins->b1));
+          fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam_get_qname(ins->b1));
           fflush(stderr);
         }
-        samwrite(out, ins->b1);
+        sam_write1(out, hdr, ins->b1);
         kmp_free(read, rmp, ins->b1);
         conf->cnt_dangle++;
       }
       if (ins->b2) {
         if (conf->verbose > 5) {
-          fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam1_qname(ins->b2));
+          fprintf(stderr, "[%s:%d] Warning: found dangling reads: %s\n", __func__, __LINE__, bam_get_qname(ins->b2));
           fflush(stderr);
         }
-        samwrite(out, ins->b2);
+        sam_write1(out, hdr, ins->b2);
         kmp_free(read, rmp, ins->b2);
         conf->cnt_dangle++;
       }
@@ -347,8 +349,9 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
     bam_out0_fn = bam_out_fn;
   }
 
-  samfile_t *in = samopen(bam_in_fn, "rb", 0);
-  samfile_t *out = samopen(bam_out0_fn, "wb", in->header);
+  htsFile *in = hts_open(bam_in_fn, "rb");
+  htsFile *out = hts_open(bam_out0_fn, "wb");
+  bam_hdr_t *hdr = sam_hdr_read(in);
 
   int last_tid = -1, last_pos = -1;
 
@@ -360,7 +363,7 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
 
   unsigned cnt = 0;
   bam1_t *b = kmp_alloc(read, rmp);
-  while (samread(in, b)>=0) {
+  while (sam_read1(in, hdr, b)>=0) {
     cnt++;
     /* fprintf(stderr, "mtid: %d isize: %d\n", b->core.mtid, b->core.isize); */
     if (!conf->quiet && (cnt & 0xFFF)==0) {
@@ -373,10 +376,10 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
 
     /* process insert group */
     if (c->tid != last_tid || c->pos != last_pos) {
-      resolve_dup(igm, out, rmp, imp, conf);
+      resolve_dup(igm, out, rmp, imp, hdr, conf);
 
       if (c->tid != last_tid) {
-        flush_dangling_reads(rim, rmp, imp, out, conf);
+        flush_dangling_reads(rim, rmp, imp, out, hdr, conf);
       }
 
       last_tid = c->tid; last_pos = c->pos;
@@ -384,7 +387,7 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
 
     /* skip unmapped and secondary */
     if (c->flag & BAM_FUNMAP || c->flag & BAM_FSECONDARY) {
-      samwrite(out, b);
+      sam_write1(out, hdr, b);
       continue;
     }
 
@@ -435,13 +438,13 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
             /* in rare circumstances, one is unmapped, the other has
              * undetermined bsstrand. then assume T-rich conversion strand */
             if (conf->verbose>0) {
-              fprintf(stderr, "[%s:%d] No valid BS strand info: %s\n", __func__, __LINE__, bam1_qname(ins->b1));
+              fprintf(stderr, "[%s:%d] No valid BS strand info: %s\n", __func__, __LINE__, bam_get_qname(ins->b1));
               fflush(stderr);
             }
             ins->bsstrand = 0;
           } else {
             if (conf->verbose>0) {
-              fprintf(stderr, "[%s:%d] Warning: inconsistent bisulfite strand between mate reads of %s\n", __func__, __LINE__, bam1_qname(ins->b1));
+              fprintf(stderr, "[%s:%d] Warning: inconsistent bisulfite strand between mate reads of %s\n", __func__, __LINE__, bam_get_qname(ins->b1));
               fflush(stderr);
             }
             ins->bsstrand = (unsigned) (sum_qual(ins->b1)>sum_qual(ins->b2) ? bs1 : bs2);
@@ -486,8 +489,8 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
     }
 
   }
-  resolve_dup(igm, out, rmp, imp, conf);
-  flush_dangling_reads(rim, rmp, imp, out, conf);
+  resolve_dup(igm, out, rmp, imp, hdr, conf);
+  flush_dangling_reads(rim, rmp, imp, out, hdr, conf);
 
   fprintf(stderr, "\r[%s] parsed %u reads\n", __func__, cnt);
   fprintf(stderr, "[%s] marked %d duplicates from %d paired-end reads (%.3g%%)\n", __func__, conf->dup_cnt_pe, conf->cnt_pe, (double) (conf->dup_cnt_pe) / conf->cnt_pe * 100);
@@ -495,8 +498,9 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
   fprintf(stderr, "[%s] identified %d dangling paired-end reads (%.3g%%)\n", __func__, conf->cnt_dangle, (double) conf->cnt_dangle / cnt * 100);
   fflush(stderr);
   
-  samclose(in);
-  samclose(out);
+  hts_close(in);
+  hts_close(out);
+  bam_hdr_destroy(hdr);
 
   kmp_free(read, rmp, b);
   kmp_destroy(read, rmp);
@@ -507,7 +511,7 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
   if (conf->sort) {
     fprintf(stderr, "[%s] sorting after mkdup\n", __func__);
     bam_sort_core_ext(0, bam_out0_fn, bam_out_fn, 768<<20, 0, 0, -1, 1);
-    bam_index_build(bam_out_fn);
+    sam_index_build(bam_out_fn, 0); /* build .bai */
     remove(bam_out0_fn);
     free(bam_out0_fn);
   }
