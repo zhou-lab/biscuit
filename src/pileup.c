@@ -333,8 +333,8 @@ uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
   char rb, qb;
   int i, nC2T=0, nG2A=0; unsigned j;
   for (i=0; i<c->n_cigar; ++i) {
-    op = bam_cigar_op(bam1_cigar(b)[i]);
-    oplen = bam_cigar_oplen(bam1_cigar(b)[i]);
+    op = bam_cigar_op(bam_get_cigar(b)[i]);
+    oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
