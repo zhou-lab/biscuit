@@ -16,7 +16,7 @@ INCLUDE = include
 # detect :
 # 	@echo "$$CFLAGS" $(CFLAGS)
 
-PROG = bin/biscuit
+PROG = biscuit
 # PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
 release : CFLAGS += -O3
@@ -44,8 +44,7 @@ $(LUTILS):
 	make -C $(LUTILS_DIR) libutils.a
 
 LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o $(LUTILS) $(LKLIB) $(LHTSLIB)
-bin/biscuit: $(LIBS) src/main.o
-	mkdir -p bin
+biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 clean_biscuit:
 	rm -f bin/biscuit
