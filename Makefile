@@ -25,14 +25,7 @@ release : $(PROG)
 debug : CFLAGS += -g
 debug : $(PROG)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o lib/klib/klib.a $(LUTILS) $(LKLIB) $(LHTSLIB)
-bin/biscuit: $(LIBS) src/main.o
-	mkdir -p bin
-	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
-clean_biscuit:
-	rm -f bin/biscuit
-
-######### external ###########
+######### libraries ###########
 
 LSAM0119D = lib/libsamtools-0.1.19
 LSAM0119 = $(LSAM0119D)/libsam.a
@@ -55,10 +48,17 @@ LUTILS = $(LUTILS_DIR)/libutils.a
 $(LUTILS):
 	make -C $(LUTILS_DIR) libutils.a
 
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o $(LUTILS) $(LKLIB) $(LHTSLIB)
+bin/biscuit: $(LIBS) src/main.o
+	mkdir -p bin
+	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
+clean_biscuit:
+	rm -f bin/biscuit
+
 ####### subcommands #######
 
 src/main.o: src/main.c
-	gcc -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(INCLUDE)/klib
+	gcc -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LKLIB_DIR)
 clean_main:
 	rm -f src/main.o
 

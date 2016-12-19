@@ -48,7 +48,6 @@ void bam_sort_core_ext(int is_by_qname, const char *fn, const char *prefix, size
 typedef struct {
   uint32_t min_baseQ;		/* threshold for high quality base */
   uint8_t rmdup;
-  uint8_t sort;
   uint32_t dup_cnt_pe;
   uint32_t cnt_pe;
   uint32_t dup_cnt_se;
@@ -341,16 +340,8 @@ static void flush_dangling_reads(khash_t(RIMap) *rim, kmempool_t(read) *rmp, kme
 
 int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
 
-  char *bam_out0_fn;
-  if (conf->sort) {
-    bam_out0_fn = malloc(strlen(bam_out_fn)+5);
-    sprintf(bam_out0_fn, "%s.tmp", bam_out_fn);
-  } else {
-    bam_out0_fn = bam_out_fn;
-  }
-
   htsFile *in = hts_open(bam_in_fn, "rb");
-  htsFile *out = hts_open(bam_out0_fn, "wb");
+  htsFile *out = hts_open(bam_out_fn, "wb");
   bam_hdr_t *hdr = sam_hdr_read(in);
 
   int last_tid = -1, last_pos = -1;
@@ -508,35 +499,7 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
   kh_destroy(IGMap, igm);
   kh_destroy(RIMap, rim);
 
-  if (conf->sort) {
-    fprintf(stderr, "[%s] sorting after mkdup\n", __func__);
-    bam_sort_core_ext(0, bam_out0_fn, bam_out_fn, 768<<20, 0, 0, -1, 1);
-    sam_index_build(bam_out_fn, 0); /* build .bai */
-    remove(bam_out0_fn);
-    free(bam_out0_fn);
-  }
-
   return 0;
-}
-
-/* without sorting */
-int mark_dup_nosort(char *bam_in_fn, char *bam_out_fn) {
-  mkconf_t conf = {
-    .min_baseQ = 30,
-    .rmdup = 0,
-    .sort = 0,
-    .dup_cnt_se = 0,
-    .dup_cnt_pe = 0,
-    .cnt_se = 0,
-    .cnt_pe = 0,
-    .cnt_dangle = 0,
-    .verbose = 0,
-    .quiet = 0,
-    .max_isize = 10000,
-    .mate_unmapped_as_se = 0,
-  };
-
-  return mark_dup(bam_in_fn, bam_out_fn, &conf);
 }
 
 static int usage(mkconf_t *conf) {
@@ -548,7 +511,6 @@ static int usage(mkconf_t *conf) {
   fprintf(stderr, "     -l INT    maximum insert size for paired end duplicate-marking [%d]\n", conf->max_isize);
   fprintf(stderr, "     -b INT    minimum base quality [30].\n");
   fprintf(stderr, "     -r        toggle to remove marked duplicate.\n");
-  fprintf(stderr, "     -s        toggle to turn OFF sorting and indexing after marking duplicates.\n");
   fprintf(stderr, "     -u        treat mate-unmapped paired-end reads as single-end reads\n");
   fprintf(stderr, "     -q        quiet (log friendly)\n");
   fprintf(stderr, "     -v        verbose level [%d].\n", conf->verbose);
@@ -562,13 +524,13 @@ int main_markdup(int argc, char *argv[]) {
   mkconf_t conf = {
     .min_baseQ = 30,
     .rmdup = 0,
-    .sort = 1,
     .dup_cnt_se = 0,
     .dup_cnt_pe = 0,
     .cnt_se = 0,
     .cnt_pe = 0,
     .verbose = 0,
     .quiet = 0,
+    .cnt_dangle = 0,
     .max_isize = 10000,
     .mate_unmapped_as_se = 0,
   };
@@ -581,7 +543,6 @@ int main_markdup(int argc, char *argv[]) {
     case 'l': conf.max_isize = atoi(optarg); break;
     case 'v': conf.verbose = atoi(optarg); break;
     case 'r': conf.rmdup = 1; break;
-    case 's': conf.sort = 0; break;
     case 'u': conf.mate_unmapped_as_se = 0; break;
     case 'q': conf.quiet = 1; break;
     case 'h': return usage(&conf);
