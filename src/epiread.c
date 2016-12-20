@@ -21,6 +21,9 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
+ * 
+ * example usage:
+ * ./biscuit epiread -i test/Smadh3_chr19_chrM/raw_bam/WGBS_Smadh3_chr19_chrM.bam -B test/Smadh3_chr19_chrM/out_epiread/Smadh3_chr19_chrM.snp.bed -r ~/references/mm10/mm10.fa -q 1 -P | sort -k1,1 -k2,2n -k3,3n -k4,4 -T test/ >test/Smadh3_chr19_chrM/out_epiread/epiread_pairwise
 **/
 #include "pileup.h"
 #include "wstr.h"
