@@ -110,8 +110,8 @@ static int vcf_parse1(char *line, bed1_t *b, uint8_t *et, char *cx) {
   for (i=0; i<(signed)strlen(tok)-2; ++i) {
     if (strncmp(tok+i,"CX=",3)==0) {
       memcpy(cx, tok+i+3, 3);
-      if (cx[2]==';' || cx[2]=='\t') cx[2]=NULL;
-      else cx[3]=NULL;
+      if (cx[2]==';' || cx[2]=='\t') cx[2]='\0';
+      else cx[3]='\0';
     }
     if (strncmp(tok+i,"N5=",3)==0) {
       if (tok[i+5]=='C') {

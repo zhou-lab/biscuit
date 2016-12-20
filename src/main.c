@@ -50,6 +50,7 @@ int main_markdup(int argc, char *argv[]);
 int main_ndr(int argc, char *argv[]);
 int main_vcf2bed(int argc, char *argv[]);
 int main_epiread(int argc, char *argv[]);
+int main_asm(int argc, char *argv[]);
 
 static int usage()
 {
@@ -65,6 +66,7 @@ static int usage()
   fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "         vcf2bed       convert VCF to bed graph\n");
   fprintf(stderr, "         epiread       convert bam to epiread format\n");
+  fprintf(stderr, "         asm           test allele specific methylation\n");
   /* fprint */
   /* fprintf(stderr, "         hemi          find hemi-methylated region.\n"); */
   fprintf(stderr, "\n");
@@ -90,7 +92,7 @@ int main(int argc, char *argv[])
   else if (strcmp(argv[1], "ndr") == 0) ret = main_ndr(argc-1, argv+1);
   else if (strcmp(argv[1], "vcf2bed") == 0) ret = main_vcf2bed(argc-1, argv+1);
   else if (strcmp(argv[1], "epiread") == 0) ret = main_epiread(argc-1, argv+1);
-
+  else if (strcmp(argv[1], "asm") == 0) ret = main_asm(argc-1, argv+1);
   else {
     fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
     return 1;
