@@ -676,7 +676,7 @@ int main_epiread(int argc, char *argv[]) {
   conf.epiread_pair = 0;
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:B:o:r:g:q:s:S:t:l:n:m:Ncupvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:B:o:r:g:q:s:S:t:l:n:m:NcuPpvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'B': snp_bed_fn = optarg; break;
