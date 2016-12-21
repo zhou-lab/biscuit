@@ -1,6 +1,7 @@
 #include "stats.h"
 #include "wztsv.h"
 #include "encode.h"
+#include "gsl/gsl_cdf.h"
 
 /* typedef struct { */
 /*   int verbose; */
@@ -55,7 +56,13 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
                  cross[smax[1]*5+cmax[0]],
                  cross[smax[1]*5+cmax[1]],
                  &left, &right, &two);
-    fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%f\t%f\t%f\n",
+
+    double pchisq = gsl_cdf_chisq_Q(two_by_two_chisq(cross[smax[0]*5+cmax[0]],
+                                                     cross[smax[0]*5+cmax[1]],
+                                                     cross[smax[1]*5+cmax[0]],
+                                                     cross[smax[1]*5+cmax[1]]), 2);
+                                     
+    fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
             chrm, snp_loc, cg_loc,
             nt256int8_to_nt256char_table[smax[0]],
             nt256int8_to_nt256char_table[smax[1]],
@@ -64,9 +71,18 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
             cross[smax[0]*5+cmax[0]],
             cross[smax[0]*5+cmax[1]],
             cross[smax[1]*5+cmax[0]],
-            cross[smax[1]*5+cmax[1]],
-            left, right, two);
+            cross[smax[1]*5+cmax[1]], two, pchisq);
   }
+}
+
+static void usage() {
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Usage: biscuit asm [options] <input.epiread>\n");
+  /* fprintf(stderr, "     -q        quiet (log friendly)\n"); */
+  /* fprintf(stderr, "     -v        verbose level [%d].\n", conf->verbose); */
+  /* fprintf(stderr, "     -h        this help.\n"); */
+  fprintf(stderr, "\n");
+  exit(1);
 }
 
 int main_asm(int argc, char *argv[]) {
@@ -76,6 +92,7 @@ int main_asm(int argc, char *argv[]) {
   if (optind >= argc) {
     fprintf(stderr, "Please provide input epiread.\n");
     fflush(stderr);
+    usage();
   }
 
   char *input_fn = argv[optind];

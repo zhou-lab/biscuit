@@ -5,6 +5,7 @@ CFLAGS = -g -Wall -O2
 LIBUTILS_OBJS = \
 	encode.o \
 	stats.o \
+	chisq.o \
 	wzhmm.o
 
 .c.o :

@@ -133,7 +133,7 @@ const uint8_t nt16_rev_table[256] = {
   15,143, 79,207, 47,175,111,239, 31,159, 95,223, 63,191,127,255, 
 };
 
-const char nt256int8_to_nt256char_table[4] = "ACGT";
+const char nt256int8_to_nt256char_table[5] = "ACGTN";
 
 const int8_t nt256char_to_nt256int8_table[128] = {
   4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 

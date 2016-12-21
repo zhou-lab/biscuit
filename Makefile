@@ -43,7 +43,12 @@ LUTILS = $(LUTILS_DIR)/libutils.a
 $(LUTILS):
 	make -C $(LUTILS_DIR) libutils.a
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o $(LUTILS) $(LKLIB) $(LHTSLIB)
+LSGSL_DIR = lib/sgsl
+LSGSL = $(LSGSL_DIR)/libgsl.a
+$(LSGSL):
+	make -C $(LSGSL_DIR) libgsl.a
+
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 clean_biscuit:
@@ -81,7 +86,7 @@ src/epiread.o: src/epiread.c
 	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 
 src/asm_pairwise.o: src/asm_pairwise.c
-	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LSGSL_DIR) $< -o $@
 
 ####### general #######
 

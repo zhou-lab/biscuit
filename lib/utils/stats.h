@@ -40,4 +40,32 @@ double somatic_posterior(int kr_t, int kv_t, int kr_n, int kv_n, double error, d
 
 double beta_binomial(int k, int n, double a, double b);
 
+/**
+ * to perform chisq_test
+ * #include "gsl/gsl_cdf.h"
+ *
+ * gsl_cdf_chisq_Q(two_by_two_chisq(n11,n12,n21,n22))
+ */
+static inline double two_by_two_chisq(int n11, int n12, int n21, int n22) {
+
+  int rowsum1 = n11 + n12;
+  int rowsum2 = n21 + n22;
+  int colsum1 = n11 + n21;
+  int colsum2 = n12 + n22;
+
+  int allsum = rowsum1 + rowsum2;
+
+  double e11 = rowsum1 * colsum1 / (double) allsum;
+  double e12 = rowsum1 * colsum2 / (double) allsum;
+  double e21 = rowsum2 * colsum1 / (double) allsum;
+  double e22 = rowsum2 * colsum2 / (double) allsum;
+
+  double chisq = (e11 - n11) * (e11 - n11) / e11 +
+    (e12 - n12) * (e12 - n12) / e12 +
+    (e21 - n21) * (e21 - n21) / e21 +
+    (e22 - n22) * (e22 - n22) / e22;
+
+  return chisq;
+}
+
 #endif
