@@ -102,6 +102,7 @@ purge : clean
 	make -C $(LKLIB_DIR) clean
 	make -C $(LHTSLIB_DIR) clean
 	make -C $(LUTILS_DIR) clean
+	make -C $(LSGSL_DIR) clean
 	rm -f $(LALND)/*.o $(LALND)/*.a
 
 .PHONY: release
@@ -115,7 +116,7 @@ release:
 # the following removes git history, use it only for release
 cleanse : purge
 	rm -f **/*.o .travis.yml .gitmodules .gitignore
-	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git docker
+	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
 
 ####### archived #######
 # .PHONY: correct_bsstrand
