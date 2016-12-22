@@ -34,9 +34,9 @@ $(LHTSLIB) :
 	make -C $(LHTSLIB_DIR) libhts.a
 
 LKLIB_DIR = lib/klib
-LKLIB = $(LKLIB_DIR)/klib.a
+LKLIB = $(LKLIB_DIR)/klib2.a
 $(LKLIB) :
-	make -C $(LKLIB_DIR) klib.a
+	make -C $(LKLIB_DIR) klib2.a
 
 LUTILS_DIR = lib/utils
 LUTILS = $(LUTILS_DIR)/libutils.a
@@ -99,17 +99,16 @@ clean :
 	rm -f src/*.o
 
 purge : clean
-	make -C $(LKLIB_DIR) clean
+	make -C $(LKLIB_DIR) purge
 	make -C $(LHTSLIB_DIR) clean
-	make -C $(LUTILS_DIR) clean
-	make -C $(LSGSL_DIR) clean
+	make -C $(LUTILS_DIR) purge
+	make -C $(LSGSL_DIR) purge
 	rm -f $(LALND)/*.o $(LALND)/*.a
 
 .PHONY: release
 release:
 	rm -rf release.zip biscuit-release
 	git clone --recursive . biscuit-release
-	make -C biscuit-release build
 	make -C biscuit-release cleanse
 	zip -r release.zip biscuit-release
 	rm -rf biscuit-release
