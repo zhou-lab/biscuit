@@ -26,10 +26,14 @@ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-change version in src/biscuit.h
-
+## update checklist:
 # at root
+change version in src/biscuit.h
 make release
+git tag -a v2.1 -m "version 2.1"
+git push
+git push --tags
+# modify README.md
 
 python scripts/test.py 
 """
