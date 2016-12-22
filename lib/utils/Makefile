@@ -12,7 +12,7 @@ LIBUTILS_OBJS = \
 
 libutils.a: $(LIBUTILS_OBJS)
 	@-rm -f $@
-	$(AR) -csr $@ $(LIBUTILS_OBJS)
+	$(AR) -csr $@ $^
 
 clean:
 	rm -f *.o *.a
