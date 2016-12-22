@@ -28,6 +28,10 @@ SOFTWARE.
 
 change version in src/biscuit.h
 
+git clone --recursive biscuit release
+make clean
+
+
 python scripts/test.py 
 """
 import os, sys, re

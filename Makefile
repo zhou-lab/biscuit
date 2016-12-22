@@ -19,8 +19,8 @@ INCLUDE = include
 PROG = biscuit
 # PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
-release : CFLAGS += -O3
-release : $(PROG)
+build : CFLAGS += -O3
+build : $(PROG)
 
 debug : CFLAGS += -g
 debug : $(PROG)
@@ -51,15 +51,14 @@ $(LSGSL):
 LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
+
 clean_biscuit:
-	rm -f bin/biscuit
+	rm -f biscuit
 
 ####### subcommands #######
 
 src/main.o: src/main.c
 	gcc -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LKLIB_DIR)
-clean_main:
-	rm -f src/main.o
 
 LALND = lib/aln
 LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/fastmap.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o $(LALND)/ksw.o
@@ -103,6 +102,22 @@ purge : clean
 	make -C $(LKLIB_DIR) clean
 	make -C $(LHTSLIB_DIR) clean
 	make -C $(LUTILS_DIR) clean
+	rm -f $(LALND)/*.o $(LALND)/*.a
+
+release:
+	git clone --recursive . release
+	make -C release cleanse
+	zip -r release.zip release
+
+# the following removes git history, use it only for release
+cleanse : purge
+	rm -f **/*.o
+	rm -f .gitmodules
+	rm -f .gitignore
+	rm -rf .git
+	rm -rf $(LKLIB_DIR)/.git
+	rm -rf $(LHTSLIB_DIR)/.git
+	rm -rf $(LUTILS_DIR)/.git
 
 ####### archived #######
 # .PHONY: correct_bsstrand
