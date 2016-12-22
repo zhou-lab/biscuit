@@ -107,11 +107,12 @@ purge : clean
 
 .PHONY: release
 release:
-	rm -rf release.zip release
-	git clone --recursive . release
-	make -C release build
-	make -C release cleanse
-	zip -r release.zip release
+	rm -rf release.zip biscuit-release
+	git clone --recursive . biscuit-release
+	make -C biscuit-release build
+	make -C biscuit-release cleanse
+	zip -r release.zip biscuit-release
+	rm -rf biscuit-release
 
 # the following removes git history, use it only for release
 cleanse : purge
