@@ -62,7 +62,7 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
                                                      cross[smax[1]*5+cmax[0]],
                                                      cross[smax[1]*5+cmax[1]]), 2);
                                      
-    fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%f\t%f\t%f\t%f\n",
+    fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%f\t%f\n",
             chrm, snp_loc, cg_loc,
             nt256int8_to_nt256char_table[smax[0]],
             nt256int8_to_nt256char_table[smax[1]],

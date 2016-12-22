@@ -213,7 +213,7 @@ extern const uint8_t nt256char_to_nt8_table[256];
 extern const char    nt4_to_nt256char_table[256];
 extern const char    nt8_to_nt256char_table[256];
 extern const char    nt16_to_nt256char_table[256];
-extern const char    nt256int8_to_nt256char_table[4];
+extern const char    nt256int8_to_nt256char_table[5];
 extern const char    nt256char_rev_table[128];
 
 static inline void nt256char_rev_ip(char *seq_nt256char, size_t len) {
