@@ -1,12 +1,12 @@
 [submodule "lib/utils"]
 	path = lib/utils
-	url = git@github.com:zwdzwd/utils.git
+	url = https://github.com/zwdzwd/utils.git
 [submodule "lib/sgsl"]
 	path = lib/sgsl
-	url = git@github.com:zwdzwd/sgsl.git
+	url = https://github.com/zwdzwd/sgsl.git
 [submodule "lib/klib"]
 	path = lib/klib
-	url = git@github.com:zwdzwd/klib.git
+	url = https://github.com/zwdzwd/klib.git
 [submodule "lib/htslib"]
 	path = lib/htslib
-	url = git@github.com:zwdzwd/htslib.git
+	url = https://github.com/zwdzwd/htslib.git
