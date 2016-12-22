@@ -104,20 +104,18 @@ purge : clean
 	make -C $(LUTILS_DIR) clean
 	rm -f $(LALND)/*.o $(LALND)/*.a
 
+.PHONY: release
 release:
+	rm -rf release.zip release
 	git clone --recursive . release
+	make -C release build
 	make -C release cleanse
 	zip -r release.zip release
 
 # the following removes git history, use it only for release
 cleanse : purge
-	rm -f **/*.o
-	rm -f .gitmodules
-	rm -f .gitignore
-	rm -rf .git
-	rm -rf $(LKLIB_DIR)/.git
-	rm -rf $(LHTSLIB_DIR)/.git
-	rm -rf $(LUTILS_DIR)/.git
+	rm -f **/*.o .travis.yml .gitmodules .gitignore
+	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git docker
 
 ####### archived #######
 # .PHONY: correct_bsstrand

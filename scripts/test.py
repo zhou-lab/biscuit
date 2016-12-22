@@ -28,9 +28,8 @@ SOFTWARE.
 
 change version in src/biscuit.h
 
-git clone --recursive biscuit release
-make clean
-
+# at root
+make release
 
 python scripts/test.py 
 """
