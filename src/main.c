@@ -55,7 +55,7 @@ int main_asm(int argc, char *argv[]);
 static int usage()
 {
   fprintf(stderr, "\n");
-  fprintf(stderr, "Program: biscuit (bisulfite data tool kit)\n");
+  fprintf(stderr, "Program: BISCUIT (BISulfite-seq CUI Toolkit)\n");
   fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
   fprintf(stderr, "Contact: Wanding Zhou <wanding.zhou@vai.org>\n\n");
   fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
