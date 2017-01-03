@@ -61,17 +61,20 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
                                                      cross[smax[0]*5+cmax[1]],
                                                      cross[smax[1]*5+cmax[0]],
                                                      cross[smax[1]*5+cmax[1]]), 2);
-                                     
-    fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%f\t%f\n",
-            chrm, snp_loc, cg_loc,
-            nt256int8_to_nt256char_table[smax[0]],
-            nt256int8_to_nt256char_table[smax[1]],
-            nt256int8_to_nt256char_table[cmax[0]],
-            nt256int8_to_nt256char_table[cmax[1]],
-            cross[smax[0]*5+cmax[0]],
-            cross[smax[0]*5+cmax[1]],
-            cross[smax[1]*5+cmax[0]],
-            cross[smax[1]*5+cmax[1]], two, pchisq);
+    if (snp_loc != cg_loc &&
+        nt256int8_to_nt256char_table[cmax[0]] != 'N' &&
+        nt256int8_to_nt256char_table[cmax[1]] != 'N') {
+      fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%f\t%f\n",
+              chrm, snp_loc, cg_loc,
+              nt256int8_to_nt256char_table[smax[0]],
+              nt256int8_to_nt256char_table[smax[1]],
+              nt256int8_to_nt256char_table[cmax[0]],
+              nt256int8_to_nt256char_table[cmax[1]],
+              cross[smax[0]*5+cmax[0]],
+              cross[smax[0]*5+cmax[1]],
+              cross[smax[1]*5+cmax[0]],
+              cross[smax[1]*5+cmax[1]], two, pchisq);
+    }
   }
 }
 
