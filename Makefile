@@ -19,11 +19,16 @@ INCLUDE = include
 PROG = biscuit
 # PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
-build : CFLAGS += -O3
-build : $(PROG)
+## to debug: Make CF_NO_OPTIMIZE=1
+ifeq (1, $(CF_NO_OPTIMIZE))
+	CFLAGS += -g
+else
+	CFLAGS += -O3
+endif
 
-debug : CFLAGS += -g
-debug : $(PROG)
+# unexport CF_NO_OPTIMIZE
+# CF_NO_OPTIMIZE = 
+build : $(PROG)
 
 ######### libraries ###########
 
@@ -94,17 +99,21 @@ src/asm_pairwise.o: src/asm_pairwise.c
 
 ####### clean #######
 
+## clean just src
 .PHONY: clean
 clean :
-	rm -f src/*.o
+	rm -f src/*.o biscuit
 
+## clean src and library objects
 purge : clean
 	make -C $(LKLIB_DIR) purge
 	make -C $(LHTSLIB_DIR) clean
 	make -C $(LUTILS_DIR) purge
 	make -C $(LSGSL_DIR) purge
 	rm -f $(LALND)/*.o $(LALND)/*.a
+	rm -f biscuit
 
+## clean to make a release zip
 .PHONY: release
 release:
 	rm -rf release.zip biscuit-release
@@ -113,7 +122,7 @@ release:
 	zip -r release.zip biscuit-release
 	rm -rf biscuit-release
 
-# the following removes git history, use it only for release
+# removes git history, for release internal use
 cleanse : purge
 	rm -f **/*.o .travis.yml .gitmodules .gitignore
 	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker

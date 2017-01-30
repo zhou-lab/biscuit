@@ -31,7 +31,7 @@ The index of BISCUIT composed of the 2-bit packed reference (`.bis.pac`, `.bis.a
 
 The following snippet shows how BISCUIT can be used in conjunction with [samtools](https://github.com/samtools/samtools) to produce indexed alignment BAM file. 
 ```bash
-$ biscuit align GRCh38.fa -t 10 fastq1.fq.gz fastq2.fq.gz | samtools sort -T . -O bam -o output.bam
+$ biscuit align -t 10 GRCh38.fa fastq1.fq.gz fastq2.fq.gz | samtools sort -T . -O bam -o output.bam
 $ samtools index output.bam
 $ samtools flagstat output.bam >output.bam.flagstat
 ```
@@ -79,7 +79,10 @@ $ biscuit epiread -r GRCh38.fa -P -i input.bam -B snp.bed
 ```
 Details can be found [here](https://github.com/zwdzwd/biscuit/wiki/Convert-to-epiread-format).
 
-
+```bash
+sort -k1,1 -k2,2n -k3,3n in.epiread >out.epiread
+biscuit asm out.epiread >out.asm
+```
 
 # Acknowledgements
 

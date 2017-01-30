@@ -342,7 +342,19 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
 
   htsFile *in = hts_open(bam_in_fn, "rb");
   htsFile *out = hts_open(bam_out_fn, "wb");
+
+  if (out == NULL) {
+    fprintf(stderr, "[%s:%d] Error, cannot open output: %s. Abort.\n", __func__, __LINE__, bam_out_fn);
+    fflush(stderr);
+    exit(1);
+  }
+  
   bam_hdr_t *hdr = sam_hdr_read(in);
+  if (sam_hdr_write(out, hdr)<0) {
+    fprintf(stderr, "[%s:%d] Error, header writing failed. Abort.\n", __func__, __LINE__);
+    fflush(stderr);
+    exit(1);
+  }
 
   int last_tid = -1, last_pos = -1;
 
