@@ -121,9 +121,9 @@ int main_asm(int argc, char *argv[]) {
       memset(cross, 0, 25*sizeof(int));
     }
     
+    assert(strlen(in->fields[2]) == 1);
     assert(strlen(in->fields[3]) == 1);
-    assert(strlen(in->fields[4]) == 1);
-    unsigned char _snp = in->fields[3][0];
+    unsigned char _snp = in->fields[6][0];
     unsigned char _cg = in->fields[4][0];
     cross[nt256char_to_nt256int8_table[_snp]*5 +
           nt256char_to_nt256int8_table[_cg]]++;
