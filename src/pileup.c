@@ -1363,8 +1363,8 @@ int main_pileup(int argc, char *argv[]) {
   kputs("##FORMAT=<ID=SP,Number=R,Type=String,Description=\"Allele support (before bisulfite conversion, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=CV,Number=1,Type=Integer,Description=\"Effective (strand-specific) coverage on cytosine\">\n", &header);
   kputs("##FORMAT=<ID=BT,Number=1,Type=Float,Description=\"Cytosine methylation fraction (aka beta value, with filtering)\">\n", &header);
-  kputs("##FORMAT=<ID=GT,Number=1,Type=Integer,Description=\"Genotype from normal\">\n", &header);
-  kputs("##FORMAT=<ID=GL,Number=G,Type=Integer,Description=\"Genotype likelihoods\">\n", &header);
+  kputs("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype from normal\">\n", &header);
+  kputs("##FORMAT=<ID=GP,Number=G,Type=Integer,Description=\"Genotype likelihoods\">\n", &header);
   kputs("##FORMAT=<ID=GQ,Number=1,Type=Float,Description=\"Genotype quality (phred-scaled)\">\n", &header);
 
   if (conf.verbose) {
