@@ -1350,6 +1350,8 @@ int main_pileup(int argc, char *argv[]) {
   for (i=0; i<argc; ++i)
     ksprintf(&header, " %s", argv[i]);
   kputs(">\n", &header);
+  kputs("##FILTER=<ID=PASS,Desccription=\"All filters passed\">\n", &header);
+  kputs("##FILTER=<ID=LowQual,Description=\"Genotype quality smaller than 1\">\n", &header);
   kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
   kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
   kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
