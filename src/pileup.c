@@ -1164,7 +1164,7 @@ static void head_append_verbose(char *pb, char b, kstring_t *s) {
 
 static int usage(conf_t *conf) {
   fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: pileup [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
+  fprintf(stderr, "Usage: pileup [options] [-r ref.fa] [-i in.bam] [-o out.pileup] [-g chr1:123-234]\n");
   fprintf(stderr, "Input options:\n\n");
   fprintf(stderr, "     -i        input bams (can be multiple, separate by space).\n");
   fprintf(stderr, "     -r        reference in fasta.\n");
