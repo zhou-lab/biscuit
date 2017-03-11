@@ -471,6 +471,7 @@ void vcf2snp(gzFile FH, conf_t *conf) {
 int main_vcf2bed(int argc, char *argv[]) { 
   conf_t conf = {.verbose=0, .mincov=3, .destrand=1, .showcov=0};
   strcpy(conf.target, "cg");
+  char *target_samples = NULL;
 
   int c;
   while ((c = getopt(argc, argv, "k:t:cuV:h")) >= 0) {
@@ -493,12 +494,14 @@ int main_vcf2bed(int argc, char *argv[]) {
     case 'c': conf.showcov = 1; break;
     case 'u': conf.destrand = 0; break;
     case 'V': conf.verbose = atoi(optarg); break;
+    case 's': target_samples = strdup(optarg); break;
     case 'h': {
       fprintf(stderr, "\n");
       fprintf(stderr, "Usage: biscuit vcf2bed [options] vcf \n");
       fprintf(stderr, "Input options:\n");
       fprintf(stderr, "     -t STRING extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf.target);
       fprintf(stderr, "     -k INT    minimum coverage [%d]\n", conf.mincov);
+      fprintf(stderr, "     -s STRING sample, (takes \"FIRST\", \"LAST\", \"ALL\", or specific sample names separated by \",\")[FIRST]\n");
       fprintf(stderr, "     -c        show coverage and strand as extra columns\n");
       fprintf(stderr, "     -u INT    suppress merging C and G in the CpG context (destrand, for cg and hcg, when both strands are in the hcg context).\n");
       fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose);
@@ -512,6 +515,10 @@ int main_vcf2bed(int argc, char *argv[]) {
       exit(1);
       break;
     }
+  }
+
+  if (!target_samples) {
+    target_samples = strdup("FIRST");
   }
 
   if (optind >= argc) {
@@ -531,12 +538,15 @@ int main_vcf2bed(int argc, char *argv[]) {
       exit(1);
     }
   }
+
   if (strcmp(conf.target, "c")==0) vcf2c(FH, &conf);
   if (strcmp(conf.target, "cg")==0) vcf2cg(FH, &conf);
   if (strcmp(conf.target, "ch")==0) vcf2ch(FH, &conf);
   if (strcmp(conf.target, "hcg")==0) vcf2hcg(FH, &conf);
   if (strcmp(conf.target, "gch")==0) vcf2gch(FH, &conf);
   if (strcmp(conf.target, "snp")==0) vcf2snp(FH, &conf);
+
+  free(target_samples);
 
   return 0;
 }
