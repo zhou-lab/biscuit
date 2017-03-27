@@ -2,7 +2,7 @@
 #include "stats.h"
 #include "kstring.h"
 #include "wvec.h"
-#include "wstr.h"
+#include "wzmisc.h"
 
 typedef struct {
   int verbose;
