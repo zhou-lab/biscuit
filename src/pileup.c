@@ -1046,16 +1046,24 @@ static void *process_func(void *data) {
         uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
         if (cnt_ret > conf->max_retention) continue;
 
-        uint32_t rpos = c->pos+1, qpos = 0;
+        uint32_t rpos = c->pos+1, qpos = 0, rmpos = c->mpos + 1;
         for (i=0; i<c->n_cigar; ++i) {
           uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
           uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
           switch(op) {
           case BAM_CMATCH:
             for (j=0; j<oplen; ++j) {
+
               if (rpos+j<w.beg || rpos+j>=w.end) continue; /* include begin but not end */
               rb = toupper(getbase_refseq(rs, rpos+j));
               qb = bscall(b, qpos+j);
+
+              /* if read 2 in a proper pair, skip counting overlapped cytosines */
+              if ((c->flag & BAM_FPROPER_PAIR) &&
+                  (c->flag & BAM_FREAD2) &&
+                  ((bsstrand && rb == 'G') || (!bsstrand && rb == 'C')) &&
+                  rpos+j >= max(rpos, rmpos) && rpos+j <= min(rpos + c->l_qseq, rmpos + c->l_qseq))
+                continue;
               pileup_data_v **plp_data_vec = plp->data+rpos+j-w.beg;
               if (!*plp_data_vec) *plp_data_vec = init_pileup_data_v(2);
               pileup_data_t *d = next_ref_pileup_data_v(*plp_data_vec);

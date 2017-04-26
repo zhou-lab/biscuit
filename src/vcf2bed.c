@@ -21,16 +21,11 @@ typedef struct bed_vcfdata_t {
   double *betas;
   int *covs;
   char *cx;              /* context */
-  /* reference and alternative allele in VCF */
-  char *snp_ref;
-  char *snp_alt;
 } bed_vcfdata_t;
 
 static void free_bed_data(void *data) {
   bed_vcfdata_t *bd = (bed_vcfdata_t*) data;
   free(bd->cx);
-  free(bd->snp_ref);
-  free(bd->snp_alt);
   free(bd->betas);
   free(bd->covs);
   free(data);
@@ -77,30 +72,58 @@ static bed1_t *init_bed1(int nsamples) {
 /*   free(b->vcfalt); */
 /* } */
 
+static int pass_coverage(bed1_t *b, conf_t *conf) {
+  bed_vcfdata_t *bd = (bed_vcfdata_t*) b->data;
+  int i;
+  for (i=0; i<bd->nsamples; ++i)
+    if (bd->covs[i] >= conf->mincov)
+      return 1;
+  return 0;
+}
+
 /* output one cytosine */
 static void format_cytosine_bed1(bed1_t *b, conf_t *conf, target_v *targets) {
 
   if (b == NULL || b->tid < 0) return;
+  if (!pass_coverage(b, conf)) return;
   
-  bed_vcfdata_t *bd = (bed_vcfdata_t*) b->data;
-  int i;
-  int cov_pass = 0;
-  for (i=0; i<bd->nsamples; ++i) {
-    if (bd->covs[i] >= conf->mincov) {
-      cov_pass = 1;
-      break;
-    }
-  }
-  if (!cov_pass) return;
-
   fprintf(stdout, "%s\t%"PRId64"\t%"PRId64, target_name(targets, b->tid), b->beg, b->end);
+  int i;
+  bed_vcfdata_t *bd = (bed_vcfdata_t*) b->data;
   for (i=0; i<bd->nsamples; ++i) {
-    fprintf(stdout, "\t%1.3f", bd->betas[i]);
+    if (bd->betas[i] < 0)
+      fputs("\t.", stdout);
+    else
+      fprintf(stdout, "\t%1.3f", bd->betas[i]);
     if (conf->showcov) {
       fprintf(stdout, "\t%d", bd->covs[i]);
     }
   }
   fprintf(stdout, "\t%c\t%s", bd->ref, bd->cx);
+  putchar('\n');
+}
+
+const char *genotypes[] = {"0/0", "0/1", "1/1"};
+
+/* output SNP */
+static void format_snp_bed1(bed1_t *b, conf_t *conf, char *vcfref, char *vcfalt, target_v *targets, char **fmt_gt, char **fmt_sp, int *allele_sp, int n_alleles) {
+
+  if (b == NULL || b->tid < 0) return;
+
+  /* compute highest non-ref AF and coverage */
+  int i; int cov=0, haltcnt=0;
+  for (i=0; i<n_alleles; ++i) {
+    cov += allele_sp[i];
+    if (i)
+      if (allele_sp[i] > haltcnt)
+        haltcnt = allele_sp[i];
+  }
+  if (cov < conf->mincov) return;
+
+  bed_vcfdata_t *bd = (bed_vcfdata_t*) b->data;
+  fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%s\t%s", target_name(targets, b->tid), b->beg, b->end, vcfref, vcfalt);
+  for (i = 0; i<bd->nsamples; ++i)
+    fprintf(stdout, "\t%s\t%s\t%d\t%1.2f", fmt_gt[i], fmt_sp[i], cov, (double) haltcnt / cov);
   putchar('\n');
 }
 
@@ -193,11 +216,6 @@ static void format_cytosine_bed2(bed1_t *p, bed1_t *b, conf_t *conf, target_v *t
   free(betas2);
 }
 
-/* static void format_snp_bed1(bed1_t *b, conf_t *conf) { */
-/*   fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%s\t%s", b->chrm, b->pos-1, b->end, b->vcfref, b->vcfalt); */
-/*   if (conf->showcov) fprintf(stdout, "\t%d\tCG", b->cov); */
-/*   putchar('\n'); */
-/* } */
 
 /* #define ET_C   0x1 */
 /* #define ET_CG  0x2 */
@@ -372,7 +390,8 @@ static void vcf_record2bed1(bed1_t *b, vcf_record_t *rec, vcf_file_t *vcf) {
   free_char_array(fmt_cv, n_fmt_cv);
 }
 
-void vcf2cg(vcf_file_t *vcf, conf_t *conf) {
+/* cx can be either "CG" or "HCG" */
+static void vcf2cg(vcf_file_t *vcf, conf_t *conf, const char *cx) {
 
   bed1_t *b=init_bed1(vcf->n_tsamples);        /* base */
   bed1_t *p=init_bed1(vcf->n_tsamples);        /* previous base */
@@ -385,7 +404,7 @@ void vcf2cg(vcf_file_t *vcf, conf_t *conf) {
 
     vcf_record2bed1(b, rec, vcf);
     bd = (bed_vcfdata_t*) b->data;
-    if (bd->cx == NULL || strcmp(bd->cx, "CG") != 0) {
+    if (bd->cx == NULL || strcmp(bd->cx, cx) != 0) {
       b->tid = -1;
       continue;
     }
@@ -419,92 +438,95 @@ void vcf2cg(vcf_file_t *vcf, conf_t *conf) {
   free_vcf_record(rec);
 }
 
-/* while (1) { */
-/*     int c=gzgetc(FH); */
-/*     if (c=='\n' || c==EOF) { */
-/*       int merged=0; */
-/*       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) { */
-/*         int parse_ok = vcf_parse1(str.s, b, &et, cx); */
-/*         strcpy(cx, "CG"); */
-/*         if (conf->destrand && parse_ok && p_valid && (et&ET_CG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /\* merge CG *\/ */
-/*           p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov); */
-/*           p->cov += b->cov; */
-/*           merged=1; */
-/*         } */
-/*         if (p_valid) { */
-/*           if (p->cov >= conf->mincov) { /\* adjust coordinates for de-stranding *\/ */
-/*             if (conf->destrand) { */
-/*               if (p->ref == 'C') p->end++; */
-/*               if (p->ref == 'G') p->pos--; */
-/*             } */
-/*             format_cytosine_bed1(p, conf, cx); */
-/*           } */
-/*           p_valid=0; */
-/*         } */
 
-/*         if (parse_ok && (et&ET_CG) && !merged) { */
-/*           bed1_t *tmp; */
-/*           tmp = p; p = b; b = tmp; */
-/*           p_valid=1; */
-/*         } */
-/*       } */
-/*       str.l = 0;                /\* clean line *\/ */
-/*       if (c==EOF) break; */
-/*     } else { */
-/*       kputc(c, &str); */
-/*     } */
-/*   } */
+void vcf2gch(vcf_file_t *vcf, conf_t *conf) {
 
-/*   free(str.s); */
+  bed1_t *b=init_bed1(vcf->n_tsamples);
+  vcf_record_t *rec = init_vcf_record();
+  while (vcf_read_record(vcf, rec)) {
+    vcf_record2bed1(b, rec, vcf);
+    bed_vcfdata_t *bd = (bed_vcfdata_t*) b->data;
+    if (bd->cx == NULL || strcmp(bd->cx, "GCH") != 0)
+      continue;
+    format_cytosine_bed1(b, conf, vcf->targets);
+  }
+
+  free_bed1(b);
+  free_vcf_record(rec);
+}
+
+static void vcf2c(vcf_file_t *vcf, conf_t *conf) {
+
+  bed1_t *b=init_bed1(vcf->n_tsamples);
+  vcf_record_t *rec = init_vcf_record();
+  while (vcf_read_record(vcf, rec)) {
+    vcf_record2bed1(b, rec, vcf);
+    bed_vcfdata_t *bd = (bed_vcfdata_t*) b->data;
+    if (bd->ref != 'C' && bd->ref != 'G')
+      continue;
+    format_cytosine_bed1(b, conf, vcf->targets);
+  }
+
+  free_bed1(b);
+  free_vcf_record(rec);
+}
 
 
-/* void vcf2hcg(gzFile FH, conf_t *conf) { */
+static void vcf2snp(vcf_file_t *vcf, conf_t *conf) {
 
-/*   /\* note: this is assymmetric, destrand occur only when  */
-/*    * both C and G are in HCG context, merging will cause */
-/*    * items in the output not of the same length (2 and 1) *\/ */
+  bed1_t *b=init_bed1(vcf->n_tsamples);
+  vcf_record_t *rec = init_vcf_record();
+  while (vcf_read_record(vcf, rec)) {
+    vcf_record2bed1(b, rec, vcf);
 
-/*   bed1_t *b=init_bed1(); */
-/*   bed1_t *p=init_bed1(); */
+    if (strcmp(rec->alt, ".") != 0) {
+      char **fmt_gt; int n_fmt_gt;
+      char **fmt_sp; int n_fmt_sp;
+      get_vcf_record_fmt("GT", rec->fmt, vcf, &fmt_gt, &n_fmt_gt);
+      get_vcf_record_fmt("SP", rec->fmt, vcf, &fmt_sp, &n_fmt_sp);
 
-/*   kstring_t str; */
-/*   str.s = 0; str.l = str.m = 0; */
-/*   uint8_t et; */
-/*   int p_valid=0; */
-/*   char cx[4] = ""; */
-/*   while (1) { */
-/*     int c=gzgetc(FH); */
-/*     if (c=='\n' || c==EOF) { */
-/*       int merged=0; */
-/*       if (str.l>2 && str.s[0] != '#' && strcount_char(str.s, '\t')>=8) { */
-/*         int parse_ok = vcf_parse1(str.s, b, &et, cx); */
-/*         if (conf->destrand && parse_ok && p_valid && (et&ET_HCG) && p->pos+1 == b->pos && p->ref == 'C' && b->ref == 'G' && strcmp(p->chrm, b->chrm)==0) { /\* merge when both are HCG *\/ */
-/*           p->end++; */
-/*           p->beta = (double)(p->beta*p->cov+b->beta*b->cov)/(p->cov+b->cov); */
-/*           p->cov += b->cov; */
-/*           merged=1; */
-/*         } */
-/*         if (p_valid) { */
-/*           if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf, cx); */
-/*           p_valid = 0; */
-/*         } */
+      /* parse out all alleles */
+      char **alleles; int n_alleles;
+      line_get_fields(rec->alt, ",", &alleles, &n_alleles);
+      
+      alleles = realloc(alleles, (++n_alleles)*sizeof(char*));
+      memmove(alleles + 1, alleles, (n_alleles-1)*sizeof(char*));
+      alleles[0] = strdup(rec->ref);
 
-/*         if (parse_ok && (et&ET_HCG) && !merged) { */
-/*           bed1_t *tmp; */
-/*           tmp = p; p = b; b = tmp; */
-/*           p_valid=1; */
-/*         } */
-/*       } */
-/*       str.l = 0;                /\* clean line *\/ */
-/*       if (c==EOF) break; */
-/*     } else { */
-/*       kputc(c, &str); */
-/*     } */
-/*   } */
-/*   if (p_valid) { */
-/*     if (p->cov >= conf->mincov) format_cytosine_bed1(p, conf, cx); */
-/*   } */
-/* } */
+      /* parse out allele support in each sample */
+      int *allele_sp = calloc(n_alleles*n_fmt_sp, sizeof(int));
+      int j;
+      for (j=0; j<n_fmt_sp; ++j) {
+        int n_allele_sppairs; char **allele_sppairs;
+        line_get_fields(fmt_sp[j], ",", &allele_sppairs, &n_allele_sppairs);
+        int k;
+        for (k=0; k<n_allele_sppairs; ++k) {
+          char *ae;               /* pointing to first digit of allele count */
+          for (ae = allele_sppairs[k]; !isdigit(*ae); ++ae);
+          int ai;
+          for (ai=0; ai<n_alleles; ++ai)
+            if (strncmp(alleles[ai], allele_sppairs[k], ae-allele_sppairs[k]) == 0)
+              break;
+          if (ai < n_alleles)
+            allele_sp[j*n_alleles+ai] = atoi(ae);
+          else {
+            wzfatal("Allele %s not found in %s\n", allele_sppairs[k], vcf->line);
+          }
+        }
+        free_char_array(allele_sppairs, n_allele_sppairs);
+      }
+
+      format_snp_bed1(b, conf, rec->ref, rec->alt, vcf->targets, fmt_gt, fmt_sp, allele_sp, n_alleles);
+      free(allele_sp);
+      free_char_array(alleles, n_alleles);
+      free_char_array(fmt_gt, n_fmt_gt);
+      free_char_array(fmt_sp, n_fmt_sp);
+    }
+  }
+
+  free_bed1(b);
+  free_vcf_record(rec);
+}
 
 /* void vcf2ch(gzFile FH, char *target_samples, conf_t *conf) { */
 
@@ -702,7 +724,6 @@ int main_vcf2bed(int argc, char *argv[]) {
     case 't': {
       if (strcmp(optarg, "c") !=0 &&
           strcmp(optarg, "cg") !=0 &&
-          strcmp(optarg, "ch") !=0 &&
           strcmp(optarg, "hcg") !=0 && 
           strcmp(optarg, "gch") !=0 &&
           strcmp(optarg, "snp") !=0) {
@@ -754,12 +775,11 @@ int main_vcf2bed(int argc, char *argv[]) {
   vcf_file_t *vcf = init_vcf_file(vcf_fn);
   index_vcf_samples(vcf, target_samples);
 
-  if (strcmp(conf.target, "cg")==0) vcf2cg(vcf, &conf);
-  /* if (strcmp(conf.target, "c")==0) vcf2c(vcf, &conf); */
-  /* if (strcmp(conf.target, "ch")==0) vcf2ch(vcf, &conf); */
-  /* if (strcmp(conf.target, "hcg")==0) vcf2hcg(vcf, &conf); */
-  /* if (strcmp(conf.target, "gch")==0) vcf2gch(vcf, &conf); */
-  /* if (strcmp(conf.target, "snp")==0) vcf2snp(vcf, &conf); */
+  if (strcmp(conf.target, "cg")==0) vcf2cg(vcf, &conf, "CG");
+  if (strcmp(conf.target, "hcg")==0) vcf2cg(vcf, &conf, "HCG");
+  if (strcmp(conf.target, "gch")==0) vcf2gch(vcf, &conf);
+  if (strcmp(conf.target, "c")==0) vcf2c(vcf, &conf);
+  if (strcmp(conf.target, "snp")==0) vcf2snp(vcf, &conf);
 
   free_vcf_file(vcf);
   free(target_samples);

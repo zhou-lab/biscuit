@@ -65,14 +65,14 @@ typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH, CTXT_GCG, CTXT_GCHG, CTXT_GCHH, CT
 extern const char *cytosine_context[];
 
 typedef struct {
-  uint8_t sid;			/* which sample */
-  uint8_t bsstrand:1;
-  uint8_t qual:7;
-  uint8_t strand:1;
-  uint16_t qpos;
-  uint8_t cnt_ret;
+  uint8_t sid;                  /* which sample */
+  uint8_t bsstrand:1;           /* bisulfite strand */
+  uint8_t qual:7;               /* base quality */
+  uint8_t strand:1;             /* read stand */
+  uint16_t qpos;                /* position on read */
+  uint8_t cnt_ret;              /* count of retention of entire read */
   uint16_t rlen;                /* read length */
-  char qb;
+  char qb;                      /* query base */
   status_t stat;                /* code from mut-met status table */
 } __attribute__((__packed__)) pileup_data_t;
 
@@ -163,7 +163,15 @@ static inline int compare_targets(const void *a, const void *b) {
 
 cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *fivenuc);
 
-#define min(a,b) ((a)<(b)?(a):(b))
+#define max(a,b)                \
+  ({ __typeof__ (a) _a = (a);   \
+    __typeof__ (b) _b = (b);    \
+    _a > _b ? _a : _b; })
+
+#define min(a,b)                \
+  ({ __typeof__ (a) _a = (a);   \
+    __typeof__ (b) _b = (b);    \
+    _a > _b ? _b : _a; })
 
 void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq);
 int reference_supp(int cnts[9]);

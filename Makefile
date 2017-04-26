@@ -19,7 +19,7 @@ INCLUDE = include
 PROG = biscuit
 # PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
-## to debug: Make CF_NO_OPTIMIZE=1
+## to debug: make CF_NO_OPTIMIZE=1
 ifeq (1, $(CF_NO_OPTIMIZE))
 	CFLAGS += -g
 else
