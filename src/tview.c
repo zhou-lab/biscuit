@@ -1,3 +1,29 @@
+/* visualize bisulfite alignment using ncurses
+ * 
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2016-2017 Wanding.Zhou@vai.org
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
+**/
+
 #include <ncurses.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,9 +81,7 @@ void reset_rnode_v(rnode_v *read_buf) {
 
 /***************************
  * Bisulfite Terminal View *
- ***************************
- * adapted from samtools' tview
- */
+ ***************************/
 
 typedef struct btview_t {
 
@@ -342,12 +366,13 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
 }
 
 /* draw all alignments */
-static void btv_drawaln(btview_t *tv) {
+static void btv_drawaln(btview_t *tv, int reload) {
 
   assert(tv != NULL);
   clear();
-  
-  btv_reload_data(tv);
+
+  if (reload)
+    btv_reload_data(tv);
   
   /* draw coordinates and reference */
   int i;
@@ -530,6 +555,7 @@ static void btv_win_goto(btview_t *tv, int *tid, int *pos) {
  *************/
 static int btv_loop(btview_t *tv) {
 
+  int r = 0;                    /* whether to reload */
   while (1) {
     int c = getch();
     switch (c) {
@@ -537,7 +563,7 @@ static int btv_loop(btview_t *tv) {
     case '\033':
     case 'q': goto end_loop;
     case '/':
-    case 'g': btv_win_goto(tv, &tv->curr_tid, &tv->left_pos); break;
+    case 'g': btv_win_goto(tv, &tv->curr_tid, &tv->left_pos); r=1; break;
     case 't': tv->color_for = TV_COLOR_BSMODE; break;
     case 'm': tv->color_for = TV_COLOR_MAPQ; break;
     case 'b': tv->color_for = TV_COLOR_BASEQ; break;
@@ -546,30 +572,32 @@ static int btv_loop(btview_t *tv) {
     case 's': tv->no_skip = !tv->no_skip; break;
     case 'r': tv->show_name = !tv->show_name; break;
     case KEY_LEFT:
-    case 'h': --tv->left_pos; break;
+    case 'h': --tv->left_pos; r=1; break;
     case KEY_RIGHT:
-    case 'l': ++tv->left_pos; break;
+    case 'l': ++tv->left_pos; r=1; break;
     case KEY_SLEFT:
-    case 'H': tv->left_pos -= 20; break;
+    case 'H': tv->left_pos -= 20; r=1; break;
     case KEY_SRIGHT:
-    case 'L': tv->left_pos += 20; break;
+    case 'L': tv->left_pos += 20; r=1; break;
     case '.': tv->is_dot = !tv->is_dot; break;
     case 'i': tv->ins = !tv->ins; break;
-    case '\010': tv->left_pos -= 1000; break;
-    case '\014': tv->left_pos += 1000; break;
-    case ' ': tv->left_pos += tv->mcol; break;
+    case '\010': tv->left_pos -= 1000; r=1; break;
+    case '\014': tv->left_pos += 1000; r=1; break;
+    case ' ': tv->left_pos += tv->mcol; r=1; break;
     case KEY_UP:
     case 'j': --tv->row_shift; break;
     case KEY_DOWN:
     case 'k': ++tv->row_shift; break;
+    case KEY_PPAGE: tv->row_shift -= 10; break;
+    case KEY_NPAGE: tv->row_shift += 10; break;
     case KEY_BACKSPACE:
-    case '\177': tv->left_pos -= tv->mcol; break;
-    case KEY_RESIZE: getmaxyx(stdscr, tv->mrow, tv->mcol); break;
+    case '\177': tv->left_pos -= tv->mcol; r=1; break;
+    case KEY_RESIZE: getmaxyx(stdscr, tv->mrow, tv->mcol); r=1; break;
     default: continue;
     }
     if (tv->left_pos < 0) tv->left_pos = 0;
     if (tv->row_shift < 0) tv->row_shift = 0;
-    btv_drawaln(tv);
+    btv_drawaln(tv, r);
   }
  end_loop:
   return 0;
@@ -631,7 +659,7 @@ int main_tview(int argc, char *argv[]) {
     tv->curr_tid = i;
   }
 
-  btv_drawaln(tv);
+  btv_drawaln(tv, 1);
   btv_loop(tv);
   btv_destroy(tv);
   
