@@ -36,6 +36,15 @@ $ samtools index output.bam
 $ samtools flagstat output.bam >output.bam.flagstat
 ```
 
+## Visualize alignment
+
+The `tview` subroutine colors the alignments in bisulfite mode. [Here](https://github.com/zwdzwd/biscuit/wiki/Visualize-reads-with-bisulfite-conversion) is a screenshot.
+
+```bash
+$ biscuit tview -g chr19:7525080 input.bam ref.fa
+```
+Unlike samtools, in this subroutine, a reference fasta file is mandatory so that bisulfite conversion can be identified.
+
 ## Mark duplicate reads
 
 This step is optional. The mark duplicate of BISCUIT is bisulfite strand aware.
