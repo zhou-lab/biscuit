@@ -1058,10 +1058,17 @@ static void *process_func(void *data) {
               rb = toupper(getbase_refseq(rs, rpos+j));
               qb = bscall(b, qpos+j);
 
-              /* if read 2 in a proper pair, skip counting overlapped cytosines */
-              if ((c->flag & BAM_FPROPER_PAIR) &&
+              /* if read 2 in a proper pair, skip counting overlapped cytosines
+               *  Right now I assume read 1 and read 2 are the same length and there is no gap.
+               * Better solution would be to log mate end in the alignment (using bam_endpos).
+               * The filtering of double counting is only effective when reads are properly paired.
+               *  
+               * The filtering remove bases from read 2 (usually the synthesized read)
+               * falling into the overlapped region.
+               */
+              if (conf->filter_doublecnt &&
+                  (c->flag & BAM_FPROPER_PAIR) &&
                   (c->flag & BAM_FREAD2) &&
-                  ((bsstrand && rb == 'G') || (!bsstrand && rb == 'C')) &&
                   rpos+j >= max(rpos, rmpos) && rpos+j <= min(rpos + c->l_qseq, rmpos + c->l_qseq))
                 continue;
               pileup_data_v **plp_data_vec = plp->data+rpos+j-w.beg;
@@ -1200,6 +1207,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
   fprintf(stderr, "     -e        minimum distance to end of a read [%u].\n", conf->min_dist_end);
   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
+  fprintf(stderr, "     -d        NO double counting cytosine in overlapping mate reads.\n");
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
   fprintf(stderr, "     -p        NO filtering of improper pair (!BAM_FPROPER_PAIR).\n");
   fprintf(stderr, "     -S        maximum position in bisulfite rate estimate [%d]\n", conf->bsrate_max_pos);
@@ -1223,6 +1231,7 @@ void conf_init(conf_t *conf) {
   conf->filter_secondary = 1;
   conf->filter_duplicate = 1;
   conf->filter_ppair = 1;
+  conf->filter_doublecnt = 1;
   conf->min_dist_end = 3;
   conf->max_nm = 999999;
   conf->contam = 0.01;
@@ -1263,7 +1272,7 @@ int main_pileup(int argc, char *argv[]) {
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:x:C:P:Q:t:n:m:l:TNcupv:h"))>=0) {
+  while ((c=getopt(argc, argv, "i:o:w:r:g:q:e:s:b:S:k:E:M:x:C:P:Q:t:n:m:l:TNcdupv:h"))>=0) {
     switch (c) {
     case 'i':
       for(--optind; optind < argc && *argv[optind] != '-'; optind++){
@@ -1295,6 +1304,7 @@ int main_pileup(int argc, char *argv[]) {
     case 'T': conf.somatic = 1; break;
     case 'N': conf.is_nome = 1; break;
     case 'c': conf.filter_secondary = 0; break;
+    case 'd': conf.filter_doublecnt = 0; break;
     case 'u': conf.filter_duplicate = 0; break;
     case 'p': conf.filter_ppair = 0; break;
     case 'v': conf.verbose = atoi(optarg); break;

@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS = -W -Wall -finline-functions -fPIC -std=gnu99 -Wno-unused-result
-CLIB = -lpthread -lz -lm
+CLIB = -lncurses -lpthread -lz -lm
+CF_NO_OPTIMIZE = 0
 
 OS := $(shell uname)
 ifeq ($(OS),  Darwin)
@@ -11,7 +12,9 @@ endif
 
 INCLUDE = include
 
-########### program ##########
+########################
+### different modes ####
+########################
 
 # detect :
 # 	@echo "$$CFLAGS" $(CFLAGS)
@@ -19,18 +22,24 @@ INCLUDE = include
 PROG = biscuit
 # PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
-## to debug: make CF_NO_OPTIMIZE=1
+.PHONY : setdebug debug build
+
 ifeq (1, $(CF_NO_OPTIMIZE))
 	CFLAGS += -g
 else
 	CFLAGS += -O3
 endif
 
-# unexport CF_NO_OPTIMIZE
-# CF_NO_OPTIMIZE = 
-build : $(PROG)
+build: $(PROG)
 
-######### libraries ###########
+debug: setdebug build
+
+setdebug:
+	$(eval export CF_NO_OPTIMIZE := 1)
+
+#####################
+##### libraries #####
+#####################
 
 LHTSLIB_DIR = lib/htslib
 LHTSLIB_INCLUDE = lib/htslib/htslib
@@ -53,14 +62,23 @@ LSGSL = $(LSGSL_DIR)/libgsl.a
 $(LSGSL):
 	make -C $(LSGSL_DIR) libgsl.a
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
+###########################
+###### main program #######
+###########################
+
+BISCUITSRCS := $(wildcard src/*.c)
+BISCUITLIBS := $(BISCUITSRCS:.c=.o)
+
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 
 clean_biscuit:
 	rm -f biscuit
 
-####### subcommands #######
+###################
+### subcommands ###
+###################
 
 src/main.o: src/main.c
 	gcc -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LKLIB_DIR)
@@ -77,25 +95,30 @@ clean_aln:
 src/pileup.o: src/pileup.c
 	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 
+src/tview.o: src/tview.c
+	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
+
 src/markdup.o: src/markdup.c
-	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 
 src/ndr.o: src/ndr.c
-	gcc -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
 
 src/vcf2bed.o: src/vcf2bed.c
-	gcc -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
 
 src/epiread.o: src/epiread.c
-	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 
 src/asm_pairwise.o: src/asm_pairwise.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LSGSL_DIR) $< -o $@
 
-####### general #######
+# ####### general #######
 
-.c.o :
-	gcc -c $(CFLAGS) $< -o $@
+# VPATH = src
+
+# src/%.o: %.c
+# 	gcc -c $(CFLAGS) $< -o $@
 
 ####### clean #######
 

@@ -51,6 +51,7 @@ int main_ndr(int argc, char *argv[]);
 int main_vcf2bed(int argc, char *argv[]);
 int main_epiread(int argc, char *argv[]);
 int main_asm(int argc, char *argv[]);
+int main_tview(int argc, char *argv[]);
 
 static int usage()
 {
@@ -61,6 +62,7 @@ static int usage()
   fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
   fprintf(stderr, "Command: index         index sequences in the FASTA format\n");
   fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
+  fprintf(stderr, "         tview         text alignment viewer with bisulfite coloring");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
   fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and meth-level averages.\n");
   fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
@@ -93,6 +95,7 @@ int main(int argc, char *argv[])
   else if (strcmp(argv[1], "vcf2bed") == 0) ret = main_vcf2bed(argc-1, argv+1);
   else if (strcmp(argv[1], "epiread") == 0) ret = main_epiread(argc-1, argv+1);
   else if (strcmp(argv[1], "asm") == 0) ret = main_asm(argc-1, argv+1);
+  else if (strcmp(argv[1], "tview") == 0) ret = main_tview(argc-1, argv+1);
   else {
     fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
     return 1;

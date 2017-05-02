@@ -28,6 +28,7 @@ typedef struct {
   int max_nm;
   uint8_t filter_ppair:1;       /* filter BAM_FPROPER_PAIR */
   uint8_t filter_secondary:1;
+  uint8_t filter_doublecnt:1; /* stop double-counting cytosine in overlapping mate reads */
   uint8_t filter_duplicate:1;
   uint8_t filter_qcfail:1;
   uint8_t noheader:1;
