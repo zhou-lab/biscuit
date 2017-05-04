@@ -27,7 +27,6 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include "kstring.h"
-/* #include "utils.h" */
 #include "biscuit.h"
 
 static double cputime() {
@@ -64,20 +63,17 @@ static int usage()
   fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "         tview         text alignment viewer with bisulfite coloring");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
-  fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and meth-level averages.\n");
+  fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and average methylation levels.\n");
   fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "         vcf2bed       convert VCF to bed graph\n");
   fprintf(stderr, "         epiread       convert bam to epiread format\n");
   fprintf(stderr, "         asm           test allele specific methylation\n");
-  /* fprint */
-  /* fprintf(stderr, "         hemi          find hemi-methylated region.\n"); */
   fprintf(stderr, "\n");
 
   return 1;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   extern char *bwa_pg;
   int i, ret;
   double t_real;
@@ -101,7 +97,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  fflush(stdout);               /* not enough for remote file systems */
+  fflush(stdout);             /* not enough for remote file systems */
   fclose(stdout);
   if (ret == 0) {
     fprintf(stderr, "[%s] Version: %s\n", __func__, PACKAGE_VERSION);

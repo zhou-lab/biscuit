@@ -612,7 +612,7 @@ int main_tview(int argc, char *argv[]) {
   while ((c = getopt(argc, argv, "g:h")) >= 0) {
     switch (c) {
     case 'g': position = optarg; break;
-    case 'h': {
+    case 'h':
       fprintf(stderr, "\n");
       fprintf(stderr, "Usage: biscuit tview [options] in.bam ref.fa \n");
       fprintf(stderr, "Input options:\n");
@@ -620,7 +620,6 @@ int main_tview(int argc, char *argv[]) {
       fprintf(stderr, "     -h             this help.\n");
       fprintf(stderr, "\n");
       return 1;
-    }
     default:
       fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
       fflush(stderr);
@@ -632,7 +631,7 @@ int main_tview(int argc, char *argv[]) {
   char *bam_fn; bam_fn = (optind < argc) ? argv[optind++] : NULL;
   char *ref_fn; ref_fn = (optind < argc) ? argv[optind++] : NULL;
   if (!bam_fn) {
-    wzfatal("No input bam is given.");
+    wzfatal("No input bam is given.\n");
   }
 
   btview_t *tv = btv_init(bam_fn, ref_fn);
