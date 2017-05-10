@@ -174,7 +174,7 @@ static btview_t *btv_init(const char *fn, const char *ref_fn) {
 
   /* read input bam and reference fa */
   btview_t *tv = calloc(1, sizeof(btview_t));
-  
+ 
   if (ref_fn) {
     tv->fai = fai_load(ref_fn);
     if (!tv->fai) wzfatal("Cannot read file: %s.\n", ref_fn);
@@ -192,7 +192,7 @@ static btview_t *btv_init(const char *fn, const char *ref_fn) {
   /* initialize color */
   tv->color_for = TV_COLOR_BSMODE;
   tv->is_dot = 1;
-  
+ 
   /* initialize screen */
   initscr();
   keypad(stdscr, TRUE);
@@ -204,7 +204,7 @@ static btview_t *btv_init(const char *fn, const char *ref_fn) {
   tv->whelp = newwin(28, 40, 0, 5);
   start_color();
   btv_init_colors(0);
-  
+ 
   return tv;
 }
 
@@ -354,8 +354,6 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
       rpos += oplen;
       break;
     case BAM_CSOFT_CLIP:
-      qpos += oplen;
-      break;
     case BAM_CHARD_CLIP:
       qpos += oplen;
       break;

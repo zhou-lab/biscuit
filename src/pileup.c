@@ -32,7 +32,7 @@ const char nt256int8_to_mutcode[6] = "ACGTYR";
 /* different representation of context when nome */
 
 const char *cytosine_context[] = {"CG","CHG","CHH","CG","CHG","CHH","CN"};
-const char *cytosine_context_nome[] = {"HCG","HCHG","HCHH","GCG","GCH","GCH","CN"}; /* TODO: further refine GC to GCH and HCG */
+const char *cytosine_context_nome[] = {"HCG","HCHG","HCHH","GCG","GCH","GCH","CN"};
 
 typedef struct {
   int n;                        /* number of sites */
@@ -323,7 +323,7 @@ void *write_func(void *data) {
   return 0;
 }
 
-uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
+uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
 
   /* infer bsstrand from nC2T and nG2A on high quality bases */
   
@@ -338,7 +338,7 @@ uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
-        rb = toupper(getbase_refseq(rs, rpos+j));
+        rb = toupper(getbase_refcache(rs, rpos+j));
         qb = bscall(b, qpos+j);
         if (bam_get_qual(b)[qpos+j] < min_base_qual) continue;
         if (rb == 'C' && qb == 'T') nC2T++;
@@ -368,7 +368,7 @@ uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
   else return 1;
 }
 
-uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual) {
+uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
   uint8_t *s;
   
   s = bam_aux_get(b, "ZS"); /* bsmap flag */
@@ -472,28 +472,32 @@ static void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s, in
   }
 }
 
-cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *fivenuc) {
-  /* char fivenuc[5]; */
-  if (rpos == 1) {
-    subseq_refseq2(rs, 1, fivenuc+2, 3);
+cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc) {
+  /* get five nucleotide context sequence */
+  if (rpos == 1) { /* marginal cases, beginning of chromosome */
+    subseq_refcache2(rs, 1, fivenuc+2, 3);
     fivenuc[0] = fivenuc[1] = 'N';
   } else if (rpos == 2) {
-    subseq_refseq2(rs, 1, fivenuc+1, 4);
+    subseq_refcache2(rs, 1, fivenuc+1, 4);
     fivenuc[0] = 'N';
-  } else if (rpos == (unsigned) rs->seqlen) {
-    subseq_refseq2(rs, rpos-2, fivenuc, 3);
+  } else if (rpos == (unsigned) rs->seqlen) {  /* end of chromosome */
+    subseq_refcache2(rs, rpos-2, fivenuc, 3);
     fivenuc[3] = fivenuc[4] = 'N';
   } else if (rpos == (unsigned) rs->seqlen-1) {
-    subseq_refseq2(rs, rpos-2, fivenuc, 4);
+    subseq_refcache2(rs, rpos-2, fivenuc, 4);
     fivenuc[4] = 'N';
   } else {
-    subseq_refseq2(rs, rpos-2, fivenuc, 5);
+    subseq_refcache2(rs, rpos-2, fivenuc, 5);
   }
   if (rb == 'G') nt256char_rev_ip(fivenuc, 5);
 
-  if (fivenuc[1] == 'N' || fivenuc[2] == 'N' || fivenuc[3] == 'N' || fivenuc[4] == 'N')
-    return CTXT_NA;
-  else if (fivenuc[3] == 'G') {
+  int i;
+  for (i=0; i<5; ++i)
+    if (fivenuc[i] == 'N')
+      return CTXT_NA;
+
+  /* classify into cytosine context classes */
+  if (fivenuc[3] == 'G') {
     if (fivenuc[1]=='G') return CTXT_GCG;
     else return CTXT_HCG;
   } else if (fivenuc[4] == 'G') {
@@ -505,6 +509,7 @@ cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *f
   }
 }
 
+/* find top two mutant by allele support */
 static void top2mutants(int *_cm1, int *_cm2, int *cnts) {
   int cm1=-1, cm2=-1;
   int i;
@@ -612,12 +617,12 @@ void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_g
   *_gl0 = gl0; *_gl1 = gl1; *_gl2 = gl2; *_gq = gq;
 }
 
-static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf, record_t *rec, int n_bams) {
+static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf, record_t *rec, int n_bams) {
 
   kstring_t *s = &rec->s;
 
   uint32_t i;
-  char rb = toupper(getbase_refseq(rs, rpos));
+  char rb = toupper(getbase_refcache(rs, rpos));
 
   int *cnts = calloc(NSTATUS*n_bams, sizeof(int));
   int allcnts[NSTATUS]={0};
@@ -815,7 +820,7 @@ static void plp_format(refseq_t *rs, char *chrm, uint32_t rpos, pileup_data_v *d
 }
 
 /* return -1 if abnormal (missing bsstrand) */
-uint32_t cnt_retention(refseq_t *rs, bam1_t *b, uint8_t bsstrand) {
+uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand) {
   uint32_t cnt = 0;
 
   bam1_core_t *c = &b->core;
@@ -829,7 +834,7 @@ uint32_t cnt_retention(refseq_t *rs, bam1_t *b, uint8_t bsstrand) {
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
-        rb = toupper(getbase_refseq(rs, rpos+j));
+        rb = toupper(getbase_refcache(rs, rpos+j));
         qb = bscall(b, qpos+j);
         if (bsstrand) {
           if (rb == 'C' && qb == 'C') cnt++;
@@ -902,7 +907,7 @@ static void read_update_basecov(bam1_t *b, int *basecov, int *basecov_uniq, uint
  * in nome-seq mode, cytosines in gpc context are further excluded (regardless
  * of mitochrondrial or not)
  */
-static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refseq_t *rs, uint32_t qp, uint32_t rp, uint8_t is_mito, bam1_core_t *c, bsrate_t *b, conf_t *conf) {
+static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refcache_t *rs, uint32_t qp, uint32_t rp, uint8_t is_mito, bam1_core_t *c, bsrate_t *b, conf_t *conf) {
 
   int pos_on_template;
   if (c->flag & BAM_FREAD2) {
@@ -914,18 +919,18 @@ static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refseq_t *rs, uint32
 
   if (bsstrand && rb == 'G') {
     /* if nome-seq, skip GCG */
-    if (!conf->is_nome || (rp+1<rs->end && toupper(getbase_refseq(rs, rp+1))!='C')) {
+    if (!conf->is_nome || (rp+1<rs->end && toupper(getbase_refcache(rs, rp+1))!='C')) {
       if (qb == 'A') {
         if (is_mito) { /* mitochondrial */
           b->ga_conv_m[pos_on_template]++;
-        } else if (rp-1 > rs->beg && toupper(getbase_refseq(rs, rp-1)) != 'C') {
+        } else if (rp-1 > rs->beg && toupper(getbase_refcache(rs, rp-1)) != 'C') {
           /* non-mitochondrial, look at CpH context */
           b->ga_conv[pos_on_template]++;
         }
       } else if (qp == 'G') {
         if (is_mito) {          /* mitochondrial */
           b->ga_unconv_m[pos_on_template]++;
-        } else if (rp-1 > rs->beg && toupper(getbase_refseq(rs, rp-1)) != 'C') {
+        } else if (rp-1 > rs->beg && toupper(getbase_refcache(rs, rp-1)) != 'C') {
           /* non-mitochondrial, look at CpH context */
           b->ga_unconv[pos_on_template]++;
         }
@@ -933,18 +938,18 @@ static void calc_bsrate(uint8_t bsstrand, char rb, char qb, refseq_t *rs, uint32
     }
   } else if (!bsstrand && rb == 'C') {
     /* if nome-seq, skip GCG */
-    if (!conf->is_nome || (rp-1>rs->beg && toupper(getbase_refseq(rs, rp-1))!='G')) {
+    if (!conf->is_nome || (rp-1>rs->beg && toupper(getbase_refcache(rs, rp-1))!='G')) {
       if (qb == 'T') {
         if (is_mito) {          /* mitochondrial */
           b->ct_conv_m[pos_on_template]++;
-        } else if (rp+1 < rs->end && toupper(getbase_refseq(rs, rp+1)) != 'G') {
+        } else if (rp+1 < rs->end && toupper(getbase_refcache(rs, rp+1)) != 'G') {
           /* non-mitochondrial, look at CpH context */
           b->ct_conv[pos_on_template]++;
         }
       } else if (qp == 'C') {
         if (is_mito) {          /* mitochondrial */
           b->ct_unconv_m[pos_on_template]++;
-        } else if (rp+1 < rs->end && toupper(getbase_refseq(rs, rp+1)) != 'G') {
+        } else if (rp+1 < rs->end && toupper(getbase_refcache(rs, rp+1)) != 'G') {
           /* non-mitochondrial, look at CpH context */
           b->ct_unconv[pos_on_template]++;
         }
@@ -980,7 +985,7 @@ static void *process_func(void *data) {
   }
   bam_hdr_t *hdr = sam_hdr_read(in_fhs[0]);
 
-  refseq_t *rs = init_refseq(res->ref_fn, 1000, 1000);
+  refcache_t *rs = init_refcache(res->ref_fn, 1000, 1000);
   int i; uint32_t j;
 
   record_t rec;
@@ -1011,7 +1016,7 @@ static void *process_func(void *data) {
     char qb, rb;
     /* chrm based on the first bam */
     char *chrm = hdr->target_name[w.tid];
-    fetch_refseq(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
+    fetch_refcache(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
     uint8_t is_mito=0;
     if (strcmp(chrm, "chrM")==0 || strcmp(chrm, "MT")==0) is_mito=1;
 
@@ -1055,7 +1060,7 @@ static void *process_func(void *data) {
             for (j=0; j<oplen; ++j) {
 
               if (rpos+j<w.beg || rpos+j>=w.end) continue; /* include begin but not end */
-              rb = toupper(getbase_refseq(rs, rpos+j));
+              rb = toupper(getbase_refcache(rs, rpos+j));
               qb = bscall(b, qpos+j);
 
               /* if read 2 in a proper pair, skip counting overlapped cytosines
@@ -1145,7 +1150,7 @@ static void *process_func(void *data) {
 
     /* loop over cytosines and format */
     for (j=w.beg; j<w.end; ++j) {
-      rb = getbase_refseq(rs, j);
+      rb = getbase_refcache(rs, j);
       pileup_data_v *plp_data = plp->data[j-w.beg];
       if (plp_data) {
         plp_format(rs, chrm, j, plp_data, res->conf, &rec, res->n_bams);
@@ -1157,7 +1162,7 @@ static void *process_func(void *data) {
 
     destroy_pileup(plp);
   }
-  free_refseq(rs);
+  free_refcache(rs);
   for (sid=0; sid<res->n_bams; ++sid) {
     hts_close(in_fhs[sid]);
     hts_idx_destroy(idxs[sid]);

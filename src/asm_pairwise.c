@@ -1,17 +1,33 @@
+/* extract allele-specific methylation, pairwise
+ * 
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2016-2017 Wanding.Zhou@vai.org
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ * 
+**/
+
 #include "stats.h"
 #include "wztsv.h"
 #include "encode.h"
 #include "gsl/gsl_cdf.h"
-
-/* typedef struct { */
-/*   int verbose; */
-/*   /\* for emission probability *\/ */
-/*   int a; */
-/*   int b; */
-/*   /\* for transition probability *\/ */
-/*   double p; */
-/*   double q; */
-/* } conf_t; */
 
 int *row_sums(int *matrix, int nr, int nc) {
   int *sums = calloc(nr, sizeof(int));
@@ -41,6 +57,7 @@ void max2(int *v, int n, int maxes[2]) {
   }
 }
 
+/** fisher's exact test and chi-square test */
 void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
   int *rs = row_sums(cross, 5, 5);
   int smax[2];
@@ -78,24 +95,16 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
   }
 }
 
-static void usage() {
-  fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: biscuit asm [options] <input.epiread>\n");
-  /* fprintf(stderr, "     -q        quiet (log friendly)\n"); */
-  /* fprintf(stderr, "     -v        verbose level [%d].\n", conf->verbose); */
-  /* fprintf(stderr, "     -h        this help.\n"); */
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
 int main_asm(int argc, char *argv[]) {
-
-  /* conf_t conf = {}; */
 
   if (optind >= argc) {
     fprintf(stderr, "Please provide input epiread.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Usage: biscuit asm [options] <input.epiread>\n");
+    fprintf(stderr, "     -h        this help.\n");
+    fprintf(stderr, "\n");
     fflush(stderr);
-    usage();
+    exit(1);
   }
 
   char *input_fn = argv[optind];
@@ -133,41 +142,9 @@ int main_asm(int argc, char *argv[]) {
 
   free(chrm);
   tsv_close(in);
-  
-  /* int c, i; int collapse=0; char *out_fn=0; */
-  /* while ((c = getopt(argc, argv, "i:")) >= 0) { */
-  /*   switch (c) { */
-  /*   case 'V': conf.verbose = atoi(optarg); break; */
-  /*   case 'b': in->bed = optarg; break; */
-  /*   case 'o': out_fn = optarg; break; */
-  /*   case 'A': conf.a = atoi(optarg); break; */
-  /*   case 'B': conf.b = atoi(optarg); break; */
-  /*   case 'P': conf.p = atof(optarg); break; */
-  /*   case 'Q': conf.q = atof(optarg); break; */
-  /*   case 'c': collapse = 1; break; */
-  /*   case 'h': { */
-  /*     fprintf(stderr, "\n"); */
-  /*     fprintf(stderr, "Usage: biscuit asm [options] pairwise_epiread \n"); */
-  /*     fprintf(stderr, "Input options:\n"); */
-  /*     fprintf(stderr, "     -b FILE   bed file of GpC retention, coordinate-sorted\n"); */
-  /*     fprintf(stderr, "     -c        collapse into regions\n"); */
-  /*     fprintf(stderr, "     -A INT    parameter a in beta binomial emission [%d]\n", conf.a); */
-  /*     fprintf(stderr, "     -B INT    parameter b in beta binomial emission [%d]\n", conf.b); */
-  /*     fprintf(stderr, "     -P FLOAT  parameter p in transition probability [%1.2f]\n", conf.p); */
-  /*     fprintf(stderr, "     -Q FLOAT  parameter q in transition probability [%1.2f]\n", conf.q); */
-  /*     fprintf(stderr, "     -o FILE   output file\n"); */
-  /*     fprintf(stderr, "     -V INT    verbose level [%d].\n", conf.verbose); */
-  /*     fprintf(stderr, "     -h        this help.\n"); */
-  /*     fprintf(stderr, "\n"); */
-  /*     return 1; */
-  /*   } */
-  /*   default: */
-  /*     fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c); */
-  /*     fflush(stderr); */
-  /*     exit(1); */
-  /*     break; */
-  /*   } */
-  /* } */
-
+ 
   return 0;
 }
+
+
+

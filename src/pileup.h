@@ -1,3 +1,27 @@
+/**
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2016 Wanding.Zhou@vai.org
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+**/
+
 #include <unistd.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -7,13 +31,11 @@
 #include "encode.h"
 #include "sam.h"
 #include "hts.h"
-#include "refseq.h"
+#include "refcache.h"
 #include "kstring.h"
 #include "wvec.h"
 #include "stats.h"
 #include "biscuit.h"
-
-#define bscall(b, pos) seq_nt16_str[bam_seqi(bam_get_seq(b), pos)]
 
 typedef struct {
   int step;
@@ -142,11 +164,11 @@ DEFINE_WQUEUE(record, record_t)
 void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record);
 void put_into_record_v(record_v *records, record_t rec);
 
-uint32_t cnt_retention(refseq_t *rs, bam1_t *b, uint8_t bsstrand);
+uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand);
 
-uint8_t infer_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual);
+uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual);
 
-uint8_t get_bsstrand(refseq_t *rs, bam1_t *b, uint32_t min_base_qual);
+uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual);
 
 typedef struct {
   int32_t tid;
@@ -162,7 +184,7 @@ static inline int compare_targets(const void *a, const void *b) {
 
 #define mutcode(a) (nt256char_to_nt256int8_table[(uint8_t)a])
 
-cytosine_context_t fivenuc_context(refseq_t *rs, uint32_t rpos, char rb, char *fivenuc);
+cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc);
 
 #define max(a,b)                \
   ({ __typeof__ (a) _a = (a);   \
