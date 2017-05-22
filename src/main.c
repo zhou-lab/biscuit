@@ -62,7 +62,7 @@ static int usage()
   fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
   fprintf(stderr, "Command: index         index sequences in the FASTA format\n");
   fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
-  fprintf(stderr, "         tview         text alignment viewer with bisulfite coloring");
+  fprintf(stderr, "         tview         text alignment viewer with bisulfite coloring\n");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
   fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and average methylation levels.\n");
   fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
