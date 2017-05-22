@@ -31,18 +31,56 @@
 #include "sam.h"
 #include "bamfilter.h"
 
+typedef enum {TAG_BSW, TAG_BSC, TAG_CONFLICT, TAG_UNKNOWN} conversion_tag_t;
+const char conversion_tags[4] = "frcu";
+
 typedef struct {
-	uint8_t output_read, output_all_read;
-	uint8_t infer_bsstrand;
+  uint8_t output_count;
+  uint8_t correct_bsstrand;
 } bsstrand_conf_t;
 
 typedef struct {
 	refcache_t *rs;
-	int n_corr, n_mapped, n_fail, n_unmapped;
+	int n_corr, n_mapped, n_unmapped;
+  int confusion[16];
 	bsstrand_conf_t *conf;
 } bsstrand_data_t;
 
-int bsstrand_func(bam1_t *b, const samFile *in, samFile *out, bam_hdr_t *header, void *data) {
+/* f - bisulfite converted Watson
+ * r - bisulfite converted Crick
+ * c - conflicting evidences, coexistence of both C>T and G>A
+ * u - neither C>T or G>A exists */
+conversion_tag_t bam_tag_get_bsstrand(bam1_t *b) {
+  char *s;
+
+  s = (char*) bam_aux_get(b, "ZS"); /* bsmap flag */
+  if (s) {
+    s++;
+    if (*s == '+') return TAG_BSW;
+    else if (*s == '-') return TAG_BSC;
+  }
+
+  s = (char*) bam_aux_get(b, "YD");     /* bwa-meth flag */
+  if (s) {
+    s++;
+    if (*s == 'f') return TAG_BSW;
+    if (*s == 'r') return TAG_BSC;
+    if (*s == 'c') return TAG_CONFLICT;
+    if (*s == 'u') return TAG_UNKNOWN;
+  }
+
+  s = (char*) bam_aux_get(b, "XG");     /* bismark flag */
+  if (s) {
+    s++;
+    if (strcmp((char*)s, "CT")==0) return TAG_BSW;
+    else if (strcmp((char*)s, "GA")) return TAG_BSC;
+  }
+
+  /* otherwise, guess the bsstrand from nCT and nGA */
+  return TAG_UNKNOWN;
+}
+
+int bsstrand_func(bam1_t *b, samFile *out, bam_hdr_t *header, void *data) {
 
 	bsstrand_data_t *d = (bsstrand_data_t*)data;
 	bsstrand_conf_t *conf = d->conf;
@@ -58,7 +96,8 @@ int bsstrand_func(bam1_t *b, const samFile *in, samFile *out, bam_hdr_t *header,
 	
 	fetch_refcache(d->rs, header->target_name[c->tid], c->pos, bam_endpos(b)+1);
 	uint32_t rpos=c->pos+1, qpos=0;
-	int i, nC2T = 0, nG2A = 0;
+	int i;
+  int32_t nC2T = 0, nG2A = 0;
 	uint32_t j;
 	char rbase, qbase;
 
@@ -93,43 +132,50 @@ int bsstrand_func(bam1_t *b, const samFile *in, samFile *out, bam_hdr_t *header,
 		}
 	}
 
-	char key[2] = {'Z','S'};
-	unsigned char *bsstrand = bam_aux_get(b, key);
-	if (bsstrand) {
-		bsstrand++;
-		double s = min(nG2A, nC2T)/max(nG2A, nC2T);
-		if (nG2A > 1 && nC2T > 1 && s > 0.5) {
-			if (conf->output_read || conf->output_all_read)
-				printf("F\t%s\t%d\t%d\t%d\t%s\t%s\t%1.2f\n", header->target_name[c->tid], c->pos, nC2T, nG2A, bam_get_qname(b), bsstrand, s);
-			bam_aux_append(b, "OS", 'A', 1, bsstrand);
-			bsstrand[0] = '?';
-			d->n_fail++;
-		} else if (*bsstrand == '+' && nG2A > nC2T + 2) {
-			if (conf->output_read || conf->output_all_read)
-				printf("W2C\t%s\t%d\t%d\t%d\t%s\t%s\t%1.2f\n", header->target_name[c->tid], c->pos, nC2T, nG2A, bam_get_qname(b), bsstrand, s);
-			bam_aux_append(b, "OS", 'A', 1, bsstrand);
-			bsstrand[0] = '-';
-			d->n_corr++;
-		} else if (*bsstrand == '-' && nC2T > nG2A + 2) {
-			if (conf->output_read || conf->output_all_read)
-				printf("C2W\t%s\t%d\t%d\t%d\t%s\t%s\t%1.2f\n", header->target_name[c->tid], c->pos, nC2T, nG2A, bam_get_qname(b), bsstrand, s);
-			bam_aux_append(b, "OS", 'A', 1, bsstrand);
-			bsstrand[0] = '+';
-			d->n_corr++;
-		} else if (conf->output_all_read) {
-			printf("N\t%s\t%d\t%d\t%d\t%s\t%s\t%1.2f\n", header->target_name[c->tid], c->pos, nC2T, nG2A, bam_get_qname(b), bsstrand, s);
-		}
-	} else if (!(c->flag & BAM_FUNMAP) && conf->infer_bsstrand) {
-		char bss[3];
-		if (min(nG2A, nC2T) / max(nG2A, nC2T) < 0.5) {
-			strcpy(bss, "??");
-		} else if (nC2T > nG2A) {
-			strcpy(bss, c->flag & BAM_FREVERSE ? "+-" : "++");
-		} else {
-			strcpy(bss, c->flag & BAM_FREVERSE ? "-+" : "--");
-		}
-		bam_aux_append(b, "ZS", 'Z', 3, (uint8_t*) bss);
-	}
+  /* inference */
+  conversion_tag_t bsstrand;
+  if (nC2T == 0 && nG2A == 0) {
+    bsstrand = TAG_UNKNOWN;
+  } else {
+    double s = min(nG2A, nC2T)/max(nG2A, nC2T);
+    if (nC2T > nG2A) {
+      if (nG2A == 0 || s <= 0.5) {
+        bsstrand = TAG_BSW;
+      } else {
+        bsstrand = TAG_CONFLICT;
+      }
+    } else {
+      if (nC2T == 0 || s <= 0.5) {
+        bsstrand = TAG_BSC;
+      } else {
+        bsstrand = TAG_CONFLICT;
+      }
+    }
+  }
+
+  conversion_tag_t tag = bam_tag_get_bsstrand(b);
+  d->confusion[tag*4+bsstrand]++;
+
+  /* inference compared to tag */
+  if (conf->correct_bsstrand) {
+    uint8_t *ytag = bam_aux_get(b, "YD");
+    if (ytag) { /* store original to OY and update YD */
+      ytag++;
+      /* bam_aux_append(b, "OY", 'A', 1, ytag); */
+      if (bsstrand != tag) {
+        *ytag = conversion_tags[bsstrand];
+        d->n_corr++;
+      }
+    } else { /* just append YD */
+      uint8_t data = conversion_tags[bsstrand];
+      bam_aux_append(b, "YD", 'A', 1, &data);
+    }
+  }
+
+  if (conf->output_count) {
+    bam_aux_append(b, "YC", 'i', 4, (uint8_t*) &nC2T);
+    bam_aux_append(b, "YG", 'i', 4, (uint8_t*) &nG2A);
+  }
 
 	if (out) 
     if (sam_write1(out, header, b) < 0)
@@ -144,9 +190,8 @@ static int usage() {
   fprintf(stderr, "Usage: bsstrand [options] ref.fa in.bam [out.bam]\n");
   fprintf(stderr, "Input options:\n");
 	fprintf(stderr, "     -g        region (optional, chrX:123-456 if missing, process the whole bam).\n");
-	fprintf(stderr, "     -e        output abnormal read stats [optional].\n");
-	fprintf(stderr, "     -a        output all reads stats [optional].\n");
-	fprintf(stderr, "     -m        infer bsstrand information if missing [optional].\n");
+	fprintf(stderr, "     -o        output count of C>T (YC tag) and G>A (YG tag) in output bam.\n");
+  fprintf(stderr, "     -c        correct bsstrand in the output bam, YD tag will be replaced if existent and created if not.\n");
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
   return 1;
@@ -156,18 +201,17 @@ static int usage() {
    if nC2T - nG2A > 2 and "-" => "+"
    if nG2A - nC2T > 2 and "+" => "-"
    output a summary of how many reads are inconsistent */
-int main(int argc, char *argv[]) {
+int main_bsstrand(int argc, char *argv[]) {
 	int c;
 	char *reg = 0;										/* region */
-	bsstrand_conf_t conf = {.output_read = 0, .output_all_read = 0, .infer_bsstrand = 0};
+  bsstrand_conf_t conf = {0};
 
   if (argc < 2) return usage();
-  while ((c = getopt(argc, argv, "i:o:r:g:eamh")) >= 0) {
+  while ((c = getopt(argc, argv, "g:coh")) >= 0) {
     switch (c) {
 		case 'g': reg = optarg; break;
-    case 'e': conf.output_read = 1; break;
-		case 'a': conf.output_all_read = 1; break;
-		case 'm': conf.infer_bsstrand = 1; break;
+		case 'o': conf.output_count = 1; break;
+    case 'c': conf.correct_bsstrand = 1; break;
     case 'h': return usage();
     default:
       fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
@@ -183,21 +227,30 @@ int main(int argc, char *argv[]) {
     wzfatal("Please provide reference and input bam.\n");
   }
 
-	bsstrand_data_t d = {
-		.n_corr = 0,
-		.n_mapped = 0,
-		.n_fail = 0,
-		.n_unmapped = 0,
-		.rs = init_refcache(reffn, 100, 100000),
-		.conf = &conf,
-	};
+  bsstrand_data_t d = {0};
+  d.rs = init_refcache(reffn, 100, 100000);
+  d.conf = &conf;
 	bam_filter(infn, outfn, reg, &d, bsstrand_func);
 
   /*** output stats ***/
 	fprintf(stderr, "Mapped reads: %d\n", d.n_mapped);
 	fprintf(stderr, "Unmapped reads: %d\n", d.n_unmapped);
 	fprintf(stderr, "Corrected reads: %d (%1.2f%%)\n", d.n_corr, (double)d.n_corr/(double)d.n_mapped*100.);
-	fprintf(stderr, "Failed reads: %d (%1.2f%%)\n", d.n_fail, (double)d.n_fail/(double)d.n_mapped*100.);
+
+  /* confusion matrix of conversion counts */
+  fprintf(stderr, "\nConfusion counts:\n");
+  fprintf(stderr, "orig\\infer     BSW (f)      BSC (r)      Conflict (c) Unknown (u)\n");
+  int i;
+  fprintf(stderr, "     BSW (f):   ");
+  for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[i]); fprintf(stderr, "\n");
+  fprintf(stderr, "     BSC (r):   ");
+  for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[4+i]); fprintf(stderr, "\n");
+  fprintf(stderr, "Conflict (c):   ");
+  for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[8+i]); fprintf(stderr, "\n");
+  fprintf(stderr, " Unknown (u):   ");
+  for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[12+i]); fprintf(stderr, "\n");
+  fprintf(stderr, "\n");
+
 	free_refcache(d.rs);
 	return 0;
 }

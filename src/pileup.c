@@ -371,21 +371,24 @@ uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
 uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
   uint8_t *s;
   
-  s = bam_aux_get(b, "ZS"); /* bsmap flag */
-  if (s) {
-    s++;
-    if (*s == '+') return 0;
-    else if (*s == '-') return 1;
-  }
-
-  s = bam_aux_get(b, "YD");     /* bwa-meth flag */
+  /* bwa-meth flag has highest priority */
+  s = bam_aux_get(b, "YD");
   if (s) {
     s++;
     if (*s == 'f') return 0;
     else if (*s == 'r') return 1;
   }
 
-  s = bam_aux_get(b, "XG");     /* bismark flag */
+  /* bsmap flag */
+  s = bam_aux_get(b, "ZS");
+  if (s) {
+    s++;
+    if (*s == '+') return 0;
+    else if (*s == '-') return 1;
+  }
+
+  /* bismark flag */
+  s = bam_aux_get(b, "XG");
   if (s) {
     s++;
     if (strcmp((char*)s, "CT")==0) return 0;

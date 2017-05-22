@@ -33,7 +33,7 @@
 #include <ctype.h>
 #include "sam.h"
 
-typedef int (*bam_filter_f)(bam1_t *b, const samFile *in, samFile *out, bam_hdr_t *header, void *data);
+typedef int (*bam_filter_f)(bam1_t *b, samFile *out, bam_hdr_t *header, void *data);
 
 int bam_filter(char *input_bam, char *output_bam, char *reg, void *data, bam_filter_f func);
 

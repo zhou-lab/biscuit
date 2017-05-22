@@ -61,7 +61,7 @@ int bam_filter(char *ifn, char *ofn, char *reg, void *data, bam_filter_f func) {
 		bam1_t *b = bam_init1();
 		hts_itr_t *iter = sam_itr_queryi(idx, tid, beg, end);
 		while ((ret = sam_itr_next(in, iter, b)) >= 0)
-      func(b, in, out, header, data);
+      func(b, out, header, data);
 		hts_itr_destroy(iter);
 		bam_destroy1(b);
 		hts_idx_destroy(idx);
@@ -70,14 +70,14 @@ int bam_filter(char *ifn, char *ofn, char *reg, void *data, bam_filter_f func) {
 
 		bam1_t *b = bam_init1();
 		while ((ret = sam_read1(in, header, b)) >= 0)
-      func(b, in, out, header, data);
+      func(b, out, header, data);
 		bam_destroy1(b);
 
 	}
 
 	if (out) sam_close(out);
 	sam_close(in);
-  sam_hdr_destroy(header);
+  bam_hdr_destroy(header);
 			
 	if (ret != -1) 				/* truncated is -2 */
 		wzfatal("[%s:%d] Alignment retrieval failed due to truncated file\n", __func__, __LINE__);

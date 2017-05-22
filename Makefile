@@ -69,7 +69,7 @@ $(LSGSL):
 BISCUITSRCS := $(wildcard src/*.c)
 BISCUITLIBS := $(BISCUITSRCS:.c=.o)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/bamfilter.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 
@@ -112,6 +112,12 @@ src/epiread.o: src/epiread.c
 
 src/asm_pairwise.o: src/asm_pairwise.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LSGSL_DIR) $< -o $@
+
+src/bsstrand.o: src/bsstrand.c
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
+
+src/bamfilter.o: src/bamfilter.c
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
 
 # ####### general #######
 
@@ -173,3 +179,13 @@ cleanse : purge
 # 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/hemifinder/hemifinder.c $(LSAM0119) $(LUTILS) -lpthread  -lz
 # clean_hemifinder:
 # 	rm -f bin/hemifinder
+
+
+######## test ###### 
+
+test_bsstrand1: biscuit
+	./biscuit bsstrand ~/references/hg19/hg19.fa test/InfiniumEPIC/bam/typeI.bam
+
+test_bsstrand2: biscuit
+	./biscuit bsstrand -co -g chr21 ~/references/hg19/hg19.fa test2/TruSeq_IMR90/bam/biscuit.bam test2/TruSeq_IMR90/bam/biscuit_bsstranded.bam
+
