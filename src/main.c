@@ -60,7 +60,7 @@ static int usage()
   fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
   fprintf(stderr, "Contact: Wanding Zhou <wanding.zhou@vai.org>\n\n");
   fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
-  fprintf(stderr, "Command: index         index sequences in the FASTA format\n");
+  fprintf(stderr, "Command: index         index reference genome sequences in the FASTA format\n");
   fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "         tview         text alignment viewer with bisulfite coloring\n");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");

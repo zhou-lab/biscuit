@@ -65,7 +65,7 @@ static int get_bsstrand(bam1_t *b) {
 /* read information node */
 typedef struct __rnode_t {
   bam1_t *b;
-  int row;                   /* which row the read should be placed */
+  int row;                   /* which row the read should be placed, -1 for skip */
 } rnode_t;
 
 DEFINE_VECTOR(rnode_v, rnode_t);
@@ -99,6 +99,9 @@ typedef struct btview_t {
   char *ref; int l_ref;
   /* buffer of reads overlapping current window */
   rnode_v *read_buf;
+  /* buffer boundary */
+  int buf_flank;
+  int buf_tid, buf_left, buf_right;
   /* genomic coordinates of window */
   int curr_tid, left_pos, row_shift;
 
@@ -110,6 +113,7 @@ typedef struct btview_t {
   int base_for;               /* what does base stand for? */
   int is_dot;                 /* use dot instead of showing bases */
   int ins;                    /* whether to display insertion */
+  int max_reads_per_pos;      /* max number of reads per position to load */
 
   /* pop-up windows */
   WINDOW *wgoto, *whelp;
@@ -188,6 +192,10 @@ static btview_t *btv_init(const char *fn, const char *ref_fn) {
 
   /* read buffer */
   tv->read_buf = init_rnode_v(2);
+  tv->buf_left = -1;
+  tv->buf_right = -1;
+  tv->buf_flank = 0;
+  tv->max_reads_per_pos = 50;
 
   /* initialize color */
   tv->color_for = TV_COLOR_BSMODE;
@@ -225,18 +233,44 @@ static void btv_destroy(btview_t *tv) {
 /* layout which row to put each read
    the following assumes reads are sorted by the start position */
 static void set_row_update_endposes(rnode_t *nd, btview_t *tv, int *row_endposes) {
-  unsigned i; bam1_t *b = nd->b;
+  unsigned i;
+  bam1_t *b = nd->b;
+  int endpos = bam_endpos(b);
+  if (endpos < tv->left_pos || b->core.pos > tv->left_pos + tv->mcol) {
+    nd->row = -1;
+    return;
+  }
   for (i=0; i<=tv->read_buf->size; ++i) {
     if (((b->core.pos > tv->left_pos) ? (b->core.pos - tv->left_pos) : 0) >= row_endposes[i]) {
       nd->row = i+2;
-      row_endposes[i] = bam_endpos(b) - tv->left_pos + 5; /* update largest occupied position on the row */
+      row_endposes[i] = endpos - tv->left_pos + 5; /* update largest occupied position on the row */
       break;
     }
   }
 }
 
+/* assign reads to rows */
+static void screen_layout_reads(btview_t *tv) {
+  unsigned i;
+  int *row_endposes = calloc(tv->read_buf->size, sizeof(int));
+  for (i=0; i<tv->read_buf->size; ++i) {
+    set_row_update_endposes(ref_rnode_v(tv->read_buf, i), tv, row_endposes);
+  }
+  free(row_endposes);
+}
+
 /* reload data, prepare for drawing */
 static void btv_reload_data(btview_t *tv) {
+
+  /* no need to reload buffer if the current window is still within buffer range */
+  if (tv->buf_left >= 0 && tv->buf_right >= 0 && tv->curr_tid == tv->buf_tid
+      && tv->buf_left+2 <= tv->left_pos && tv->buf_right >= tv->left_pos + tv->mcol + 2)
+    return;
+
+  /* reset buffer range */
+  tv->buf_tid = tv->curr_tid;
+  tv->buf_left = max(0, tv->left_pos-1-tv->buf_flank);
+  tv->buf_right = min((int) (tv->header->target_len[tv->curr_tid]), tv->left_pos+tv->mcol+tv->buf_flank);
 
   /* retrieve reference, set tv->ref
      this is simpler as no concensus calling is drawn, 
@@ -248,7 +282,7 @@ static void btv_reload_data(btview_t *tv) {
 
     str = (char*)calloc(strlen(tv->header->target_name[tv->curr_tid]) + 30, 1);
     assert(str!=NULL);
-    sprintf(str, "%s:%d-%d", tv->header->target_name[tv->curr_tid], tv->left_pos + 1, tv->left_pos + tv->mcol);
+    sprintf(str, "%s:%d-%d", tv->header->target_name[tv->curr_tid], tv->buf_left+1, tv->buf_right);
     tv->ref = fai_fetch(tv->fai, str, &tv->l_ref);
     free(str);
     if (!tv->ref)
@@ -256,24 +290,26 @@ static void btv_reload_data(btview_t *tv) {
   }
   
   /* retrieve reads */
-  reset_rnode_v(tv->read_buf);
-  hts_itr_t *iter = sam_itr_queryi(tv->idx, tv->curr_tid, tv->left_pos, tv->left_pos + tv->mcol);
   bam1_t *b = bam_init1();
+
+  int n = 1; hts_itr_t *iter;
+  iter = sam_itr_queryi(tv->idx, tv->curr_tid, tv->buf_left, tv->buf_right);
+  reset_rnode_v(tv->read_buf);
+  int prev_pos = -1;
   while (sam_itr_next(tv->fp, iter, b) >= 0) {
+    if (b->core.pos != prev_pos) {
+      n = 1;
+      prev_pos = b->core.pos;
+    } else {
+      n++; 
+      if (n>tv->max_reads_per_pos) continue;
+    }
     rnode_t *nd = next_ref_rnode_v(tv->read_buf);
     nd->b = b;
     b = bam_init1();
   }
   bam_destroy1(b);
   hts_itr_destroy(iter);
-
-  /* assign reads to rows */
-  unsigned i;
-  int *row_endposes = calloc(tv->read_buf->size, sizeof(int));
-  for (i=0; i<tv->read_buf->size; ++i) {
-    set_row_update_endposes(ref_rnode_v(tv->read_buf, i), tv, row_endposes);
-  }
-  free(row_endposes);
 }
 
 /****************************
@@ -298,7 +334,7 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
       for (j=0; j<oplen; ++j) {
         if (rpos + j < (unsigned) tv->left_pos) continue;
         qb = toupper(bscall(b, qpos + j));
-        rb = toupper(tv->ref[rpos+j - tv->left_pos]);
+        rb = toupper(tv->ref[rpos+j - tv->buf_left]);
 
         attr = readattr;
         if (tv->color_for == TV_COLOR_BSMODE) {
@@ -364,13 +400,15 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
 }
 
 /* draw all alignments */
-static void btv_drawaln(btview_t *tv, int reload) {
+static void btv_drawaln(btview_t *tv, int re_layout) {
 
   assert(tv != NULL);
   clear();
 
-  if (reload)
+  if (re_layout) {
     btv_reload_data(tv);
+    screen_layout_reads(tv);
+  }
   
   /* draw coordinates and reference */
   int i;
@@ -379,20 +417,21 @@ static void btv_drawaln(btview_t *tv, int reload) {
     if (pos % 20 == 0)
       vmvprintw(tv, 0, i-1, "|%-d", pos);
   }
-  if (tv->fai)
+  if (tv->fai) {
     for (i=0; i<tv->mcol; ++i) {
-      unsigned char c = toupper(tv->ref[i]);
+      int ii = i+tv->left_pos-tv->buf_left;
+      unsigned char c = toupper(tv->ref[ii]);
       int attr = 0;
       if (tv->color_for == TV_COLOR_NUCL) {
         attr |= COLOR_PAIR(nt256char_to_nt256int8_table[c]+5);
       } else if (tv->color_for == TV_COLOR_BSMODE) {
         if (c == 'C') {
-          if (i+1 < tv->l_ref && toupper(tv->ref[i+1]) == 'G')
+          if (i+1 < tv->l_ref && toupper(tv->ref[ii+1]) == 'G')
             attr |= COLOR_PAIR(8) | A_UNDERLINE;
           else
             attr |= COLOR_PAIR(1);
         } else if (c == 'G') {
-          if (i > 0 && toupper(tv->ref[i-1]) == 'C')
+          if (i > 0 && toupper(tv->ref[ii-1]) == 'C')
             attr |= COLOR_PAIR(8) | A_UNDERLINE;
           else
             attr |= COLOR_PAIR(1);
@@ -402,8 +441,7 @@ static void btv_drawaln(btview_t *tv, int reload) {
       mvaddch(1, i, c);
       attroff(attr);
     }
-    /* mvprintw(1, 0, tv->ref); */
-  else {
+  } else {
     for (i=0; i<tv->mcol; ++i)
       mvaddch(1, i, 'N');
   }
@@ -415,7 +453,9 @@ static void btv_drawaln(btview_t *tv, int reload) {
     rnode_t *nd = ref_rnode_v(tv->read_buf, u);
     bam1_t *b = nd->b; bam1_core_t *c = &b->core;
     int bss = get_bsstrand(b);
-    if (nd->row >= 2+tv->row_shift && nd->row < 2 + tv->row_shift + tv->mrow) {
+    if (nd->row >= 0 && 
+        nd->row >= 2+tv->row_shift && 
+        nd->row < 2 + tv->row_shift + tv->mrow) {
 
       /************************
        ** read level coloring *
@@ -553,8 +593,9 @@ static void btv_win_goto(btview_t *tv, int *tid, int *pos) {
  *************/
 static int btv_loop(btview_t *tv) {
 
-  int r = 0;                    /* whether to reload */
+  int r;                    /* whether to re-layout */
   while (1) {
+    r = 0;
     int c = getch();
     switch (c) {
     case '?': btv_win_help(tv); break;
@@ -606,15 +647,20 @@ int main_tview(int argc, char *argv[]) {
 
   char *position = NULL;
   
+  int max_reads_per_pos = 50;
+  int buf_flank = 100;
   int c;
-  while ((c = getopt(argc, argv, "g:h")) >= 0) {
+  while ((c = getopt(argc, argv, "g:m:h")) >= 0) {
     switch (c) {
     case 'g': position = optarg; break;
+    case 'm': max_reads_per_pos = atoi(optarg); break;
     case 'h':
       fprintf(stderr, "\n");
       fprintf(stderr, "Usage: biscuit tview [options] in.bam ref.fa \n");
       fprintf(stderr, "Input options:\n");
       fprintf(stderr, "     -g chr:pos     go directly to this position\n");
+      fprintf(stderr, "     -m INT         max number of reads to load per position [%d]\n", max_reads_per_pos);
+      fprintf(stderr, "     -f INT         flanking sequence length [%d]\n", buf_flank);
       fprintf(stderr, "     -h             this help.\n");
       fprintf(stderr, "\n");
       return 1;
@@ -633,6 +679,8 @@ int main_tview(int argc, char *argv[]) {
   }
 
   btview_t *tv = btv_init(bam_fn, ref_fn);
+  tv->max_reads_per_pos = max_reads_per_pos;
+  tv->buf_flank = buf_flank;
   
   /* if target position is given, parse that */
   if (position) {

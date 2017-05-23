@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -W -Wall -finline-functions -fPIC -std=gnu99 -Wno-unused-result
+CFLAGS = -W -Wall -finline-functions -fPIC -std=gnu99 -Wno-unused-result -O3
 CLIB = -lncurses -lpthread -lz -lm
-CF_NO_OPTIMIZE = 0
+CF_OPTIMIZE = 1
 
 OS := $(shell uname)
 ifeq ($(OS),  Darwin)
@@ -24,18 +24,21 @@ PROG = biscuit
 
 .PHONY : setdebug debug build
 
-ifeq (1, $(CF_NO_OPTIMIZE))
-	CFLAGS += -g
-else
-	CFLAGS += -O3
-endif
+# ifeq (1, $(CF_NO_OPTIMIZE))
+#   CFLAGS += -g
+# else
+#   CFLAGS += -O3
+# endif
 
-build: $(PROG)
+build: exportcf $(PROG)
 
-debug: setdebug build
+debug: CF_OPTIMIZE := 0
+debug: CFLAGS += -g
+debug: CFLAGS := $(filter-out -O3,$(CFLAGS))
+debug: build
 
-setdebug:
-	$(eval export CF_NO_OPTIMIZE := 1)
+exportcf:
+	$(eval export CF_OPTIMIZE)
 
 #####################
 ##### libraries #####
