@@ -4,7 +4,7 @@ BISulfite-seq CUI Toolkit (BISCUIT) is a utility suite for analyzing sodium bisu
 
 # Download and Install
 
-Latest release is [here](https://github.com/zwdzwd/biscuit/releases/download/v0.2.0.20161222/release.zip). To install BISCUIT,
+Latest release is [here](https://github.com/zwdzwd/biscuit/releases/download/v0.2.2.20170522/release-v0.2.2.zip). To install BISCUIT,
 
 ```bash
 $ unzip release.zip
