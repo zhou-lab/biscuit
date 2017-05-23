@@ -34,6 +34,7 @@
 #include "faidx.h"
 #include "wzmisc.h"
 #include "encode.h"
+#include "kstring.h"
 
 static int get_bsstrand(bam1_t *b) {
   uint8_t *s;
@@ -102,11 +103,11 @@ typedef struct btview_t {
   /* buffer boundary */
   int buf_flank;
   int buf_tid, buf_left, buf_right;
-  /* genomic coordinates of window */
+  /* genomic coordinates of screen */
   int curr_tid, left_pos, row_shift;
 
   /* display options */
-  int no_skip;                /* no "skip reads" */
+  int show_short_format;      /* show short format of read */
   int show_name;              /* show read name instead of sequence */
   int inverse;                /* inverse color? */
   int color_for;              /* what does color stand for? */
@@ -114,6 +115,7 @@ typedef struct btview_t {
   int is_dot;                 /* use dot instead of showing bases */
   int ins;                    /* whether to display insertion */
   int max_reads_per_pos;      /* max number of reads per position to load */
+  char *read_name;            /* target read name to display */
 
   /* pop-up windows */
   WINDOW *wgoto, *whelp;
@@ -196,6 +198,7 @@ static btview_t *btv_init(const char *fn, const char *ref_fn) {
   tv->buf_right = -1;
   tv->buf_flank = 0;
   tv->max_reads_per_pos = 50;
+  tv->read_name = NULL;
 
   /* initialize color */
   tv->color_for = TV_COLOR_BSMODE;
@@ -300,7 +303,7 @@ static void btv_reload_data(btview_t *tv) {
     if (b->core.pos != prev_pos) {
       n = 1;
       prev_pos = b->core.pos;
-    } else {
+    } else if (tv->read_name==NULL || strcmp(tv->read_name, bam_get_qname(b))!=0) {
       n++; 
       if (n>tv->max_reads_per_pos) continue;
     }
@@ -399,6 +402,39 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
   }
 }
 
+char *sam_short_format1(const bam_hdr_t *h, const bam1_t *b) {
+
+  kstring_t str;
+  str.l = str.m = 0; str.s = NULL;
+
+  int i;
+  const bam1_core_t *c = &b->core;
+  kputw(c->flag, &str); kputc('|', &str); // flag
+  if (c->tid >= 0) { // chr
+    kputs(h->target_name[c->tid], &str);
+    kputc('|', &str);
+  } else kputsn("*|", 2, &str);
+  kputw(c->pos + 1, &str); kputc('|', &str); // pos
+  kputw(c->qual, &str); kputc('|', &str); // qual
+  if (c->n_cigar) { // cigar
+    uint32_t *cigar = bam_get_cigar(b);
+    for (i = 0; i < c->n_cigar; ++i) {
+      kputw(bam_cigar_oplen(cigar[i]), &str);
+      kputc(bam_cigar_opchr(cigar[i]), &str);
+    }
+  } else kputc('*', &str);
+  kputc('|', &str);
+  if (c->mtid < 0) kputsn("*|", 2, &str); // mate chr
+  else if (c->mtid == c->tid) kputsn("=|", 2, &str);
+  else {
+    kputs(h->target_name[c->mtid], &str);
+    kputc('|', &str);
+  }
+  kputw(c->mpos + 1, &str); kputc('|', &str); // mate pos
+  kputw(c->isize, &str); kputc('|', &str); // template len
+  return str.s;
+}
+
 /* draw all alignments */
 static void btv_drawaln(btview_t *tv, int re_layout) {
 
@@ -468,6 +504,10 @@ static void btv_drawaln(btview_t *tv, int re_layout) {
         if (x > 4) x = 4;
         readattr |= COLOR_PAIR(x);
       }
+
+      if (tv->read_name != NULL && strcmp(tv->read_name, bam_get_qname(b))==0) {
+        readattr |= A_REVERSE;
+      }
       
       /* set underscore for improper pair or secondary mapping */
       if (((c->flag & BAM_FPAIRED) && !(c->flag & BAM_FPROPER_PAIR))
@@ -477,6 +517,10 @@ static void btv_drawaln(btview_t *tv, int re_layout) {
       if (tv->show_name) {
         attron(readattr);
         mvprintw(nd->row - tv->row_shift, max(c->pos - tv->left_pos, 0), bam_get_qname(b));
+        attroff(readattr);
+      } else if (tv->show_short_format) {
+        attron(readattr);
+        mvprintw(nd->row - tv->row_shift, max(c->pos - tv->left_pos, 0), sam_short_format1(tv->header, b));
         attroff(readattr);
       } else {
         draw_read1(nd, tv, readattr, bss);
@@ -508,7 +552,7 @@ static void btv_win_help(btview_t *tv) {
   mvwprintw(win, r++, 2, "b          Color for base quality");
   mvwprintw(win, r++, 2, "n          Color for nucleotide");
   mvwprintw(win, r++, 2, ".          Toggle on/off dot view");
-  /* mvwprintw(win, r++, 2, "s          Toggle on/off ref skip"); */
+  mvwprintw(win, r++, 2, "s          Toggle on/off rd short format");
   mvwprintw(win, r++, 2, "r          Toggle on/off rd name");
   /* mvwprintw(win, r++, 2, "i          Toggle on/off ins"); */
   mvwprintw(win, r++, 2, "v          Inverse video");
@@ -608,8 +652,8 @@ static int btv_loop(btview_t *tv) {
     case 'b': tv->color_for = TV_COLOR_BASEQ; break;
     case 'n': tv->color_for = TV_COLOR_NUCL; break;
     case 'v': btv_init_colors(tv->inverse = !tv->inverse); break;
-    case 's': tv->no_skip = !tv->no_skip; break;
-    case 'r': tv->show_name = !tv->show_name; break;
+    case 's': tv->show_short_format = !tv->show_short_format; if (tv->show_short_format) tv->show_name = 0; break;
+    case 'r': tv->show_name = !tv->show_name; if (tv->show_name) tv->show_short_format = 0; break;
     case KEY_LEFT:
     case 'h': --tv->left_pos; r=1; break;
     case KEY_RIGHT:
@@ -642,6 +686,17 @@ static int btv_loop(btview_t *tv) {
   return 0;
 }
 
+static void usage() {
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Usage: biscuit tview [options] in.bam ref.fa \n");
+  fprintf(stderr, "Input options:\n");
+  fprintf(stderr, "     -g chr:pos     go directly to this position\n");
+  fprintf(stderr, "     -m INT         max number of reads to load per position [50]\n");
+  fprintf(stderr, "     -n name        highlight the read(s) with the read name\n");
+  fprintf(stderr, "     -f INT         flanking sequence length [10]\n");
+  fprintf(stderr, "     -h             this help.\n");
+  fprintf(stderr, "\n");
+}
 
 int main_tview(int argc, char *argv[]) {
 
@@ -649,21 +704,14 @@ int main_tview(int argc, char *argv[]) {
   
   int max_reads_per_pos = 50;
   int buf_flank = 100;
+  char *read_name = NULL; /* target read name */
   int c;
-  while ((c = getopt(argc, argv, "g:m:h")) >= 0) {
+  while ((c = getopt(argc, argv, "g:m:n:h")) >= 0) {
     switch (c) {
     case 'g': position = optarg; break;
     case 'm': max_reads_per_pos = atoi(optarg); break;
-    case 'h':
-      fprintf(stderr, "\n");
-      fprintf(stderr, "Usage: biscuit tview [options] in.bam ref.fa \n");
-      fprintf(stderr, "Input options:\n");
-      fprintf(stderr, "     -g chr:pos     go directly to this position\n");
-      fprintf(stderr, "     -m INT         max number of reads to load per position [%d]\n", max_reads_per_pos);
-      fprintf(stderr, "     -f INT         flanking sequence length [%d]\n", buf_flank);
-      fprintf(stderr, "     -h             this help.\n");
-      fprintf(stderr, "\n");
-      return 1;
+    case 'n': read_name = strdup(optarg); break;
+    case 'h': usage(); return 1;
     default:
       fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
       fflush(stderr);
@@ -675,12 +723,14 @@ int main_tview(int argc, char *argv[]) {
   char *bam_fn; bam_fn = (optind < argc) ? argv[optind++] : NULL;
   char *ref_fn; ref_fn = (optind < argc) ? argv[optind++] : NULL;
   if (!bam_fn) {
+    usage();
     wzfatal("No input bam is given.\n");
   }
 
   btview_t *tv = btv_init(bam_fn, ref_fn);
   tv->max_reads_per_pos = max_reads_per_pos;
   tv->buf_flank = buf_flank;
+  tv->read_name = read_name;
   
   /* if target position is given, parse that */
   if (position) {

@@ -185,7 +185,7 @@ int bsstrand_func(bam1_t *b, samFile *out, bam_hdr_t *header, void *data) {
 	return 0;
 }
 
-static int usage() {
+static void usage() {
   fprintf(stderr, "\n");
   fprintf(stderr, "Usage: bsstrand [options] ref.fa in.bam [out.bam]\n");
   fprintf(stderr, "Input options:\n");
@@ -194,7 +194,6 @@ static int usage() {
   fprintf(stderr, "     -c        correct bsstrand in the output bam, YD tag will be replaced if existent and created if not.\n");
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
-  return 1;
 }
 
 /* if nC2T > 1 and nG2A > 1: then fail and mark "?"
@@ -206,13 +205,13 @@ int main_bsstrand(int argc, char *argv[]) {
 	char *reg = 0;										/* region */
   bsstrand_conf_t conf = {0};
 
-  if (argc < 2) return usage();
+  if (argc < 2) { usage(); return 1; }
   while ((c = getopt(argc, argv, "g:coh")) >= 0) {
     switch (c) {
 		case 'g': reg = optarg; break;
 		case 'o': conf.output_count = 1; break;
     case 'c': conf.correct_bsstrand = 1; break;
-    case 'h': return usage();
+    case 'h': usage(); return 1;
     default:
       fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
       exit(1);

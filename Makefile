@@ -192,3 +192,5 @@ test_bsstrand1: biscuit
 test_bsstrand2: biscuit
 	./biscuit bsstrand -co -g chr21 ~/references/hg19/hg19.fa test2/TruSeq_IMR90/bam/biscuit.bam test2/TruSeq_IMR90/bam/biscuit_bsstranded.bam
 
+test_tview1: biscuit
+	./biscuit tview -g chr11:5312345 -m 1 test3/AmpliconSeq/bam/DRM2.bam ~/references/hg19/hg19.fa
