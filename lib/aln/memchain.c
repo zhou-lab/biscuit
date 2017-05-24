@@ -168,8 +168,13 @@ static int asymmetric_flt_seed(mem_seed_t *s, const uint8_t *pac, const bntseq_t
  * mem_chain_t *
  ***************/
 typedef struct {
-  int n, m, first, rid;         /* check if they can be unsigned; first: index of the first chain in overlap */
-  uint32_t w:29, kept:2, is_alt:1; /* w: weight; kept: flag for keeping in filtering */
+  /* check if the following int can be unsigned */
+  int n, m;
+  int first;           /* index of the first chain in overlap */
+  int rid;
+  uint32_t w:29;       /* w: weight, for sorting in filtering; kept: flag for keeping in filtering */
+  uint32_t kept:2;
+  uint32_t is_alt:1; 
   float frac_rep;		   /* fraction of repeats */
   int64_t pos;
   mem_seed_t *seeds;
@@ -177,9 +182,8 @@ typedef struct {
 
 typedef struct { size_t n, m; mem_chain_t *a;  } mem_chain_v;
 
-/* chain weight is defined as the minimum of
- * base coverage of all the seeds in query
- * and that in reference */
+/* chain weight is defined as:
+ * min(seeds_base_cov_ref, seeds_base_cov_query) */
 int mem_chain_weight(const mem_chain_t *c) {
   int64_t end;
   int j, w = 0, tmp;
