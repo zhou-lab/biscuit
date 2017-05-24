@@ -286,8 +286,7 @@ static void bwt_reverse_intvs(bwtintv_v *p)
 	}
 }
 // NOTE: $max_intv is not currently used in BWA-MEM
-int bwt_smem1a(const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2])
-{
+int bwt_smem1a(const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2]) {
 	int i, j, c, ret;
 	bwtintv_t ik, ok[4];
 	bwtintv_v a[2], *prev, *curr, *swap;
