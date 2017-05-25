@@ -557,7 +557,7 @@ static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq
   /* use both bisseq and unconverted sequence here */
   chn = mem_chain(opt, bwt, bns, pac, bseq, buf, parent);
   /* filter whole chains */
-  chn.n = mem_chain_flt(opt, chn.n, chn.a);
+  mem_chain_flt(opt, &chn);
   /* filter seeds in the chain by seed score */
   mem_flt_chained_seeds(opt, bns, pac, l_seq, bseq->seq, chn.n, chn.a, parent);
   if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
@@ -637,7 +637,7 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
     /* WZBS */
     /* ar->rid should be the real rid, see assert below */
     a.cigar = bis_bwa_gen_cigar2(ar->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w2, bns->l_pac, pac, qe - qb, (uint8_t*)&query[qb], rb, re, &score, &a.n_cigar, &NM, &ZC, &ZR, ar->parent);
-    
+
     if (bwa_verbose >= 4) printf("* Final alignment: w2=%d, global_sc=%d, local_sc=%d\n", w2, score, ar->truesc);
     if (score == last_sc || w2 == opt->w<<2) break; // it is possible that global alignment and local alignment give different scores
     last_sc = score;
@@ -709,16 +709,16 @@ static void bis_worker1(void *data, int i, int tid)
   mem_alnreg_v *regs; const mem_opt_t *opt=w->opt;
 
   if (!(opt->flag&MEM_F_PE)) {	/* single-end */
-    
+
     if (bwa_verbose >= 4) printf("=====> Processing read '%s' <=====\n", w->seqs[i].name);
-    
+
     regs = &w->regs[i]; kv_init(*regs);
     if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 0);
     if (!(opt->parent) || opt->parent>>1) /* no restriction or target parent */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 1);
     mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], regs);
-    
+
   } else {			/* paired-end */
 
     if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name);
