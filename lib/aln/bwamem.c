@@ -88,192 +88,6 @@ mem_opt_t *mem_opt_init() {
   return o;
 }
 
-
-/******************************
- * De-overlap single-end hits *
- ******************************/
-
-/* v2 further differentiate by bss */
-#define alnreg_slt2(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).re < (b).re)))
-KSORT_INIT(mem_ars2, mem_alnreg_t, alnreg_slt2)
-
-#define alnreg_slt(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).score > (b).score || ((a).score == (b).score && ((a).rb < (b).rb || ((a).rb == (b).rb && (a).qb < (b).qb))))))
-KSORT_INIT(mem_ars, mem_alnreg_t, alnreg_slt)
-
-#define alnreg_hlt(a, b)  ((a).score > (b).score || ((a).score == (b).score && ((a).is_alt < (b).is_alt || ((a).is_alt == (b).is_alt && (a).hash < (b).hash))))
-KSORT_INIT(mem_ars_hash, mem_alnreg_t, alnreg_hlt)
-
-#define alnreg_hlt2(a, b) ((a).is_alt < (b).is_alt || ((a).is_alt == (b).is_alt && ((a).score > (b).score || ((a).score == (b).score && (a).hash < (b).hash))))
-KSORT_INIT(mem_ars_hash2, mem_alnreg_t, alnreg_hlt2)
-
-#define PATCH_MAX_R_BW 0.05f
-#define PATCH_MIN_SC_RATIO 0.90f
-
-int mem_patch_reg(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, const mem_alnreg_t *a, const mem_alnreg_t *b, int *_w) {
-  int w, score, q_s, r_s;
-  double r;
-  if (bns == 0 || pac == 0 || query == 0) return 0;
-  assert(a->rid == b->rid && a->rb <= b->rb);
-  if (a->rb < bns->l_pac && b->rb >= bns->l_pac) return 0; // on different strands
-  if (a->qb >= b->qb || a->qe >= b->qe || a->re >= b->re) return 0; // not colinear
-  w = (a->re - b->rb) - (a->qe - b->qb); // required bandwidth
-  w = w > 0? w : -w; // l = abs(l)
-  r = (double)(a->re - b->rb) / (b->re - a->rb) - (double)(a->qe - b->qb) / (b->qe - a->qb); // relative bandwidth
-  r = r > 0.? r : -r; // r = fabs(r)
-  if (bwa_verbose >= 4)
-    printf("* potential hit merge between [%d,%d)<=>[%ld,%ld) and [%d,%d)<=>[%ld,%ld), @ %s; w=%d, r=%.4g\n",
-	   a->qb, a->qe, (long)a->rb, (long)a->re, b->qb, b->qe, (long)b->rb, (long)b->re, bns->anns[a->rid].name, w, r);
-  if (a->re < b->rb || a->qe < b->qb) { // no overlap on query or on ref
-    if (w > opt->w<<1 || r >= PATCH_MAX_R_BW) return 0; // the bandwidth or the relative bandwidth is too large
-  } else if (w > opt->w<<2 || r >= PATCH_MAX_R_BW*2) return 0; // more permissive if overlapping on both ref and query
-  // global alignment
-  w += a->w + b->w;
-  w = w < opt->w<<2? w : opt->w<<2;
-  if (bwa_verbose >= 4) printf("* test potential hit merge with global alignment; w=%d\n", w);
-
-  bis_bwa_gen_cigar2(a->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, b->qe - a->qb, query + a->qb, a->rb, b->re, &score, 0, 0, 0, 0, a->parent);
-  q_s = (int)((double)(b->qe - a->qb) / ((b->qe - b->qb) + (a->qe - a->qb)) * (b->score + a->score) + .499); // predicted score from query
-  r_s = (int)((double)(b->re - a->rb) / ((b->re - b->rb) + (a->re - a->rb)) * (b->score + a->score) + .499); // predicted score from ref
-  if (bwa_verbose >= 4) printf("* score=%d;(%d,%d)\n", score, q_s, r_s);
-  if ((double)score / (q_s > r_s? q_s : r_s) < PATCH_MIN_SC_RATIO) return 0;
-  *_w = w;
-  return score;
-}
-
-int mem_sort_dedup_patch(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, int n, mem_alnreg_t *a) {
-  int m, i, j;
-  if (n <= 1) return n;
-  ks_introsort(mem_ars2, n, a); // sort by the END position, not START!
-  for (i = 0; i < n; ++i) a[i].n_comp = 1;
-  for (i = 1; i < n; ++i) {
-    mem_alnreg_t *p = &a[i];
-    if (p->bss != a[i-1].bss || p->rid != a[i-1].rid || p->rb >= a[i-1].re + opt->max_chain_gap) continue; // then no need to go into the loop below
-    for (j = i - 1; j >= 0 && p->bss == a[j].bss && p->rid == a[j].rid && p->rb < a[j].re + opt->max_chain_gap; --j) {
-      mem_alnreg_t *q = &a[j];
-      int64_t or, oq, mr, mq;
-      int score, w;
-      if (q->qe == q->qb) continue; // a[j] has been excluded
-      or = q->re - p->rb; // overlap length on the reference
-      oq = q->qb < p->qb? q->qe - p->qb : p->qe - q->qb; // overlap length on the query
-      mr = q->re - q->rb < p->re - p->rb? q->re - q->rb : p->re - p->rb; // min ref len in alignment
-      mq = q->qe - q->qb < p->qe - p->qb? q->qe - q->qb : p->qe - p->qb; // min qry len in alignment
-      if (or > opt->mask_level_redun * mr && oq > opt->mask_level_redun * mq) { // one of the hits is redundant
-	if (p->score < q->score) {
-	  p->qe = p->qb;
-	  break;
-	} else q->qe = q->qb;
-      } else if (q->rb < p->rb && (score = mem_patch_reg(opt, bns, pac, query, q, p, &w)) > 0) { // then merge q into p
-	p->n_comp += q->n_comp + 1;
-	p->seedcov = p->seedcov > q->seedcov? p->seedcov : q->seedcov;
-	p->sub = p->sub > q->sub? p->sub : q->sub;
-	p->csub = p->csub > q->csub? p->csub : q->csub;
-	p->qb = q->qb, p->rb = q->rb;
-	p->truesc = p->score = score;
-	p->w = w;
-	q->qb = q->qe;
-      }
-    }
-  }
-  for (i = 0, m = 0; i < n; ++i) // exclude identical hits
-    if (a[i].qe > a[i].qb) {
-      if (m != i) a[m++] = a[i];
-      else ++m;
-    }
-  n = m;
-  ks_introsort(mem_ars, n, a);
-  for (i = 1; i < n; ++i) { // mark identical hits
-    if (a[i].score == a[i-1].score && a[i].rb == a[i-1].rb && a[i].qb == a[i-1].qb)
-      a[i].qe = a[i].qb;
-  }
-  for (i = 1, m = 1; i < n; ++i) // exclude identical hits
-    if (a[i].qe > a[i].qb) {
-      if (m != i) a[m++] = a[i];
-      else ++m;
-    }
-  return m;
-}
-
-int mem_test_and_remove_exact(const mem_opt_t *opt, int n, mem_alnreg_t *a, int qlen) {
-  if (!(opt->flag & MEM_F_SELF_OVLP) || n == 0 || a->truesc != qlen * opt->a) return n;
-  memmove(a, a + 1, (n - 1) * sizeof(mem_alnreg_t));
-  return n - 1;
-}
-
-typedef kvec_t(int) int_v;
-
-static void mem_mark_primary_se_core(const mem_opt_t *opt, int n, mem_alnreg_t *a, int_v *z)
-{ // similar to the loop in mem_chain_flt()
-  int i, tmp;
-  uint32_t k;
-  tmp = opt->a + opt->b;
-  tmp = opt->o_del + opt->e_del > tmp? opt->o_del + opt->e_del : tmp;
-  tmp = opt->o_ins + opt->e_ins > tmp? opt->o_ins + opt->e_ins : tmp;
-  z->n = 0;
-  kv_push(int, *z, 0);
-  for (i = 1; i < n; ++i) {
-    for (k = 0; k < z->n; ++k) {
-      int j = z->a[k];
-      int b_max = a[j].qb > a[i].qb? a[j].qb : a[i].qb;
-      int e_min = a[j].qe < a[i].qe? a[j].qe : a[i].qe;
-      if (e_min > b_max) { // have overlap
-	int min_l = a[i].qe - a[i].qb < a[j].qe - a[j].qb? a[i].qe - a[i].qb : a[j].qe - a[j].qb;
-	if (e_min - b_max >= min_l * opt->mask_level) { // significant overlap
-	  if (a[j].sub == 0) a[j].sub = a[i].score;
-	  if (a[j].score - a[i].score <= tmp && (a[j].is_alt || !a[i].is_alt))
-	    ++a[j].sub_n;
-	  break;
-	}
-      }
-    }
-    if (k == z->n) kv_push(int, *z, i);
-    else a[i].secondary = z->a[k];
-  }
-}
-
-/**
- * select which alignment is the primary for SE
- */
-int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id)
-{
-  int i, n_pri;
-  int_v z = {0,0,0};
-  if (n == 0) return 0;
-  for (i = n_pri = 0; i < n; ++i) {
-    a[i].sub = a[i].alt_sc = 0, a[i].secondary = a[i].secondary_all = -1, a[i].hash = hash_64(id+i);
-    if (!a[i].is_alt) ++n_pri;
-  }
-  ks_introsort(mem_ars_hash, n, a);
-  mem_mark_primary_se_core(opt, n, a, &z);
-
-  /* set alt_sc for secondary */
-  for (i = 0; i < n; ++i) {
-    mem_alnreg_t *p = &a[i];
-    p->secondary_all = i; // keep the rank in the first round
-    if (!p->is_alt && p->secondary >= 0 && a[p->secondary].is_alt)
-      p->alt_sc = a[p->secondary].score;
-  }
-  if (n_pri >= 0 && n_pri < n) {
-    kv_resize(int, z, n);
-    if (n_pri > 0) ks_introsort(mem_ars_hash2, n, a);
-    for (i = 0; i < n; ++i) z.a[a[i].secondary_all] = i;
-    for (i = 0; i < n; ++i) {
-      if (a[i].secondary >= 0) {
-	a[i].secondary_all = z.a[a[i].secondary];
-	if (a[i].is_alt) a[i].secondary = INT_MAX;
-      } else a[i].secondary_all = -1;
-    }
-    if (n_pri > 0) { // mark primary for hits to the primary assembly only
-      for (i = 0; i < n_pri; ++i) a[i].sub = 0, a[i].secondary = -1;
-      mem_mark_primary_se_core(opt, n_pri, a, &z);
-    }
-  } else {
-    for (i = 0; i < n; ++i)
-      a[i].secondary_all = a[i].secondary;
-  }
-  free(z.a);
-  return n_pri;
-}
-
 /*****************************
  * Basic hit->SAM conversion *
  *****************************/
@@ -574,31 +388,6 @@ static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq
 }
 
 /**
- * @param regs mem_alnreg_v
- * @return regs
- */
-void mem_merge_reg1(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, mem_alnreg_v *regs) {
-  uint32_t i;
-  regs->n = mem_sort_dedup_patch(opt, bns, pac, bseq->seq, regs->n, regs->a);
-  if (opt->flag & MEM_F_SELF_OVLP)
-    regs->n = mem_test_and_remove_exact(opt, regs->n, regs->a, bseq->l_seq);
-  if (bwa_verbose >= 4) {
-    err_printf("* %ld chains remain after removing duplicated chains\n", regs->n);
-    for (i = 0; i < regs->n; ++i) {
-      mem_alnreg_t *p = &regs->a[i];
-      printf("** %d, [%d,%d) <=> [%ld,%ld)\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re);
-    }
-  }
-  for (i = 0; i < regs->n; ++i) {
-    mem_alnreg_t *p = &regs->a[i];
-    /* if the reference is an alternative chromosome,
-       the alignment is automatically alternative */
-    if (p->rid >= 0 && bns->anns[p->rid].is_alt)
-      p->is_alt = 1;
-  }
-}
-
-/**
  * make a mem_aln_t from mem_alnreg_t for sam output preparation
  * @param ar mem_alnreg_t, when 0 means unmapped
  * @return a mem_aln_t
@@ -717,7 +506,7 @@ static void bis_worker1(void *data, int i, int tid)
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 0);
     if (!(opt->parent) || opt->parent>>1) /* no restriction or target parent */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 1);
-    mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], regs);
+    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
   } else {			/* paired-end */
 
@@ -727,7 +516,7 @@ static void bis_worker1(void *data, int i, int tid)
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
     if (opt->parent)            /* align read 1 to daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
-    mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], regs);
+    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
     if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name);
     regs = &w->regs[i<<1|1];
@@ -735,7 +524,7 @@ static void bis_worker1(void *data, int i, int tid)
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
     if (opt->parent)            /* align read 2 to parent */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 1);
-    mem_merge_reg1(opt, w->bns, w->pac, &w->seqs[i], regs);
+    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
   }
 }
 

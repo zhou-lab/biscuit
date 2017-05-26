@@ -78,15 +78,16 @@ typedef struct {
 	int score;      // best local SW score
 	int truesc;     // actual score corresponding to the aligned region; possibly smaller than $score
 	int sub;        // 2nd best SW score
-	int alt_sc;     /* score of secondary, see mem_mark_primary_se */
+	int alt_sc;     /* score of primary mapping in secondary mapping if that primary is on alternative chromosome, see mem_mark_primary_se */
 	int csub;       // SW score of a tandem hit
 	int sub_n;      // approximate number of suboptimal hits
 	int w;          // actual band width used in extension
 	int seedcov;    // length of regions coverged by seeds
-	int secondary;  // index of the parent hit shadowing the current hit; <0 if primary
-	int secondary_all;
-	int seedlen0;   // length of the starting seed
-	int n_comp:30, is_alt:2; // number of sub-alignments chained together
+	int secondary;  // index of the parent hit shadowing the current hit; <0 if primary, this was done only within primary assemblies
+	int secondary_all; // index of the parent hit shadowing the current hit; this was done with both primary and non-primary assemblies
+	int seedlen0;   // length of the starting/best-scored seed
+	int n_comp:30;  // number of sub-alignments chained together
+  int is_alt:2;   // reference is an alternative chromosome
 	float frac_rep;
 	uint64_t hash;
   uint8_t bss:1;
@@ -111,7 +112,6 @@ typedef struct { // This struct is only used for the convenience of API.
 	int n_cigar;                  /* can this be unsigned? number of CIGAR operations */
 	uint32_t *cigar; // CIGAR in the BAM encoding: opLen<<4|op; op to integer mapping: MIDSH=>01234
 	char *XA;        // alternative mappings
-
 	int score, sub, alt_sc;
 } mem_aln_t;
 
@@ -156,7 +156,7 @@ extern "C" {
 
   /* Only mem_align1 is kept */
   
-	/* /\** */
+  /* /\** */
 	/*  * Find the aligned regions for one query sequence */
 	/*  * */
 	/*  * Note that this routine does not generate CIGAR. CIGAR should be */
@@ -207,8 +207,8 @@ extern "C" {
   char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const uint8_t *query);
   void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a, int extra_flag, const mem_aln_t *m);
   int mem_approx_mapq_se(const mem_opt_t *opt, const mem_alnreg_t *a);
-  int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id);
-  int mem_sort_dedup_patch(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, int n, mem_alnreg_t *a);
+  int mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id);
+  void mem_sort_dedup_patch(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, mem_alnreg_v *regs);
 
 #ifdef __cplusplus
 }

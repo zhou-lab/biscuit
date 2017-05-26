@@ -188,7 +188,8 @@ int mem_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
       }
       ++n;
     }
-    if (n) ma->n = mem_sort_dedup_patch(opt, 0, 0, 0, ma->n, ma->a);
+    if (n) 
+      mem_sort_dedup_patch(opt, 0, 0, 0, ma);
     if (rev) free(rev);
     free(ref);
   }
