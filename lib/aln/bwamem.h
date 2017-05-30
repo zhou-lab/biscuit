@@ -19,7 +19,7 @@ typedef struct __smem_i smem_i;
 #define MEM_F_SELF_OVLP 0x40
 #define MEM_F_ALN_REG   0x80
 #define MEM_F_REF_HDR	0x100
-#define MEM_F_SOFTCLIP  0x200
+#define MEM_F_SOFTCLIP  0x200 // softclip all, by default will hardclip secondary/supplementary mapping
 #define MEM_F_SMARTPE   0x400
 
 typedef struct {
@@ -72,7 +72,7 @@ typedef struct {
 } mem_opt_t;
 
 typedef struct {
-	int64_t rb, re; // [rb,re): reference sequence in the alignment
+	int64_t rb, re; // [rb,re): reference sequence in the alignment (forward-reverse coordinates)
 	int qb, qe;     // [qb,qe): query sequence in the alignment
 	int rid;        // reference seq ID
 	int score;      // best local SW score
@@ -92,7 +92,37 @@ typedef struct {
 	uint64_t hash;
   uint8_t bss:1;
   uint8_t parent:1;
+  uint8_t read_in_pair:1;
+
+  // SAM meta-information, sub = max(sub, csub)
+  int pos;
+  int flag;
+  uint32_t is_rev:1, uint32_t sam_set:1, mapq:8, NM:22; // sam_set - whether variables in this section is set
+  uint32_t ZC, ZR;
+  int n_cigar;
+  uint32_t *cigar; // needs be free-ed per align
 } mem_alnreg_t;
+
+// 1 for proper pairing, 0 for improper pairing
+static inline void mem_alnreg_infer_isize(int64_t l_pac, mem_alnreg_t *p, mem_alnreg_t *q, int *proper, int *isize) {
+  int str_p = p->rb >= l_pac;
+  int str_q = q->rb >= l_pac;
+  if (str_p && !str_q) {
+    *isize = (l_pac<<1) - 1 - p->rb - q->rb;
+    *proper = 1;
+    return;
+  } else if (str_q && !str_p) {
+    *isize = (l_pac<<1) - 1 - q->rb - p->rb;
+    *proper = 1;
+    return;
+  } else {
+    int qq = (l_pac<<1) - 1 - q->rb;
+    *isize = p->rb > qq ? p->rb - qq : qq - p->rb;
+    *proper = 0;
+    return;
+  }
+}
+
 
 typedef struct { size_t n, m; mem_alnreg_t *a; } mem_alnreg_v;
 
@@ -102,6 +132,8 @@ typedef struct {
 	double avg, std; // mean and stddev of the insert size distribution
 } mem_pestat_t;
 
+// the "finalized" version of mem_alnreg_t, it's ready for SAM output
+// mem_alnreg_t lacks finalized cigar, position on the chromosome and mapping quality
 typedef struct { // This struct is only used for the convenience of API.
 	int64_t pos;     // forward strand 5'-end mapping position
 	int rid;         // reference sequence index in bntseq_t; <0 for unmapped

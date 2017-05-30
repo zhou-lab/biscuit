@@ -130,8 +130,9 @@ static int mem_test_reg_concatenation(
   return score;
 }
 
-/* sort deduplicate patch */
-void mem_sort_dedup_patch(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, mem_alnreg_v *regs) {
+/* sort deduplicate mem_alnreg_v 
+ * Note when used with bns==pac==query==0, there is no merge */
+void mem_sort_deduplicate(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, mem_alnreg_v *regs) {
 
   if (regs->n <= 1)
     return;
@@ -235,7 +236,7 @@ void mem_merge_regions(
     mem_alnreg_v *regs) {
 
   uint32_t i;
-  mem_sort_dedup_patch(opt, bns, pac, bseq->seq, regs);
+  mem_sort_deduplicate(opt, bns, pac, bseq->seq, regs);
 
   if (opt->flag & MEM_F_SELF_OVLP)
     mem_test_and_remove_exact(opt, regs, bseq->l_seq);
@@ -258,10 +259,12 @@ void mem_merge_regions(
 }
 
 
-
-/****************************
- * select primary alignment *
- ****************************/
+/*********************************
+ * Mark primary region.
+ * Two rounds of labeling were performed. 
+ * The first round labels reg->secondary_all w.r.t. both primary and non-primary assembly regions.
+ * The second round labels reg->secondary w.r.t. only primary assembly regions.
+ *********************************/
 
 // sort by 1) score; 2) is_alt; 3) hash;
 #define alnreg_hlt(a, b)  ((a).score > (b).score || ((a).score == (b).score && ((a).is_alt < (b).is_alt || ((a).is_alt == (b).is_alt && (a).hash < (b).hash))))
@@ -311,14 +314,6 @@ static void mem_mark_primary_se_core(const mem_opt_t *opt, int n_mark, mem_alnre
     else a->secondary = z->a[k]; // otherwise, the primary of a is z->a[k] (the k-th primary alignment)
   }
 }
-
-
-/*********************************
- * Mark primary region.
- * Two rounds of labeling were performed. 
- * The first round labels reg->secondary_all w.r.t. both primary and non-primary assembly regions.
- * The second round labels reg->secondary w.r.t. only primary assembly regions.
- *********************************/
 
 int mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
@@ -396,4 +391,119 @@ int mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
   free(z.a);
   return n_pri;
 }
+
+/***************
+ * Mate rescue *
+ ***************/
+
+/* try adding a properly-positioned mate alignment 
+ * for a good-enough target target alignment 
+ * This function SW-aligns the mate sequence, and can be slow */
+void mem_matesw(const mem_opt_t *opt,      // option
+    const bntseq_t *bns,                   // reference meta
+    const uint8_t *pac,                    // reference
+    const mem_pestat_t pes[4],             // pair-end statistics
+    const mem_alnreg_t *reg,               // target region
+    int l_ms,                              // length of mate sequence
+    const uint8_t *ms,                     // mate sequence
+    mem_alnreg_v *mregs                    // mate regions
+    ) {
+  
+  int64_t l_pac = bns->l_pac;
+  int i;
+  for (i=0; i<mregs->n; ++i) {
+    int64_t dist, proper;
+    mem_alnreg_infer_isize(l_pac, reg, &mregs->a[i], &proper, &dist);
+    if (proper && dist >= pes->low && dist <= pes->high) return 0;
+  }
+
+  int read_is_rev = reg->rb >= l_pac;
+  int mate_is_rev = !read_is_rev;
+  int is_larger = mate_is_rev; // whether the mate has larger coordinate
+
+  /* make the mate read sequence the direction of the primary read */
+  uint8_t *mate_seq, *rev = 0;
+  if (mate_is_rev) {
+    rev = malloc(l_ms); // this is the reverse complement of ms
+    for (i = 0; i < l_ms; ++i) rev[l_ms - 1 - i] = ms[i] < 4? 3 - ms[i] : 4;
+    mate_seq = rev;
+  } else mate_seq = (uint8_t*) ms;
+
+  /* determine reference boundary */
+  int64_t rb = max(0, reg->rb + pes->low - l_ms);
+  int64_t re = min(l_pac<<1, reg->rb + pes->high);
+
+  /* ref is in the direction of the primary read */
+  uint8_t *ref = 0; int rid;
+  if (rb < re) ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
+
+  /* no funny things happening */
+  if (reg->rid != rid || re - rb < opt->min_seed_len) { free(rev); free(ref); return 0; }
+
+  // mate alignment, very slow
+  /* bss !rev parent
+   * 0   1    1
+   * 1   1    0
+   * 0   0    0
+   * 1   0    1 **/
+  uint8_t parent = reg->bss ^ (reg->rb < l_pac);
+  int xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
+  kswr_t aln = ksw_align2(l_ms, seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
+
+  /* make mate mem_alnreg_t b */
+  if (aln.score >= opt->min_seed_len && aln.qb >= 0) { // something goes wrong if aln.qb < 0
+
+    mem_alnreg_t b = {0};
+    b.rid = reg->rid;
+    b.is_alt = reg->is_alt;
+
+    // mate strand is the opposite of read
+    b.qb = read_is_rev ? aln.qb : l_ms - (aln.qe + 1);
+    b.qe = read_is_rev ? aln.qe + 1 : l_ms - aln.qb; 
+    b.rb = read_is_rev ? (rb + aln.tb) : (l_pac<<1) - (rb + aln.te + 1);
+    b.re = read_is_rev ? (rb + aln.te + 1) : (l_pac<<1) - (rb + aln.tb);
+    b.score = aln.score;
+    b.csub = aln.score2;
+    b.secondary = -1;
+    b.seedcov = min(b.re-b.rb, b.qe-b.qb) >> 1;
+    b.bss = reg->bss;
+
+    // printf("*** %d, [%lld,%lld], %d:%d, (%lld,%lld), (%lld,%lld) == (%lld,%lld)\n", aln.score, rb, re, is_rev, is_larger, reg->rb, a->re, ma->a[0].rb, ma->a[0].re, b.rb, b.re);
+
+    // insert b into ma s.t. ma remains sorted
+    kv_push(mem_alnreg_t, *mregs, b); /* make room for a new element */
+    for (i = 0; i < mregs->n - 1; ++i)    // find the insertion point 
+      if (mregs->a[i].score < b.score) break;
+    int tmp = i;
+    for (i = mregs->n - 1; i > tmp; --i)  // move b s.t. ma remains sorted
+      mregs->a[i] = mregs->a[i-1];
+    mregs->a[i] = b;
+
+    // sort deduplicate without merging
+    mem_sort_deduplicate(opt, 0, 0, 0, mregs);
+  }
+
+  if (rev) free(rev);
+  free(ref);
+}
+
+
+void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2]) {
+
+  // find good alignment regions
+  mem_alnreg_v good_regs_pair[2];
+  kv_init(good_regs_pair[0]); kv_init(good_regs_pair[1]);
+  for (i = 0; i < 2; ++i)
+    for (j = 0; j < regs_pair[i].n; ++j) 
+      if (regs_pair[i].a[j].score >= regs_pair[i].a[0].score - opt->pen_unpaired)
+        kv_push(mem_alnreg_t, good_regs_pair[i], regs_pair[i].a[j]);
+
+  // rescue mate alignment of good alignment if necessary
+  for (i = 0; i < 2; ++i)
+    for (j = 0; j < good_regs_pair[i].n && j < opt->max_matesw; ++j)
+      mem_matesw(opt, bns, pac, pes, &good_regs_pair[i].a[j], s[!i].l_seq, (uint8_t) s[!i].seq, &regs_pair[!i]);
+
+  free(good_regs_pair[0].a); free(good_regs_pair[1].a);
+}
+
 
