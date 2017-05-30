@@ -24,6 +24,7 @@
  *
  */
 
+// note: mapQ is set outside this function
 void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_t *reg, int extra_flag) {
 
   if (reg == 0 || reg->rb < 0 || reg->re < 0) { // unmapped record
@@ -37,9 +38,6 @@ void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
   for (i = 0; i < s->l_seq; ++i) {
     query[i] = query_[i] < 5 ? query_[i] : nst_nt4_table[(int)query_[i]];
   }
-
-  /** mapq **/
-  reg->mapq = reg->secondary < 0 ? mem_approx_mapq_se(opt, reg) : 0;
 
   /** flag **/
   reg->flag = extra_flag;
@@ -285,6 +283,9 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     if (p->secondary >= 0 && p->secondary < INT_MAX 
         && p->score < regs->a[p->secondary].score * opt->drop_ratio) continue;
 
+    // set mapQ
+    p->mapq = p->secondary < 0 ? mem_approx_mapq_se(opt, p) : 0;
+
     mem_alnreg_setSAM(opt, bns, pac, s, p, extra_flag);
 
     // keep only 1 primary alignment, others are either secondary or supplementary
@@ -312,42 +313,41 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 }
 
 // Paired-End
-void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs[2]) {
+void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2]) {
 
-  int n = 0, i, j, z[2], o, subo, n_sub; 
+  int n = 0, i, j; 
 
   kstring_t str;
   str.l = str.m = 0; str.s = 0;
 
-  if (!(opt->flag & MEM_F_NO_RESCUE)) mem_alnreg_matesw(opt, bns, pac, pes, s[2], regs[2]);
+  if (!(opt->flag & MEM_F_NO_RESCUE)) mem_alnreg_matesw(opt, bns, pac, pes, s[2], regs_pair[2]);
 
   int n_pri[2];
-  n_pri[0] = mem_mark_primary_se(opt, a[0].n, a[0].a, id<<1|0);
-  n_pri[1] = mem_mark_primary_se(opt, a[1].n, a[1].a, id<<1|1);
+  n_pri[0] = mem_mark_primary_se(opt, regs_pair[0].n, regs_pair[0].a, id<<1|0);
+  n_pri[1] = mem_mark_primary_se(opt, regs_pair[1].n, regs_pair[1].a, id<<1|1);
 
-  if (opt->flag & MEM_F_NOPAIRING) goto no_pairing;
+  if (opt->flag & MEM_F_NOPAIRING) goto NO_PAIRING;
 
   int extra_flag = 1;
 
   /* pairing mate reads */
   int pscore, sub_pscore; // best and 2nd best pairing score
-  int n_subpairings;
-  mem_pair(opt, bns, pac, pes, s, a, id, &pscore, &sub_pscore, &n_subpairing, z, n_pri);
+  int n_subpairings; int z[2];
+  mem_pair(opt, bns, pac, pes, s, regs_pair, id, &pscore, &sub_pscore, &n_subpairing, z, n_pri);
   if (n_pri[0] && n_pri[1] && pscore > 0) {
 
     // check if an end has multiple hits even after mate-SW
     int is_multi[2];
     for (i = 0; i < 2; ++i) {
       for (j = 1; j < n_pri[i]; ++j)
-        if (a[i].a[j].secondary < 0 && a[i].a[j].score >= opt->T) break;
+        if (regs_pair[i].a[j].secondary < 0 && regs_pair[i].a[j].score >= opt->T) break;
       is_multi[i] = j < n_pri[i]? 1 : 0;
     }
-    if (is_multi[0] || is_multi[1]) goto no_pairing; // TODO: in rare cases, the true hit may be long but with low score
+    if (is_multi[0] || is_multi[1]) goto NO_PAIRING; // TODO: in rare cases, the true hit may be long but with low score
 
-    // opt->pen_unpaired - penalty for not pairing
-    int score_unpaired = a[0].a[0].score + a[1].a[0].score - opt->pen_unpaired;
-    int q_se[2]; // mapQ of each read in the pair
-    // The following decides whether to adopt pairing assuming no split hits
+    // The following decides whether to pair.
+    // It also sets mapQ assuming no split hits.
+    int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired; // opt->pen_unpaired - penalty for not pairing
     if (pscore > score_unpaired) { // paired alignment is preferred
 
       // mapQ of pairing
@@ -359,11 +359,12 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       q_pe = (int)(q_pe * (1. - .5 * (a[0].a[0].frac_rep + a[1].a[0].frac_rep)) + .499);
 
       // mapQ of each read when paired
+      int q_se[2]; // mapQ of each read in the pair
       mem_alnreg_t *c[2];
-      c[0] = &a[0].a[z[0]]; c[1] = &a[1].a[z[1]];
+      c[0] = &regs_pair[0].a[z[0]]; c[1] = &regs_pair[1].a[z[1]];
       for (i = 0; i < 2; ++i) {
         if (c[i]->secondary >= 0) {
-          c[i]->sub = a[i].a[c[i]->secondary].score;
+          c[i]->sub = regs_pair[i].a[c[i]->secondary].score;
           c[i]->secondary = -2;
         }
         q_se[i] = mem_approx_mapq_se(opt, c[i]);
@@ -374,13 +375,15 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       // cap at the tandem repeat score
       q_se[0] = q_se[0] < raw_mapq(c[0]->score - c[0]->csub, opt->a) ? q_se[0] : raw_mapq(c[0]->score - c[0]->csub, opt->a);
       q_se[1] = q_se[1] < raw_mapq(c[1]->score - c[1]->csub, opt->a) ? q_se[1] : raw_mapq(c[1]->score - c[1]->csub, opt->a);
-
+      c[0]->mapq = q_se[0];
+      c[1]->mapq = q_se[1];
     } else {                         // the unpaired alignment is preferred
       z[0] = z[1] = 0;
-      q_se[0] = mem_approx_mapq_se(opt, &a[0].a[0]);
-      q_se[1] = mem_approx_mapq_se(opt, &a[1].a[0]);
+      regs_pair[0].a[0].mapq = mem_approx_mapq_se(opt, &regs_pair[0].a[0]);
+      regs_pair[1].a[0].mapq = mem_approx_mapq_se(opt, &regs_pair[1].a[0]);
     }
 
+    // if the chosen read is a secondary, switch it with its designated primary
     for (i = 0; i < 2; ++i) {
       int k = a[i].a[z[i]].secondary_all;
       if (k >= 0 && k < n_pri[i]) { /* switch secondary and primary if both of them are non-ALT */
@@ -398,34 +401,37 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
         XA[i] = mem_gen_alt(opt, bns, pac, &a[i], s[i].l_seq, s[i].seq);
     } else XA[0] = XA[1] = 0;
 
-    /* [> write SAM <] */
-    /* for (i = 0; i < 2; ++i) { */
-    /*   h[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, &a[i].a[z[i]]); */
-    /*   h[i].mapq = q_se[i]; */
-    /*   h[i].flag |= 0x40<<i | extra_flag; */
-    /*   h[i].XA = XA[i]? XA[i][z[i]] : 0; */
-    /*   aa[i][n_aa[i]++] = h[i]; */
-    /*   if (n_pri[i] < a[i].n) { // the read has ALT hits */
-    /*     mem_alnreg_t *p = &a[i].a[n_pri[i]]; */
-    /*     if (p->score < opt->T || p->secondary >= 0 || !p->is_alt) continue; */
-    /*     g[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, p); */
-    /*     g[i].flag |= 0x800 | 0x40<<i | extra_flag; */
-    /*     g[i].XA = XA[i]? XA[i][n_pri[i]] : 0; */
-    /*     aa[i][n_aa[i]++] = g[i]; */
-    /*   } */
-    /* } */
-    /*  */
+    /* write SAM */
+    for (i = 0; i < 2; ++i) {
+      mem_alnreg_setSAM(opt, bns, pac, &s[i], &regs_pair[i].a[z[i]], 0x40<<i | extra_flag);
+      mem_alnreg_formatSAM(opt, bns, &str, &s[i], &regs_pair[i].a[z[i]], &regs_pair[i].a[z[!i]], 1);
+      // h[i].XA = XA[i]? XA[i][z[i]] : 0;
+      // aa[i][n_aa[i]++] = h[i];
+      if (n_pri[i] < regs_pair[i].n) { // the read has ALT hits
+        mem_alnreg_t *p = &regs_pair[i].a[n_pri[i]]; // output the best ALT hit
+        if (p->score < opt->T || p->secondary >= 0 || !p->is_alt) continue;
+        mem_alnreg_setSAM(opt, bns, pac, &s[i], p, 0x800 | 0x40<<i | extra_flag);
+        mem_alnreg_formatSAM(opt, bns, &str, &s[i], p, NULL, 0);
+        // g[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, p);
+        // g[i].XA = XA[i]? XA[i][n_pri[i]] : 0;
+        // aa[i][n_aa[i]++] = g[i];
+      }
+      s[i].sam = strdup(str.s); str.l = 0;
+    }
+
     /* for (i = 0; i < n_aa[0]; ++i) */
-    /*   mem_aln2sam(opt, bns, &str, &s[0], n_aa[0], aa[0], i, &h[1]); [> write read1 hits <] */
+    /*   mem_aln2sam(opt, bns, &str, &s[0], n_aa[0], aa[0], i, &h[1]); // write read1 hits  */
     /* s[0].sam = strdup(str.s); str.l = 0; */
     /*  */
     /* for (i = 0; i < n_aa[1]; ++i) */
-    /*   mem_aln2sam(opt, bns, &str, &s[1], n_aa[1], aa[1], i, &h[0]); [> write read2 hits <] */
+    /*   mem_aln2sam(opt, bns, &str, &s[1], n_aa[1], aa[1], i, &h[0]); // write read2 hits  */
     /* s[1].sam = str.s; */
-    /* if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name); */
+    // if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name);
+
+    // Sanity check read names
     check_paired_read_names(s[0].name, s[1].name);
 
-    // free XA
+    // free CIGAR and XA
     for (i = 0; i < 2; ++i) {
       free(h[i].cigar); free(g[i].cigar);
       if (XA[i] == 0) continue;
@@ -433,20 +439,22 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       free(XA[i]);
     }
 
-  } else goto no_pairing;
+  } else goto NO_PAIRING;
   return n;
 
- no_pairing:
+NO_PAIRING:
+
   for (i = 0; i < 2; ++i) {
     int which = -1;
     if (a[i].n) {
       if (a[i].a[0].score >= opt->T) which = 0;
       else if (n_pri[i] < a[i].n && a[i].a[n_pri[i]].score >= opt->T)
-	which = n_pri[i];
+        which = n_pri[i];
     }
     if (which >= 0) h[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, &a[i].a[which]);
     else h[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, 0);
   }
+
   if (!(opt->flag & MEM_F_NOPAIRING) && h[0].rid == h[1].rid && h[0].rid >= 0) { // if the top hits from the two ends constitute a proper pair, flag it.
     int64_t dist;
     int d;

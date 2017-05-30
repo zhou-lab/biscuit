@@ -71,7 +71,9 @@ typedef struct {
   int8_t gamat[25];       /* G>A matrix */
 } mem_opt_t;
 
-typedef struct {
+typedef struct mem_alnreg_t mem_alnreg_t;
+
+struct mem_alnreg_t {
 	int64_t rb, re; // [rb,re): reference sequence in the alignment (forward-reverse coordinates)
 	int qb, qe;     // [qb,qe): query sequence in the alignment
 	int rid;        // reference seq ID
@@ -100,8 +102,9 @@ typedef struct {
   uint32_t is_rev:1, uint32_t sam_set:1, mapq:8, NM:22; // sam_set - whether variables in this section is set
   uint32_t ZC, ZR;
   int n_cigar;
-  uint32_t *cigar; // needs be free-ed per align
-} mem_alnreg_t;
+  uint32_t *cigar;    // needs be free-ed per align
+  mem_alnreg_t *mate; // point to mate read alignment in pairing
+};
 
 // 1 for proper pairing, 0 for improper pairing
 static inline void mem_alnreg_infer_isize(int64_t l_pac, mem_alnreg_t *p, mem_alnreg_t *q, int *proper, int *isize) {
