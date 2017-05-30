@@ -313,18 +313,12 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 }
 
 // Paired-End
-void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2]) {
+void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], int n_pri[2]) {
 
   int n = 0, i, j; 
 
   kstring_t str;
   str.l = str.m = 0; str.s = 0;
-
-  if (!(opt->flag & MEM_F_NO_RESCUE)) mem_alnreg_matesw(opt, bns, pac, pes, s[2], regs_pair[2]);
-
-  int n_pri[2];
-  n_pri[0] = mem_mark_primary_se(opt, regs_pair[0].n, regs_pair[0].a, id<<1|0);
-  n_pri[1] = mem_mark_primary_se(opt, regs_pair[1].n, regs_pair[1].a, id<<1|1);
 
   if (opt->flag & MEM_F_NOPAIRING) goto NO_PAIRING;
 

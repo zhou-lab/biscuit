@@ -497,7 +497,14 @@ static void bis_worker2(void *data, int i, int tid) {
   } else {			/* paired-end */
     if (bwa_verbose >= 4)
       printf("=====> Finalizing read pair '%s' <=====\n", w->seqs[i<<1|0].name);
-    mem_sam_pe(w->opt, w->bns, w->pac, w->pes, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1]);
+
+    if (!(opt->flag & MEM_F_NO_RESCUE)) 
+      mem_alnreg_matesw(w->opt, w->bns, w->pac, w->pes, &w->seqs[i<<1], &w->regs[i<<1]);
+
+    int n_pri[2];
+    n_pri[0] = mem_mark_primary_se(opt, regs_pair[0].n, regs_pair[0].a, id<<1|0);
+    n_pri[1] = mem_mark_primary_se(opt, regs_pair[1].n, regs_pair[1].a, id<<1|1);
+    mem_sam_pe(w->opt, w->bns, w->pac, w->pes, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1], n_pri);
     free(w->regs[i<<1|0].a); free(w->regs[i<<1|1].a);
   }
 }
