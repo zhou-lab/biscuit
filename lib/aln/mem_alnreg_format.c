@@ -262,6 +262,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
  * output SAM format in bseq1_t *s->sam *
  ****************************************/
 
+// Single-End
 void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, int extra_flag) {
   
   if (!(opt->flag & MEM_F_ALL)) // output all alignments, hence no need to output alternatives
@@ -310,6 +311,7 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   s->sam = str.s;
 }
 
+// Paired-End
 void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs[2]) {
 
   int n = 0, i, j, z[2], o, subo, n_sub; 
@@ -319,36 +321,22 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
   if (!(opt->flag & MEM_F_NO_RESCUE)) mem_alnreg_matesw(opt, bns, pac, pes, s[2], regs[2]);
 
-  if (!(opt->flag & MEM_F_NO_RESCUE)) { // then perform SW for the best alignment
-    mem_alnreg_v b[2];
-    kv_init(b[0]); kv_init(b[1]);
-    for (i = 0; i < 2; ++i)
-      for (j = 0; j < a[i].n; ++j)
-        if (a[i].a[j].score >= a[i].a[0].score  - opt->pen_unpaired)
-          kv_push(mem_alnreg_t, b[i], a[i].a[j]);
-    for (i = 0; i < 2; ++i)
-      for (j = 0; j < b[i].n && j < opt->max_matesw; ++j)
-        n += mem_matesw(opt, bns, pac, pes, &b[i].a[j], s[!i].l_seq, (uint8_t*)s[!i].seq, &a[!i]);
-    free(b[0].a); free(b[1].a);
-  }
-
   int n_pri[2];
   n_pri[0] = mem_mark_primary_se(opt, a[0].n, a[0].a, id<<1|0);
   n_pri[1] = mem_mark_primary_se(opt, a[1].n, a[1].a, id<<1|1);
 
-  if (opt->flag&MEM_F_NOPAIRING) goto no_pairing;
+  if (opt->flag & MEM_F_NOPAIRING) goto no_pairing;
 
   int extra_flag = 1;
 
   /* pairing mate reads */
-  int best_pscore, sub_pscore; // best and 2nd best pairing score
+  int pscore, sub_pscore; // best and 2nd best pairing score
   int n_subpairings;
-  mem_pair(opt, bns, pac, pes, s, a, id, &best_pscore, &sub_pscore, &n_subpairing, z, n_pri);
-  if (n_pri[0] && n_pri[1] && best_pscore > 0) {
+  mem_pair(opt, bns, pac, pes, s, a, id, &pscore, &sub_pscore, &n_subpairing, z, n_pri);
+  if (n_pri[0] && n_pri[1] && pscore > 0) {
 
-    int is_multi[2], q_pe, q_se[2];
-    
     // check if an end has multiple hits even after mate-SW
+    int is_multi[2];
     for (i = 0; i < 2; ++i) {
       for (j = 1; j < n_pri[i]; ++j)
         if (a[i].a[j].secondary < 0 && a[i].a[j].score >= opt->T) break;
@@ -356,19 +344,21 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     }
     if (is_multi[0] || is_multi[1]) goto no_pairing; // TODO: in rare cases, the true hit may be long but with low score
 
-    // compute mapQ for the best SE hit
-    int score_un = a[0].a[0].score + a[1].a[0].score - opt->pen_unpaired;
-    sub_pscore = max(sub_pscore, score_un);
-    q_pe = raw_mapq(best_pscore - sub_pscore, opt->a);
-    if (n_subpairings > 0) q_pe -= (int)(4.343 * log(n_subpairings+1) + .499);
-    if (q_pe < 0) q_pe = 0;
-    if (q_pe > 60) q_pe = 60;
-    q_pe = (int)(q_pe * (1. - .5 * (a[0].a[0].frac_rep + a[1].a[0].frac_rep)) + .499);
+    // opt->pen_unpaired - penalty for not pairing
+    int score_unpaired = a[0].a[0].score + a[1].a[0].score - opt->pen_unpaired;
+    int q_se[2]; // mapQ of each read in the pair
+    // The following decides whether to adopt pairing assuming no split hits
+    if (pscore > score_unpaired) { // paired alignment is preferred
 
-    // the following assumes no split hits
-    if (best_pscore > score_un) { // paired alignment is preferred
+      // mapQ of pairing
+      sub_pscore = max(sub_pscore, score_unpaired);
+      int q_pe = raw_mapq(pscore - sub_pscore, opt->a); // mapQ for pairing
+      if (n_subpairings > 0) q_pe -= (int)(4.343 * log(n_subpairings+1) + .499);
+      if (q_pe < 0) q_pe = 0;
+      if (q_pe > 60) q_pe = 60;
+      q_pe = (int)(q_pe * (1. - .5 * (a[0].a[0].frac_rep + a[1].a[0].frac_rep)) + .499);
 
-      // compute paired score for single end mapping
+      // mapQ of each read when paired
       mem_alnreg_t *c[2];
       c[0] = &a[0].a[z[0]]; c[1] = &a[1].a[z[1]];
       for (i = 0; i < 2; ++i) {
@@ -385,7 +375,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       q_se[0] = q_se[0] < raw_mapq(c[0]->score - c[0]->csub, opt->a) ? q_se[0] : raw_mapq(c[0]->score - c[0]->csub, opt->a);
       q_se[1] = q_se[1] < raw_mapq(c[1]->score - c[1]->csub, opt->a) ? q_se[1] : raw_mapq(c[1]->score - c[1]->csub, opt->a);
 
-    } else { // the unpaired alignment is preferred
+    } else {                         // the unpaired alignment is preferred
       z[0] = z[1] = 0;
       q_se[0] = mem_approx_mapq_se(opt, &a[0].a[0]);
       q_se[1] = mem_approx_mapq_se(opt, &a[1].a[0]);

@@ -94,7 +94,7 @@ typedef struct {
   uint8_t parent:1;
   uint8_t read_in_pair:1;
 
-  // SAM meta-information, sub = max(sub, csub)
+  // SAM meta-information, e.g., CIGAR, mapq, sub = max(sub, csub)
   int pos;
   int flag;
   uint32_t is_rev:1, uint32_t sam_set:1, mapq:8, NM:22; // sam_set - whether variables in this section is set
