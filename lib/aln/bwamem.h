@@ -74,24 +74,24 @@ typedef struct {
 typedef struct mem_alnreg_t mem_alnreg_t;
 
 struct mem_alnreg_t {
-	int64_t rb, re; // [rb,re): reference sequence in the alignment (forward-reverse coordinates)
-	int qb, qe;     // [qb,qe): query sequence in the alignment
-	int rid;        // reference seq ID
-	int score;      // best local SW score
-	int truesc;     // actual score corresponding to the aligned region; possibly smaller than $score
-	int sub;        // 2nd best SW score
-	int alt_sc;     /* score of primary mapping in secondary mapping if that primary is on alternative chromosome, see mem_mark_primary_se */
-	int csub;       // SW score of a tandem hit
-	int sub_n;      // approximate number of suboptimal hits
-	int w;          // actual band width used in extension
-	int seedcov;    // length of regions coverged by seeds
-	int secondary;  // index of the parent hit shadowing the current hit; <0 if primary, this was done only within primary assemblies
-	int secondary_all; // index of the parent hit shadowing the current hit; this was done with both primary and non-primary assemblies
-	int seedlen0;   // length of the starting/best-scored seed
-	int n_comp:30;  // number of sub-alignments chained together
+  int64_t rb, re; // [rb,re): reference sequence in the alignment (forward-reverse coordinates)
+  int qb, qe;     // [qb,qe): query sequence in the alignment
+  int rid;        // reference seq ID
+  int score;      // best local SW score
+  int truesc;     // actual score corresponding to the aligned region; possibly smaller than $score
+  int sub;        // 2nd best SW score
+  int alt_sc;     /* score of primary mapping in secondary mapping if that primary is on alternative chromosome, see mem_mark_primary_se */
+  int csub;       // SW score of a tandem hit
+  int sub_n;      // approximate number of suboptimal hits
+  int w;          // actual band width used in extension
+  int seedcov;    // length of regions coverged by seeds
+  int secondary;  // index of the parent hit shadowing the current hit; <0 if primary, this was done only within primary assemblies
+  int secondary_all; // index of the parent hit shadowing the current hit; this was done with both primary and non-primary assemblies
+  int seedlen0;   // length of the starting/best-scored seed
+  int n_comp:30;  // number of sub-alignments chained together
   int is_alt:2;   // reference is an alternative chromosome
-	float frac_rep;
-	uint64_t hash;
+  float frac_rep;
+  uint64_t hash;
   uint8_t bss:1;
   uint8_t parent:1;
   uint8_t read_in_pair:1;
@@ -99,11 +99,14 @@ struct mem_alnreg_t {
   // SAM meta-information, e.g., CIGAR, mapq, sub = max(sub, csub)
   int pos;
   int flag;
-  uint32_t is_rev:1, uint32_t sam_set:1, mapq:8, NM:22; // sam_set - whether variables in this section is set
+  uint32_t is_rev:1;
+  uint32_t sam_set:1; // whether variables in this section is set
+  uint32_t mapq:8;
+  uint32_t NM:22;     
   uint32_t ZC, ZR;
   int n_cigar;
   uint32_t *cigar;    // needs be free-ed per align
-  mem_alnreg_t *mate; // point to mate read alignment in pairing
+  //mem_alnreg_t *mate; // point to mate read alignment in pairing
 };
 
 // 1 for proper pairing, 0 for improper pairing
