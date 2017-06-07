@@ -423,6 +423,14 @@ mem_aln_t mem_reg2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *
   return a;
 }
 
+static void check_paired_read_names(const char *name1, const char *name2) {
+  if (strcmp(name1, name2) == 0) return;
+  int l=strlen(name1);
+  if (name1[l-1]=='1' && name2[l-1]=='2')
+    if (strncmp(name1, name2,l-1)==0) return;
+  err_fatal(__func__,"paired reads have different names: \"%s\", \"%s\"\n", name1, name2);
+}
+
 typedef struct {
   const mem_opt_t *opt;
   const bwt_t *bwt;
@@ -458,6 +466,9 @@ static void bis_worker1(void *data, int i, int tid)
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
   } else {			/* paired-end */
+
+    // sanity check the read names
+    check_paired_read_names(w->seqs[i<<1|0].name, w->seqs[i<<1|1].name);
 
     if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name);
     regs = &w->regs[i<<1|0];

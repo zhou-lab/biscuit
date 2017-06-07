@@ -24,13 +24,14 @@
  *
  */
 
+// set flag, CIGAR etc
 // note: mapQ is set outside this function
-void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_t *reg, int extra_flag) {
+void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_t *reg) {
 
-  if (reg == 0 || reg->rb < 0 || reg->re < 0) { // unmapped record
-    unmapped_read_format(sam_str);
-    return;
-  }
+  /* if (reg == 0 || reg->rb < 0 || reg->re < 0) { // unmapped record */
+  /*   unmapped_read_format(sam_str); */
+  /*   return 0; */
+  /* } */
 
   // nt4 encoding
   uint8_t *query;
@@ -40,7 +41,6 @@ void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
   }
 
   /** flag **/
-  reg->flag = extra_flag;
   if (reg->secondary >= 0) flag |= 0x100; // secondary mapping
 
   /** cigar and pos **/
@@ -104,89 +104,113 @@ void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
   reg->cigar = cigar;
   reg->n_cigar = n_cigar;
 
-
   assert(bns_pos2rid(bns, rpos) == reg->rid);
   reg->pos = rpos - bns->anns[rid].offset;
-  reg->sam_set = 1;
+
+  // set flag
+  reg->flag |= reg->rid < 0 ? 0x4 : 0; // is mapped, should always be true here?
+  reg->flag |= reg->is_rev ? 0x10 : 0; // is on the reverse strand
+
   return;
 }
 
-void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq1_t *s, const mem_alnreg_t *p, const mem_alnreg_t *m, int is_primary) {
+int is_proper_pair(mem_alnreg_t *r1, mem_alnreg_t *r2, pes) {
 
-  if (!reg->sam_set) return;
+  // switch 1 and 2 if flag indicates otherwise
+  if (r1->flag & BAM_FREAD2 & r2->flag & BAM_FREAD1) {
+    mem_alnreg_t *tmp = r2;
+    r2 = r1; r1 = tmp;
+  }
+    
+  if (r1->rid == r2->rid && r1->pos - r2->pos < pes) return 1;
+  else return 0;
+}
 
-  // set flag
-  p->flag |= m ? 0x1 : 0; // is paired in sequencing
-  p->flag |= p->rid < 0 ? 0x4 : 0; // is mapped, should always be true here?
-  p->flag |= m && m->rid < 0 ? 0x8 : 0; // is mate mapped
+static mem_alnreg_sambase_t mem_alnreg_copy_sambase(mem_alnreg_t *p) {
+  mem_alnreg_sambase_t b = {.rid = p->rid, .pos = p->pos, .flag = p->flag, 
+                            .is_rev = p->is_rev, .n_cigar = p->n_cigar };
+  return b;
+}
+
+// mate is set at final stage because the mate might be asymmetric with alternative mappings
+// it doesn't not change the mem_alnreg_t inputs
+void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_t *m0, int is_primary) {
+
+  // make copies
+  mem_alnreg_t p = *p0;
+  mem_alnreg_t m = m0 ? *m0 : {0};
+
+  // set mate-related flags
+  p.flag |= m0 ? 0x1 : 0; // is paired in sequencing
+  p.flag |= m0 && m.rid < 0 ? 0x8 : 0; // is mate mapped
+
+  if (p->rid >= 0 && m0 && m.rid >= 0 && is_proper_pair(&p, &m)) {
+    p.flag |= 2; m.flag |= 2;
+  }
 
   // copy mate coordinate to alignment
-  if (p->rid < 0 && m && m->rid >= 0) {
-    p->rid = m->rid;
-    p->pos = m->pos;
-    p->is_rev = m->is_rev; // not 100% sure if we should copy is_rev
-    p->n_cigar = 0;
+  if (p.rid < 0 && m0 && m.rid >= 0) {
+    p.rid = m.rid; 
+    p.pos = m.pos;
+    p.is_rev = m.is_rev; // not 100% sure if we should copy is_rev
+    p.n_cigar = 0;
   }
 
   // copy alignment coordinates to mate
-  int m_rid = m->rid;
-  int m_pos = m->pos;
-  int m_n_cigar = m->n_cigar;
   unsigned m_is_rev = m->is_rev;
-  if (m && (!m->sam_set && m->rid < 0) && p->rid >= 0) {  // copy alignment to mate
-    m_rid = p->rid;
-    m_pos = p->pos;
-    m_is_rev = p->is_rev;
-    m_n_cigar = 0;
+  if (m0 && (m.rid < 0) && p.rid >= 0) {  // copy alignment to mate
+    m.rid = p.rid;
+    m.pos = p.pos;
+    m.is_rev = p.is_rev;
+    m.n_cigar = 0;
   }
-  p->flag |= p->is_rev ? 0x10 : 0; // is on the reverse strand
-  p->flag |= m && m_is_rev ? 0x20 : 0; // is mate on the reverse strand
+  p.flag |= m0 && m.is_rev ? 0x20 : 0; // is mate on the reverse strand
 
   // print up to CIGAR
   int l_name = strlen(s->name);
   ks_resize(str, str->l + s->l_seq + l_name + (s->qual ? s->l_seq : 0) + 20);
   kputsn(s->name, l_name, str); kputc('\t', str); // read name, QNAME
-  kputw((p->flag & 0xffff) | (p->flag & 0x10000 ? 0x100 : 0), str); kputc('\t', str); // FLAG
-  if (p->rid >= 0) { // with coordinate
-    kputs(bns->anns[p->rid].name, str); kputc('\t', str); // reference/chromosome name, RNAME
-    kputl(p->pos + 1, str); kputc('\t', str); // POS
-    kputw(p->mapq, str); kputc('\t', str); // MAPQ
-    if (p->n_cigar) { // CIGAR
-      for (i = 0; i < p->n_cigar; ++i) {
-        int c = p->cigar[i] & 0xf;
-        if (!(opt->flag & MEM_F_SOFTCLIP) && !p->is_alt && (c == 3 || c == 4))
+  kputw((p.flag & 0xffff) | (p.flag & 0x10000 ? 0x100 : 0), str); kputc('\t', str); // FLAG
+  if (p.rid >= 0) { // with coordinate
+    kputs(bns->anns[p.rid].name, str); kputc('\t', str); // reference/chromosome name, RNAME
+    kputl(p.pos + 1, str); kputc('\t', str); // POS
+    kputw(p.mapq, str); kputc('\t', str); // MAPQ
+    if (p.n_cigar) { // CIGAR
+      for (i = 0; i < p.n_cigar; ++i) {
+        int c = p.cigar[i] & 0xf;
+        if (!(opt->flag & MEM_F_SOFTCLIP) && !p.is_alt && (c == 3 || c == 4))
           c = is_primary ? 3 : 4; // use hard clipping for supplementary alignments
-        kputw(p->cigar[i]>>4, str); kputc("MIDSH"[c], str);
+        kputw(p.cigar[i]>>4, str); kputc("MIDSH"[c], str);
       }
     } else kputc('*', str); // having a coordinate but unaligned (e.g. when copy_mate is true)
   } else kputsn("*\t0\t0\t*", 7, str); // without coordinte
   kputc('\t', str);
 
   // print the mate position if applicable
-  if (m && m_rid >= 0) {
-    if (p->rid == m_rid) kputc('=', str);
-    else kputs(bns->anns[m_rid].name, str);
+  if (m0 && m.rid >= 0) {
+    if (p.rid == m.rid) kputc('=', str);
+    else kputs(bns->anns[m.rid].name, str);
     kputc('\t', str);
-    kputl(m_pos + 1, str); kputc('\t', str);
-    if (p->rid == m_rid) {
-      int64_t p0 = p->pos + (p->is_rev? get_rlen(p->n_cigar, p->cigar) - 1 : 0);
-      int64_t p1 = m_pos + (m_is_rev? get_rlen(m_n_cigar, m_cigar) - 1 : 0);
-      if (m_n_cigar == 0 || p->n_cigar == 0) kputc('0', str);
+    kputl(m.pos + 1, str); kputc('\t', str);
+    if (p.rid == m.rid) {
+      int64_t p0 = p.pos + (p.is_rev? get_rlen(p.n_cigar, p.cigar) - 1 : 0);
+      int64_t p1 = m.pos + (m.is_rev? get_rlen(m.n_cigar, m.cigar) - 1 : 0);
+      if (m.n_cigar == 0 || p.n_cigar == 0) kputc('0', str);
       else kputl(-(p0 - p1 + (p0 > p1? 1 : p0 < p1? -1 : 0)), str);
     } else kputc('0', str);
   } else kputsn("*\t0\t0", 5, str);
   kputc('\t', str);
 
   // print SEQ and QUAL
-  if (p->flag & 0x100) {  // for secondary alignments, don't write SEQ and QUAL
+  if (p.flag & 0x100) {  // for secondary alignments, don't write SEQ and QUAL
     kputsn("*\t*", 3, str);
-  } else if (p->is_rev) { // the reverse strand
+  } else if (p.is_rev) { // the reverse strand
 
     // SEQ
     int i, qb = 0, qe = s->l_seq;
-    if (p->n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p->is_alt) { // hard clip
-      if ((p->cigar[0]&0xf) == 4 || (p->cigar[0]&0xf) == 3) qe -= p->cigar[0]>>4;
-      if ((p->cigar[p->n_cigar-1]&0xf) == 4 || (p->cigar[p->n_cigar-1]&0xf) == 3) qb += p->cigar[p->n_cigar-1]>>4;
+    if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
+      if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qe -= p.cigar[0]>>4;
+      if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qb += p.cigar[p.n_cigar-1]>>4;
     }
     ks_resize(str, str->l + (qe - qb) + 1);
     for (i = qe-1; i >= qb; --i) str->s[str->l++] = "TGCAN"[(int)s->seq[i]];
@@ -203,9 +227,9 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
 
     // SEQ
     int i, qb = 0, qe = s->l_seq;
-    if (p->n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p->is_alt) { // hard clip
-      if ((p->cigar[0]&0xf) == 4 || (p->cigar[0]&0xf) == 3) qb += p->cigar[0]>>4;
-      if ((p->cigar[p->n_cigar-1]&0xf) == 4 || (p->cigar[p->n_cigar-1]&0xf) == 3) qe -= p->cigar[p->n_cigar-1]>>4;
+    if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
+      if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qb += p.cigar[0]>>4;
+      if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qe -= p.cigar[p.n_cigar-1]>>4;
     }
     ks_resize(str, str->l + (qe - qb) + 1);
     for (i = qb; i < qe; ++i) str->s[str->l++] = "ACGTN"[(int)s->seq[i]];
@@ -220,38 +244,38 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
   }
 
   // TAGS
-  if (p->n_cigar) {
-    kputsn("\tNM:i:", 6, str); kputw(p->NM, str);
-    kputsn("\tMD:Z:", 6, str); kputs((char*)(p->cigar + p->n_cigar), str);
-    kputsn("\tZC:i:", 6, str); kputw(p->ZC, str);
-    kputsn("\tZR:i:", 6, str); kputw(p->ZR, str);
+  if (p.n_cigar) {
+    kputsn("\tNM:i:", 6, str); kputw(p.NM, str);
+    kputsn("\tMD:Z:", 6, str); kputs((char*)(p.cigar + p.n_cigar), str);
+    kputsn("\tZC:i:", 6, str); kputw(p.ZC, str);
+    kputsn("\tZR:i:", 6, str); kputw(p.ZR, str);
   }
   // AS: best local SW score
-  if (p->score >= 0) { kputsn("\tAS:i:", 6, str); kputw(p->score, str); }
+  if (p.score >= 0) { kputsn("\tAS:i:", 6, str); kputw(p.score, str); }
   // XS: 2nd best SW score or SW score of tandem hit whichever is higher
-  if (p->sub >= 0) { kputsn("\tXS:i:", 6, str); kputw(max(p->sub, p->csub), str); }
+  if (p.sub >= 0) { kputsn("\tXS:i:", 6, str); kputw(max(p.sub, p.csub), str); }
   // RG: read group
   if (bwa_rg_id[0]) { kputsn("\tRG:Z:", 6, str); kputs(bwa_rg_id, str); }
   // SA: other primary hits
-  if (is_primary && p->SA) { kputsn("\tSA:Z:", 6 , str); kputs(p->SA, str);}
+  if (is_primary && p.SA) { kputsn("\tSA:Z:", 6 , str); kputs(p.SA, str);}
   // PA: ratio of score / alt_score, higher the ratio, the more accurate the position
-  if (is_primary) ksprintf(str, "\tPA:f:%.3f", (double) p->score / p->alt_sc); // used to be lowercase pa, just to be consistent
+  if (is_primary) ksprintf(str, "\tPA:f:%.3f", (double) p.score / p.alt_sc); // used to be lowercase pa, just to be consistent
   // XA: alternative alignment
-  if (p->XA) { kputsn("\tXA:Z:", 6, str); kputs(p->XA, str); }
+  if (p.XA) { kputsn("\tXA:Z:", 6, str); kputs(p.XA, str); }
   if (s->comment) { kputc('\t', str); kputs(s->comment, str); }
   // XR: reference/chromosome annotation
-  if ((opt->flag&MEM_F_REF_HDR) && p->rid >= 0 && bns->anns[p->rid].anno != 0 && bns->anns[p->rid].anno[0] != 0) {
+  if ((opt->flag&MEM_F_REF_HDR) && p.rid >= 0 && bns->anns[p.rid].anno != 0 && bns->anns[p.rid].anno[0] != 0) {
     int tmp;
     kputsn("\tXR:Z:", 6, str);
     tmp = str->l;
-    kputs(bns->anns[p->rid].anno, str);
+    kputs(bns->anns[p.rid].anno, str);
     for (i = tmp; i < str->l; ++i) // replace TAB in the comment to SPACE
       if (str->s[i] == '\t') str->s[i] = ' ';
   }
   // YD: Bisulfite conversion strand label, per BWA-meth
   kputsn("\tYD:A:", 6, str);
-  if (p->bss < 0) kputc('u', str);
-  else kputc("fr"[p->bss], str);
+  if (p.bss < 0) kputc('u', str);
+  else kputc("fr"[p.bss], str);
 
   kputc('\n', str);
 }
@@ -261,15 +285,23 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
  ****************************************/
 
 // Single-End
-void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, int extra_flag) {
+// mreg is the arbitrarily selected mate reg to pair with every reg in regs
+void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, mem_alnreg_t *mreg) {
+
+  unsigned k;
+  for (k = 0; k<regs->a[k].n; ++k)
+    regs->a[k].flag = 0;
   
   if (!(opt->flag & MEM_F_ALL)) // output all alignments, hence no need to output alternatives
     XA = mem_gen_alt(opt, bns, pac, a, s->l_seq, s->seq);
   // mem_gen_sa
 
+  kstring_t sam_str;
+  sam_str.l = sam_str.m = 0; sam_str.s = 0;
+
   // set cigar, mapq etc.
   // only the first mapping is the primary mapping
-  unsigned k; int l;
+  int l;
   for (k = l = 0; k < regs->n; ++k) {
     mem_alnreg_t *p = regs->a + k;
 
@@ -286,28 +318,26 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     // set mapQ
     p->mapq = p->secondary < 0 ? mem_approx_mapq_se(opt, p) : 0;
 
-    mem_alnreg_setSAM(opt, bns, pac, s, p, extra_flag);
+    // unmapped
+    if (p->rb < 0 || p->re < 0) continue;
 
-    // keep only 1 primary alignment, others are either secondary or supplementary
-    if (l && p->secondary < 0) q->flag |= (opt->flag&MEM_F_NO_MULTI) ? 0x10000 : 0x800;
+    mem_alnreg_setSAM(opt, bns, pac, s, p);
     
+    // keep only 1 primary alignment, others are either secondary or supplementary
+    if (l && p->secondary < 0) p->flag |= (opt->flag&MEM_F_NO_MULTI) ? 0x10000 : 0x800;
     // mapq of secondary/supplementary alignment is capped by the primary mapping
     if (l && !p->is_alt) p->mapq = min(p->mapq, regs->a[0].mapq);
+    mem_alnreg_setMate(p, NULL);
+    mem_alnreg_formatSAM(opt, bns, &str, s, p, mreg, !k);
+    free(regs->a[k].cigar);
 
     ++l;
   }
 
   // string output to s->sam
-  kstring_t sam_str;
-  sam_str.l = sam_str.m = 0; sam_str.s = 0;
   if (l == 0) { // unmapped read
-    mem_alnreg_t reg = {0}; reg.rid = -1; reg.sam_set = 1;
-    mem_alnreg_formatSAM(opt, bns, &str, s, &reg, NULL, 1);
-  } else {
-    for (k = 0; k < regs->n; ++k) {
-      mem_alnreg_formatSAM(opt, bns, &str, s, &regs->a[k], NULL, !k);
-      free(regs->a[k].cigar);
-    }
+    mem_alnreg_t reg = {0}; reg.rid = -1;
+    mem_alnreg_formatSAM(opt, bns, &str, s, &reg, mreg, 1);
   }
   s->sam = str.s;
 }
@@ -317,12 +347,16 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
   int n = 0, i, j; 
 
-  kstring_t str;
-  str.l = str.m = 0; str.s = 0;
+  /* reset flag */
+  for (i=0; i<2; ++i) {
+    for (k = 0; k<regs_pair[i].n; ++k) {
+      regs_pair[i].a[k].flag = (0x40 << i) | 1; /* set which is read1/2 */
+    }
+  }
+
+  kstring_t str; str.l = str.m = 0; str.s = 0;
 
   if (opt->flag & MEM_F_NOPAIRING) goto NO_PAIRING;
-
-  int extra_flag = 1;
 
   /* pairing mate reads */
   int pscore, sub_pscore; // best and 2nd best pairing score
@@ -341,7 +375,8 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
     // The following decides whether to pair.
     // It also sets mapQ assuming no split hits.
-    int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired; // opt->pen_unpaired - penalty for not pairing
+    // opt->pen_unpaired - penalty for not pairing
+    int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired;
     if (pscore > score_unpaired) { // paired alignment is preferred
 
       // mapQ of pairing
@@ -397,15 +432,23 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
     /* write SAM */
     for (i = 0; i < 2; ++i) {
-      mem_alnreg_setSAM(opt, bns, pac, &s[i], &regs_pair[i].a[z[i]], 0x40<<i | extra_flag);
-      mem_alnreg_formatSAM(opt, bns, &str, &s[i], &regs_pair[i].a[z[i]], &regs_pair[i].a[z[!i]], 1);
+
+      mem_alnreg_t *reg = regs_pairs[i]->a + z[i];
+      mem_alnreg_t *mreg = regs_pairs[!i]->a + z[!i];
+
+      mem_alnreg_setSAM(opt, bns, pac, &s[i], reg);
+      mem_alnreg_formatSAM(opt, bns, &str, &s[i], reg, mreg, 1);
+
       // h[i].XA = XA[i]? XA[i][z[i]] : 0;
       // aa[i][n_aa[i]++] = h[i];
-      if (n_pri[i] < regs_pair[i].n) { // the read has ALT hits
+
+      // output ALT hits as unpaired mapping?
+      if (n_pri[i] < regs_pair[i].n) {
         mem_alnreg_t *p = &regs_pair[i].a[n_pri[i]]; // output the best ALT hit
         if (p->score < opt->T || p->secondary >= 0 || !p->is_alt) continue;
-        mem_alnreg_setSAM(opt, bns, pac, &s[i], p, 0x800 | 0x40<<i | extra_flag);
-        mem_alnreg_formatSAM(opt, bns, &str, &s[i], p, NULL, 0);
+        p->flag |= 0x800
+        mem_alnreg_setSAM(opt, bns, pac, &s[i], p);
+        mem_alnreg_formatSAM(opt, bns, &str, &s[i], p, NULL, 0); // is mate none?
         // g[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, p);
         // g[i].XA = XA[i]? XA[i][n_pri[i]] : 0;
         // aa[i][n_aa[i]++] = g[i];
@@ -422,9 +465,6 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     /* s[1].sam = str.s; */
     // if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name);
 
-    // Sanity check read names
-    check_paired_read_names(s[0].name, s[1].name);
-
     // free CIGAR and XA
     for (i = 0; i < 2; ++i) {
       free(h[i].cigar); free(g[i].cigar);
@@ -436,30 +476,44 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   } else goto NO_PAIRING;
   return n;
 
-NO_PAIRING:
+ NO_PAIRING:                // pairing with the best in mate alignment
 
+  // looking for the best alnreg to pair in the following order
+  // 1) best primary chromosome alnrneg if the score > opt->T; 
+  // 2) best non-primary chromosome alnreg if the score > opt->T
+  // 3) best alnreg primary or non-primary
+  mem_alnreg_t *best[2] = {0};
   for (i = 0; i < 2; ++i) {
-    int which = -1;
-    if (a[i].n) {
-      if (a[i].a[0].score >= opt->T) which = 0;
-      else if (n_pri[i] < a[i].n && a[i].a[n_pri[i]].score >= opt->T)
-        which = n_pri[i];
-    }
-    if (which >= 0) h[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, &a[i].a[which]);
-    else h[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, 0);
+    mem_alnreg_v *regs = regs_pair + i;
+    best[i] = &regs->a[0];
+    if (best[i]->score < opt->T && n_pri[i] < regs->n && regs->a[n_pri[i]].score >= opt->T)
+      best[i] = regs->a + n_pri[i];
   }
 
-  if (!(opt->flag & MEM_F_NOPAIRING) && h[0].rid == h[1].rid && h[0].rid >= 0) { // if the top hits from the two ends constitute a proper pair, flag it.
-    int64_t dist;
-    int d;
-    d = mem_infer_dir(bns->l_pac, a[0].a[0].rb, a[1].a[0].rb, &dist);
-    if (!pes[d].failed && dist >= pes[d].low && dist <= pes[d].high) extra_flag |= 2;
+  // if the top hits from the two ends constitute a proper pair, flag it.
+  if (!(opt->flag & MEM_F_NOPAIRING) && best[0]->rid == best[1]->rid && best[0]->rid >= 0 && is_proper_pair(best[0], best[1])) {
+    /* int64_t dist; */
+    /* int d; */
+    /* d = mem_infer_dir(bns->l_pac, a[0].a[0].rb, a[1].a[0].rb, &dist); */
+    /* if (!pes[d].failed && dist >= pes[d].low && dist <= pes[d].high) extra_flag |= 2; */
+    // TODO orientation here
+    best[0]->flag |= 2;
+    best[1]->flag |= 2;
   }
-  mem_reg2sam(opt, bns, pac, &s[0], &a[0], 0x41|extra_flag, &h[1]);
-  mem_reg2sam(opt, bns, pac, &s[1], &a[1], 0x81|extra_flag, &h[0]);
+
+  // still set mate though a possible "improper" pair
+  /* unsigned k; */
+  /* for (i = 0, i < 2; ++i) { */
+  /*   for (k = 0; k < regs_pair[i].n; ++k) { */
+  /*     mem_alnreg_setMate(regs_pair[i].a[k], best[!i]); */
+  /*   } */
+  /* } */
+
+  // output
+  for (i = 0; i < 2; ++i)
+    mem_reg2sam_se(opt, bns, pac, &s[i], &regs_pair[i], best[!i]);
+
   /* if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name); */
-  check_paired_read_names(s[0].name, s[1].name);
-  free(h[0].cigar); free(h[1].cigar);
   return n;
 }
 
