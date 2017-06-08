@@ -120,28 +120,26 @@ void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *
     }
   }
 }
-
+// z - index of the best pair cross regs_pair[0] and regs_pair[1]
 void mem_pair(const mem_opt_t *opt,
-    const bntseq_t *bns, 
-    const uint8_t *pac, 
-    const mem_pestat_t pes[4], 
-    bseq1_t s[2], 
-    mem_alnreg_v regs_pair[2], 
-    int id,       // ? read group ID? affect sorting of pairing
-    int *score,   // score of the best pairing
-    int *sub,     // score of 2nd best pairing
-    int *n_sub,   // number of other suboptimal pairings (not including best and 2nd best)
-    int z[2],     // index of the best pair cross regs_pair[0] and regs_pair[1]
-    int n_pri[2]) {
+              const bntseq_t *bns, 
+              const uint8_t *pac, 
+              const mem_pestat_t pes[4], 
+              bseq1_t s[2], 
+              mem_alnreg_v regs_pair[2], 
+              int id,       // ? read group ID? affect sorting of pairing
+              int *score,   // score of the best pairing
+              int *sub,     // score of 2nd best pairing
+              int *n_sub,   // number of other suboptimal pairings (not including best and 2nd best)
+              int z[2]) {
 
   int64_t l_pac = bns->l_pac;
   pair64_v v;
   kv_init(v);
   
-  int r; // read 1 or 2
-  int i;
+  int i; int r; // read 1 or 2
   for (r = 0; r < 2; ++r) { // loop through read number
-    for (i = 0; i < n_pri[r]; ++i) {
+    for (i = 0; i < regs_pair[r].n_pri; ++i) {
       pair64_t key;
       mem_alnreg_t *p = &regs_pair[r].a[i];
       key.x = p->rb < l_pac ? p->rb : (l_pac<<1) - 1 - p->rb; // forward position

@@ -488,6 +488,12 @@ static void bis_worker1(void *data, int i, int tid)
   }
 }
 
+static void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
+  unsigned k;
+  for (k = 0; k<regs->n; ++k)
+    regs->a[k].flag = 0;
+}
+
 /**
  * @param i i-th read is under consideration
  * @param tid thread id
@@ -502,7 +508,8 @@ static void bis_worker2(void *data, int i, int tid) {
       mem_reg2ovlp(w->opt, w->bns, &w->seqs[i], &w->regs[i]);
     } else {			/* output sam */
       mem_mark_primary_se(w->opt, w->regs[i].n, w->regs[i].a, w->n_processed + i);
-      mem_reg2sam(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], 0, 0);
+      mem_alnreg_resetFLAG(&w->regs[i]);
+      mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], 0, 0);
     }
     free(w->regs[i].a);
   } else {			/* paired-end */
@@ -515,7 +522,10 @@ static void bis_worker2(void *data, int i, int tid) {
     int n_pri[2];
     n_pri[0] = mem_mark_primary_se(opt, regs_pair[0].n, regs_pair[0].a, id<<1|0);
     n_pri[1] = mem_mark_primary_se(opt, regs_pair[1].n, regs_pair[1].a, id<<1|1);
-    mem_sam_pe(w->opt, w->bns, w->pac, w->pes, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1], n_pri);
+
+    mem_alnreg_resetFLAG(&w->regs[i<<1|0]);
+    mem_alnreg_resetFLAG(&w->regs[i<<1|1]);
+    mem_reg2sam_pe(w->opt, w->bns, w->pac, w->pes, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1], n_pri);
     free(w->regs[i<<1|0].a); free(w->regs[i<<1|1].a);
   }
 }

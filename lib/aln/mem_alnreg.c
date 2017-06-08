@@ -315,20 +315,19 @@ static void mem_mark_primary_se_core(const mem_opt_t *opt, int n_mark, mem_alnre
   }
 }
 
-int mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
+void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
   if (regs->n == 0) return 0;
 
   // initiate the default of secondary labels
   int i;
-  int n_pri; // number of regions on primary chromosomes
-  for (i = n_pri = 0; (unsigned) i < regs->n; ++i) {
+  for (i = regs->n_pri = 0; (unsigned) i < regs->n; ++i) {
     mem_alnreg_t *p = regs->a + i;
     p->sub = p->alt_sc = 0;
     p->secondary = -1; // secondary to none.
     p->secondary_all = -1;
     p->hash = hash_64(id+i);
-    if (!p->is_alt) ++n_pri;
+    if (!p->is_alt) ++regs->n_pri;
   }
 
   // high score region comes first
@@ -349,13 +348,13 @@ int mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
   // when there are mapping to primary chromosome and 
   // not all mappings are on primary chromosomes, remark primary mapping
-  if (n_pri >= 0 && (unsigned) n_pri < regs->n) {
+  if (regs->n_pri >= 0 && (unsigned) regs->n_pri < regs->n) {
 
     // double-dip z, expand the memory size to regs->n
     kv_resize(int, z, regs->n);
 
     // mapping to primary chromosomes comes first
-    if (n_pri > 0) 
+    if (regs->n_pri > 0) 
       ks_introsort(mem_ars_hash2, regs->n, regs->a);
 
     // z maps rank in the 1st round to rank in the 2nd round
@@ -376,12 +375,12 @@ int mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
     /* Second Round Marking */
     /************************/
     // mark primary for hits mapped to the primary assembly only
-    if (n_pri > 0) {
-      for (i = 0; i < n_pri; ++i) {
+    if (regs->n_pri > 0) {
+      for (i = 0; i < regs->n_pri; ++i) {
         regs->a[i].sub = 0;
         regs->a[i].secondary = -1;
       }
-      mem_mark_primary_se_core(opt, n_pri, regs, &z);
+      mem_mark_primary_se_core(opt, regs->n_pri, regs, &z);
     }
   } else {
     for (i = 0; (unsigned) i < regs->n; ++i)
@@ -389,7 +388,7 @@ int mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
   }
 
   free(z.a);
-  return n_pri;
+  return;
 }
 
 /***************

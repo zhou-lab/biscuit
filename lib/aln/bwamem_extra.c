@@ -88,13 +88,6 @@ void smem_config(smem_i *itr, int min_intv, int max_len, uint64_t max_intv)
 /* } */
 
 
-static inline int get_pri_idx(double XA_drop_ratio, const mem_alnreg_t *a, int i)
-{
-  int k = a[i].secondary_all;
-  if (k >= 0 && a[i].score >= a[k].score * XA_drop_ratio) return k;
-  return -1;
-}
-
 /* Okay, returning strings is bad, but this has happened a lot elsewhere. If I have time, I need serious code cleanup. */
 /* ONLY work after mem_mark_primary_se() */
 char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const uint8_t *query) {
