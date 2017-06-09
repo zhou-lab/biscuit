@@ -1,6 +1,7 @@
 #ifndef BWAMEM_H_
 #define BWAMEM_H_
 
+#include <stdlib.h>
 #include "bwt.h"
 #include "bntseq.h"
 #include "bwa.h"
@@ -268,9 +269,10 @@ extern "C" {
    * @param l_pac  length of concatenated reference sequence
    * @param n      number of query sequences; must be an even number
    * @param regs   region array of size $n; 2i-th and (2i+1)-th elements constitute a pair
-   * @param pes    inferred insert size distribution (output)
+   * @return pes    inferred insert size distribution
    */
-  void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *regs, mem_pestat_t pes[4]);
+  /* void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *regs, mem_pestat_t pes[4]); */
+  mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pairs);
 
   void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a);
   /* int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], uint64_t id, bseq1_t s[2], mem_alnreg_v a[2]); */
@@ -281,7 +283,19 @@ extern "C" {
   void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id);
   void mem_sort_dedup_patch(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, mem_alnreg_v *regs);
 
-  void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], bseq1_t s[2], mem_alnreg_v regs_pair[2], int id, int *score, int *sub, int *n_sub, int z[2]);
+
+  /*****************************************************
+   * id - read group ID? affect sorting of pairing
+   *
+   * output
+   * score  - score of the best pairing
+   * sub    - score of the 2nd best pairing
+   * n_sub  - number of other sub-optimal pairings
+   *          (not including best and 2nd best)
+   * z[2]   - index of the best pair cross regs_pair[0] 
+   *        - and regs_pair[1]
+   *****************************************************/
+  void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes, mem_alnreg_v regs_pair[2], int id, int *score, int *sub, int *n_sub, int z[2]);
 
 
   

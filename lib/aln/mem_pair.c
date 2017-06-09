@@ -24,122 +24,136 @@
  *
  */
 
-static inline int mem_infer_dir(int64_t l_pac, int64_t b1, int64_t b2, int64_t *dist) {
-  int r1 = (b1 >= l_pac);
-  int r2 = (b2 >= l_pac);
+#include <math.h>
+#include "bwamem.h"
+#include "utils.h"
+#include "kvec.h"
+#include "wzmisc.h"
 
-  // p2 is the coordinate of read 2 on the read 1 strand
-  int64_t p2;
-  if (r1 == r2) p2 = b2;
-  else p2 = (l_pac<<1) - 1 - b2;
+#define MIN_RATIO     0.8
+#define MIN_DIR_CNT   10
+#define MIN_DIR_RATIO 0.05
+#define OUTLIER_BOUND 2.0
+#define MAPPING_BOUND 3.0
+#define MAX_STDDEV    4.0
 
-  *dist = p2 > b1 ? p2 - b1 : b1 - p2;
-  return (r1 == r2 ? 0 : 1) ^ (p2 > b1 ? 0 : 3);
+// return 1 (success) or 0 (failure)
+static inline int mem_infer_is(int pos1, int pos2, int isrev1, int isrev2, int64_t *isize) {
+  if (isrev1 && !isrev2) {
+    *isize = pos1 - pos2;
+    return 1;
+  } else if (isrev2 && !isrev1) {
+    *isize = pos2 - pos1;
+    return 1;
+  } else return 0;
 }
 
-void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *regs, mem_pestat_t pes[4]) {
-  int i, d, max;
-  uint64_v isize[4];
-  memset(pes, 0, 4 * sizeof(mem_pestat_t));
-  memset(isize, 0, sizeof(kvec_t(int)) * 4);
+static int cal_sub(const mem_opt_t *opt, mem_alnreg_v *regs) {
 
-  /* infer isize distribution based on the first reg from the two reads */
-  for (i = 0; i < n>>1; ++i) {
-    int dir;
-    int64_t is; // insert size
-    mem_alnreg_v *r[2];
-    r[0] = (mem_alnreg_v*)&regs[i<<1|0];
-    r[1] = (mem_alnreg_v*)&regs[i<<1|1];
-    if (r[0]->n == 0 || r[1]->n == 0) continue;
-    if (cal_sub(opt, r[0]) > MIN_RATIO * r[0]->a[0].score) continue;
-    if (cal_sub(opt, r[1]) > MIN_RATIO * r[1]->a[0].score) continue;
-    if (r[0]->a[0].rid != r[1]->a[0].rid) continue; // not on the same chr
-    if (r[0]->a[0].bss != r[1]->a[0].bss) continue; /* not on the same bisulfite strand */
+  mem_alnreg_t *best = &regs->a[0];
 
-    dir = mem_infer_dir(l_pac, r[0]->a[0].rb, r[1]->a[0].rb, &is);
-    if (is && is <= opt->max_ins) kv_push(uint64_t, isize[dir], is);
-  }
-
-  if (bwa_verbose >= 3) fprintf(stderr, "[M::%s] # candidate unique pairs for (FF, FR, RF, RR): (%ld, %ld, %ld, %ld)\n", __func__, isize[0].n, isize[1].n, isize[2].n, isize[3].n);
-
-  for (d = 0; d < 4; ++d) { // TODO: this block is nearly identical to the one in bwtsw2_pair.c. It would be better to merge these two.
-    mem_pestat_t *r = &pes[d];
-    uint64_v *q = &isize[d];
-    int p25, p50, p75, x;
-    if (q->n < MIN_DIR_CNT) {
-      fprintf(stderr, "[M::%s] skip orientation %c%c as there are not enough pairs\n", __func__, "FR"[d>>1&1], "FR"[d&1]);
-      r->failed = 1;
-      free(q->a);
-      continue;
-    } else fprintf(stderr, "[M::%s] analyzing insert size distribution for orientation %c%c...\n", __func__, "FR"[d>>1&1], "FR"[d&1]);
-
-    // sort
-    ks_introsort_64(q->n, q->a);
-
-    p25 = q->a[(int)(.25 * q->n + .499)];
-    p50 = q->a[(int)(.50 * q->n + .499)];
-    p75 = q->a[(int)(.75 * q->n + .499)];
-    r->low  = (int)(p25 - OUTLIER_BOUND * (p75 - p25) + .499);
-    if (r->low < 1) r->low = 1;
-    r->high = (int)(p75 + OUTLIER_BOUND * (p75 - p25) + .499);
-    fprintf(stderr, "[M::%s] (25, 50, 75) percentile: (%d, %d, %d)\n", __func__, p25, p50, p75);
-    fprintf(stderr, "[M::%s] low and high boundaries for computing mean and std.dev: (%d, %d)\n", __func__, r->low, r->high);
-
-    // average
-    for (i = x = 0, r->avg = 0; i < q->n; ++i)
-      if (q->a[i] >= r->low && q->a[i] <= r->high)
-        r->avg += q->a[i], ++x;
-    r->avg /= x;
-
-    // std
-    for (i = 0, r->std = 0; i < q->n; ++i)
-      if (q->a[i] >= r->low && q->a[i] <= r->high)
-        r->std += (q->a[i] - r->avg) * (q->a[i] - r->avg);
-    r->std = sqrt(r->std / x);
-
-    fprintf(stderr, "[M::%s] mean and std.dev: (%.2f, %.2f)\n", __func__, r->avg, r->std);
-
-    // low and high
-    r->low  = (int)(p25 - MAPPING_BOUND * (p75 - p25) + .499);
-    r->high = (int)(p75 + MAPPING_BOUND * (p75 - p25) + .499);
-    if (r->low  > r->avg - MAX_STDDEV * r->std) r->low  = (int)(r->avg - MAX_STDDEV * r->std + .499);
-    if (r->high < r->avg - MAX_STDDEV * r->std) r->high = (int)(r->avg + MAX_STDDEV * r->std + .499);
-    if (r->low < 1) r->low = 1;
-
-    fprintf(stderr, "[M::%s] low and high boundaries for proper pairs: (%d, %d)\n", __func__, r->low, r->high);
-    free(q->a);
-  }
-
-  for (d = 0, max = 0; d < 4; ++d)
-    max = max > isize[d].n? max : isize[d].n;
-
-  for (d = 0; d < 4; ++d) {
-    if (pes[d].failed == 0 && isize[d].n < max * MIN_DIR_RATIO) {
-      pes[d].failed = 1;
-      fprintf(stderr, "[M::%s] skip orientation %c%c\n", __func__, "FR"[d>>1&1], "FR"[d&1]);
+  unsigned j; mem_alnreg_t *p;
+  for (j = 1; j < regs->n; ++j) { // choose unique alignment
+    p = &regs->a[j];
+    int b_max = p->qb > best->qb ? p->qb : best->qb;
+    int e_min = p->qe < best->qe? p->qe : best->qe;
+    if (e_min > b_max) { // have overlap
+      int min_l = p->qe - p->qb < best->qe - best->qb? p->qe - p->qb : best->qe - best->qb;
+      if (e_min - b_max >= min_l * opt->mask_level) break; // significant overlap
     }
   }
+  return j < regs->n ? p->score : opt->min_seed_len * opt->a;
 }
+
+typedef struct { size_t n, m; int64_t *a; } int64_v;
+mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pairs) {
+
+  int64_v isize = {0};
+
+  /* infer isize distribution based on the first reg from the two reads */
+  int i;
+  for (i = 0; i < n>>1; ++i) {
+    int64_t is; // insert size
+    mem_alnreg_v *regs_pair[2];
+    regs_pair[0] = (mem_alnreg_v*)&regs_pairs[i<<1|0];
+    regs_pair[1] = (mem_alnreg_v*)&regs_pairs[i<<1|1];
+
+    // skip if no mapping
+    if (regs_pair[0]->n == 0 || regs_pair[1]->n == 0) continue;
+
+    mem_alnreg_t *best0 = &regs_pair[0]->a[0];
+    mem_alnreg_t *best1 = &regs_pair[1]->a[0];
+
+    // skip if sub-optimal is too close to optimal
+    if (cal_sub(opt, regs_pair[0]) > MIN_RATIO * best0->score) continue;
+    if (cal_sub(opt, regs_pair[1]) > MIN_RATIO * best1->score) continue;
+
+    // skip if on different chromosome
+    if (best0->rid != best1->rid) continue;
+    
+    // skip if on different bisulfite converted strands
+    if (best0->bss != best1->bss) continue;
+
+    if (mem_infer_is(best0->pos, best1->pos, best0->is_rev, best1->is_rev, &is))
+      if (is <= opt->max_ins) kv_push(int64_t, isize, is);
+  }
+
+  if (bwa_verbose >= 3) fprintf(stderr, "[M::%s] # candidate unique pairs: %ld\n", __func__, isize.n);
+
+  // sort
+  ks_introsort_64s(isize.n, isize.a);
+
+  int p25 = isize.a[(int)(.25 * isize.n + .499)];
+  int p50 = isize.a[(int)(.50 * isize.n + .499)];
+  int p75 = isize.a[(int)(.75 * isize.n + .499)];
+
+  mem_pestat_t pes;
+  pes.low  = (int)(p25 - OUTLIER_BOUND * (p75 - p25) + .499);
+  pes.high = (int)(p75 + OUTLIER_BOUND * (p75 - p25) + .499);
+
+  fprintf(stderr, "[M::%s] (25, 50, 75) percentile: (%d, %d, %d)\n", __func__, p25, p50, p75);
+  fprintf(stderr, "[M::%s] low and high boundaries for computing mean and std.dev: (%d, %d)\n", __func__, pes.low, pes.high);
+
+  // average
+  int x;
+  for (i = x = 0, pes.avg = 0; (unsigned) i < isize.n; ++i)
+    if (isize.a[i] >= pes.low && isize.a[i] <= pes.high)
+      pes.avg += isize.a[i], ++x;
+  pes.avg /= x;
+
+  // std
+  for (i = 0, pes.std = 0; (unsigned) i < isize.n; ++i)
+    if (isize.a[i] >= pes.low && isize.a[i] <= pes.high)
+      pes.std += (isize.a[i] - pes.avg) * (isize.a[i] - pes.avg);
+  pes.std = sqrt(pes.std / x);
+
+  fprintf(stderr, "[M::%s] mean and std.dev: (%.2f, %.2f)\n", __func__, pes.avg, pes.std);
+
+  // low and high
+  pes.low = (int)(p25 - MAPPING_BOUND * (p75 - p25) + .499);
+  pes.high = (int)(p75 + MAPPING_BOUND * (p75 - p25) + .499);
+  if (pes.low > pes.avg - MAX_STDDEV * pes.std) 
+    pes.low  = (int)(pes.avg - MAX_STDDEV * pes.std + .499);
+  if (pes.high < pes.avg - MAX_STDDEV * pes.std) 
+    pes.high = (int)(pes.avg + MAX_STDDEV * pes.std + .499);
+  if (pes.low < 1) pes.low = 1;
+
+  fprintf(stderr, "[M::%s] low and high boundaries for proper pairs: (%d, %d)\n", __func__, pes.low, pes.high);
+  free(isize.a);
+
+  return pes;
+}
+
 // z - index of the best pair cross regs_pair[0] and regs_pair[1]
-void mem_pair(const mem_opt_t *opt,
-              const bntseq_t *bns, 
-              const uint8_t *pac, 
-              const mem_pestat_t pes[4], 
-              bseq1_t s[2], 
-              mem_alnreg_v regs_pair[2], 
-              int id,       // ? read group ID? affect sorting of pairing
-              int *score,   // score of the best pairing
-              int *sub,     // score of 2nd best pairing
-              int *n_sub,   // number of other suboptimal pairings (not including best and 2nd best)
-              int z[2]) {
+void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes, mem_alnreg_v regs_pair[2], int id, int *score, int *sub, int *n_sub, int z[2]) {
 
   int64_t l_pac = bns->l_pac;
   pair64_v v;
   kv_init(v);
-  
+
   int i; int r; // read 1 or 2
   for (r = 0; r < 2; ++r) { // loop through read number
-    for (i = 0; i < regs_pair[r].n_pri; ++i) {
+    for (i = 0; (unsigned) i < regs_pair[r].n_pri; ++i) {
       pair64_t key;
       mem_alnreg_t *p = &regs_pair[r].a[i];
       key.x = p->rb < l_pac ? p->rb : (l_pac<<1) - 1 - p->rb; // forward position
@@ -159,45 +173,28 @@ void mem_pair(const mem_opt_t *opt,
   // y - mate index in v + read index in v
   kv_init(proper_pairs);
 
-  int last[4] = {-1,-1,-1,-1}; // keeps the last hit in the four directions
+  // O2 solution to finding proper pairs
   int k;
-  for (i = 0; i < v.n; ++i) {
-    for (r = 0; r < 2; ++r) { /* mate direction */
+  for (i = 0; (unsigned) i < v.n; ++i) {
+    // v is sorted ascendingly in coordinates, going backward
+    for (k = i-1; k >= 0; ++k) {
+      if (v.a[i].x >> 32 != v.a[k].x >> 32) break;
+      if ((int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
 
-      /* Allow only read and mate on different strands, i.e.,
-       * pes[0].failed == pes[3].failed == 1 (00 and 11)
-       * pes[1].failed == pes[2].failed == 0 (01 and 10) */
-      int dir = r<<1 | (v.a[i].y>>1&1);     // mate_direction-read_direction
-      if (pes[dir].failed) continue;        // invalid orientation
-
-      /* mate direction and mate read number (1 or 2) */
-      int which = r<<1 | ((v.a[i].y&1)^1);  // mate_direction-mate_read_number
-      if (last[which] < 0) continue;           // no previous hits
-
-      /* loop over mate read index
-       * v is sorted with ascending score, so we are going backward */
-      // TODO: this is a O(n^2) solution in the worst case; remember to check if this loop takes a lot of time (I doubt)
-      for (k = lasty[which]; k >= 0; --k) {
-
-        // mate_direction and mate_read_number has to be the same
-        if ((v.a[k].y&3) != which) continue;
-
-        int64_t dist = (int64_t)v.a[i].x - v.a[k].x;
-        if (dist > pes[dir].high) break;
-        if (dist < pes[dir].low)  continue;
+      int64_t is;
+      if (mem_infer_is(v.a[k].x, v.a[i].x, v.a[k].y>>1 & 1, v.a[i].y>>1 & 1, &is) &&
+          is >= pes.low && is <= pes.high) {
 
         /* score of the insert by merging score of the two 
          * and the insertion properness */
-        double zscore = (dist - pes[dir].avg) / pes[dir].std;
+        double zscore = (is - pes.avg) / pes.std;
         int _score = max(0, (int)((v.a[i].y>>32) + (v.a[k].y>>32) + .721 * log(2. * erfc(fabs(zscore) * M_SQRT1_2)) * opt->a + .499)); // .721 = 1/log(4)
 
         pair64_t *p = kv_pushp(pair64_t, proper_pairs);
-        p->y = (uint64_t)k<<32 | i;
-        p->x = (uint64_t)_score<<32 | (hash_64(p->y ^ id<<8) & 0xffffffffU);
-        //printf("[%lld,%lld]\t%d\tdist=%ld\n", v.a[k].x, v.a[i].x, q, (long)dist);
+        p->y = (uint64_t) k<<32 | i;
+        p->x = (uint64_t) _score<<32 | (hash_64(p->y ^ id<<8) & 0xffffffffU);
       }
     }
-    lasty[v.a[i].y&3] = i;
   }
 
   if (proper_pairs.n) { // found at least one proper pair
@@ -205,11 +202,11 @@ void mem_pair(const mem_opt_t *opt,
     // sort by the insert score
     ks_introsort_128(proper_pairs.n, proper_pairs.a);
 
-    /* indices of the best pair in v */
+    // indices of the best pair in v
     i = proper_pairs.a[proper_pairs.n-1].y >> 32;
     k = proper_pairs.a[proper_pairs.n-1].y << 32 >> 32;
 
-    /* indices of the best pair in a */
+    // indices of the best pair in a
     z[v.a[i].y&1] = v.a[i].y<<32>>34; // index of the best pair read 1 in reg_pairs[0]
     z[v.a[k].y&1] = v.a[k].y<<32>>34; // index of the best pair read 2 in reg_pairs[1]
 
