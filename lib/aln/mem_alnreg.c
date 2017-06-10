@@ -228,12 +228,7 @@ static void mem_test_and_remove_exact(const mem_opt_t *opt, mem_alnreg_v *regs, 
 
 /* Merge Aligned Regions
  * previously called mem_merge_reg1 */
-void mem_merge_regions(
-    const mem_opt_t *opt,
-    const bntseq_t *bns,
-    const uint8_t *pac, 
-    bseq1_t *bseq, 
-    mem_alnreg_v *regs) {
+void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, mem_alnreg_v *regs) {
 
   uint32_t i;
   mem_sort_deduplicate(opt, bns, pac, bseq->seq, regs);
@@ -396,17 +391,15 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
  ***************/
 
 /* try adding a properly-positioned mate alignment 
- * for a good-enough target target alignment 
+ * for a good-enough target alignment.
+ * If success, add to mate alignments.
  * This function SW-aligns the mate sequence, and can be slow */
-void mem_matesw(const mem_opt_t *opt,      // option
-    const bntseq_t *bns,                   // reference meta
-    const uint8_t *pac,                    // reference
-    const mem_pestat_t pes[4],             // pair-end statistics
-    const mem_alnreg_t *reg,               // target region
-    int l_ms,                              // length of mate sequence
-    const uint8_t *ms,                     // mate sequence
-    mem_alnreg_v *mregs                    // mate regions
-    ) {
+// regs  - target region
+// l_ms  - length of mate sequence
+// ms    - mate sequence
+// mregs - mate regions
+// aka mem_matesw
+static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, const mem_alnreg_t *reg, int l_ms, const uint8_t *ms, mem_alnreg_v *mregs) {
   
   int64_t l_pac = bns->l_pac;
   int i;
@@ -487,7 +480,7 @@ void mem_matesw(const mem_opt_t *opt,      // option
 }
 
 
-void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2]) {
+void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, bseq1_t s[2], mem_alnreg_v regs_pair[2]) {
 
   // find good alignment regions
   mem_alnreg_v good_regs_pair[2];
@@ -500,7 +493,7 @@ void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
   // rescue mate alignment of good alignment if necessary
   for (i = 0; i < 2; ++i)
     for (j = 0; j < good_regs_pair[i].n && j < opt->max_matesw; ++j)
-      mem_matesw(opt, bns, pac, pes, &good_regs_pair[i].a[j], s[!i].l_seq, (uint8_t) s[!i].seq, &regs_pair[!i]);
+      mem_alnreg_matesw_core(opt, bns, pac, pes, &good_regs_pair[i].a[j], s[!i].l_seq, (uint8_t) s[!i].seq, &regs_pair[!i]);
 
   free(good_regs_pair[0].a); free(good_regs_pair[1].a);
 }

@@ -23,48 +23,14 @@
  *
  */
 
-/*******************
- * bwtintv_cache_t *
- *******************/
-
-/* This struct is shared across reads processed in the same thread.
- * For performance's sake, it saves memory allocation.
- *
- * mem is the output from mem_collect_intv
- * _mem and tmpv are for internal use in mem_collect_intv
- * _mem is raw from bwt_smem1, before filtering by min_seed_len
- *
- * Previously called smem_aux_t in BWA code. */
-
 #include <stdlib.h>
 #include <math.h>
-#include "bwamem.h"
+#include "memchain.h"
 #include "ksort.h"
 #include "kvec.h"
 #include "utils.h"
 #include "ksw.h"
 #include "wzmisc.h"
-
-typedef struct {
-  bwtintv_v mem;
-  bwtintv_v _mem;
-  bwtintv_v *tmpv[2];
-} bwtintv_cache_t;
-
-static bwtintv_cache_t *bwtintv_cache_init() {
-  bwtintv_cache_t *a;
-  a = calloc(1, sizeof(bwtintv_cache_t));
-  a->tmpv[0] = calloc(1, sizeof(bwtintv_v));
-  a->tmpv[1] = calloc(1, sizeof(bwtintv_v));
-  return a;
-}
-
-static void bwtintv_cache_destroy(bwtintv_cache_t *a) {
-  free(a->tmpv[0]->a); free(a->tmpv[0]);
-  free(a->tmpv[1]->a); free(a->tmpv[1]);
-  free(a->mem.a); free(a->_mem.a);
-  free(a);
-}
 
 /***********
  * Seeding *
@@ -140,16 +106,7 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t
 
 /**************
  * mem_seed_t *
- **************
- * Each mem_seed_t built from a bwtintv_t.
- * To convert to normal coordinate:
- *  - pos = bns_depos(bns, rbeg, &is_rev)
- *  - then pos - bns->anns[p->rid].offset + 1 */
-typedef struct {
-  int64_t rbeg; // coordinate on forward-reverse reference
-  int32_t qbeg, len;
-  int score;
-} mem_seed_t; // unaligned memory
+ **************/
 
 /* filtering seed if it violates asymmetric scoring */
 static int asymmetric_flt_seed(mem_seed_t *s, const uint8_t *pac, const bntseq_t *bns, bseq1_t *bseq) {
@@ -176,19 +133,6 @@ static int asymmetric_flt_seed(mem_seed_t *s, const uint8_t *pac, const bntseq_t
 /***************
  * mem_chain_t *
  ***************/
-typedef struct {
-  int n, m;
-  int first;           /* for internal use in mem_chain_flt, index of the first chain in overlap, -1 for not overlapping with any other seeds */
-  int rid;
-  uint32_t w:29;       /* weight, for sorting in mem_chain_flt; */
-  uint32_t kept:2;     /* for internal book-keeping in mem_chain_flt. 0 (discard), 1 (be pointed by other seeds' first), 2 (large overlap), 3 (good) */
-  uint32_t is_alt:1;
-  float frac_rep;		   /* fraction of repeats */
-  int64_t pos;
-  mem_seed_t *seeds;
-} mem_chain_t;
-
-typedef struct { size_t n, m; mem_chain_t *a;  } mem_chain_v;
 
 /* chain weight is defined as:
  * min(seeds_base_cov_ref, seeds_base_cov_query) */
@@ -278,7 +222,7 @@ static int test_and_merge(const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, c
 
 
 /*********************************************************
- * cluster seeds (bwtintv_t) into a chains (mem_chain_v).
+ * Cluster seeds (bwtintv_t) into a chain (mem_chain_v).
  * Each chain contains one or more seeds.
  *********************************************************/
 
@@ -491,7 +435,7 @@ void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns) {
 #define MEM_SEEDSW_COEF 0.05f
 
 /* extend seeds by MEM_SHORT_EXT using Smith-Waterman, report extension score */
-int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_seed_t *s, uint8_t parent) {
+static int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_seed_t *s, uint8_t parent) {
   int qb, qe, rid;
   int64_t rb, re, mid, l_pac = bns->l_pac;
   uint8_t *rseq = 0;
@@ -528,8 +472,9 @@ int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, i
 }
 
 /* filter seeds in each chain by seed extension score */
-void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, mem_chain_v *chns, uint8_t parent) {
+void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const bseq1_t *s, mem_chain_v *chns, uint8_t parent) {
   
+  int l_query = s->l_seq; uint8_t *query = s->seq;
   double min_l = opt->min_chain_weight ? MEM_HSP_COEF * opt->min_chain_weight : MEM_MINSC_COEF * log(l_query);
   if (min_l > MEM_SEEDSW_COEF * l_query) return; // don't run the following for short reads
   

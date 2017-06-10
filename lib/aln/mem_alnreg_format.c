@@ -426,7 +426,7 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
 // Paired-End
 #define raw_mapq(diff, a) ((int)(6.02 * (diff) / (a) + .499))
-void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t *pes) {
+void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t pes) {
 
   // flags for paired reads
   int i; unsigned k;
