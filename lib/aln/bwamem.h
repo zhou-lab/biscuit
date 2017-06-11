@@ -74,6 +74,7 @@ typedef struct {
 
 typedef struct {
   int low, high;   // lower and upper bounds within which a read pair is considered to be properly paired
+  int set;         // whether it's set
   int failed;      // non-zero if the orientation is not supported by sufficient data
   double avg, std; // mean and stddev of the insert size distribution
 } mem_pestat_t;
@@ -127,8 +128,7 @@ extern "C" {
    * @param pac    2-bit encoded reference
    * @param n      number of query sequences
    * @param seqs   query sequences; $seqs[i].seq/sam to be modified after the call
-   * @param pes0   insert-size info; if NULL, infer from data; if not NULL, it should be an array with 4 elements,
-   *               corresponding to each FF, FR, RF and RR orientation. See mem_pestat() for more info.
+   * @param pes0   insert-size info; if NULL, infer from data;
    */
   void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0);
 

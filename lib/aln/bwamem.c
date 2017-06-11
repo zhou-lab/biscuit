@@ -248,6 +248,7 @@ static void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
  * @param tid thread id
  */
 static void bis_worker2(void *data, int i, int tid) {
+  (void) tid;
   worker_t *w = (worker_t*)data;
   if (!(w->opt->flag&MEM_F_PE)) { /* single-end */
     if (bwa_verbose >= 4)
@@ -282,10 +283,10 @@ static void bis_worker2(void *data, int i, int tid) {
  * @param seqs: query sequences
  * @param pes0: paired-end statistics
  */
-void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t pes0) {
+void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0) {
 
   extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);
-  mem_pestat_t pes[4]; int i;
+  int i;
 
   double ctime, rtime;
   ctime = cputime(); rtime = realtime();
@@ -311,8 +312,9 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   free(w.intv_cache);
 
   /***** Step 2: Obtain PE statistics *****/
+  mem_pestat_t pes;
   if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
-    if (pes0->set) pes = *pes0;
+    if (pes0) pes = *pes0;
     else pes = mem_pestat(opt, n, w.regs);
     /* if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0 */
     /* else w.pes = mem_pestat(opt, n, w.regs); // otherwise, infer the insert size distribution from data */
