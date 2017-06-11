@@ -638,7 +638,7 @@ static void right_extend_seed_set_align_end(
 
     if (bwa_verbose >= 4) { printf("*** Right extension: prev_score=%d; score=%d; bandwidth=%d; max_off_diagonal_dist=%d\n", prev, ar->score, *aw, max_off); fflush(stdout); }
 
-    if (ar->score == prev || max_off < (aw[1]>>1) + (aw[1]>>2)) break;
+    if (ar->score == prev || max_off < (*aw>>1) + (*aw>>2)) break;
   }
 
   // similar to the above
