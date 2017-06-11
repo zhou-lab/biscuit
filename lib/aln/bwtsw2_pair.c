@@ -154,8 +154,7 @@ void bsw2_pair1(const bsw2opt_t *opt, int64_t l_pac, const uint8_t *pac, const b
 	free(seq);
 }
 
-void bsw2_pair(const bsw2opt_t *opt, int64_t l_pac, const uint8_t *pac, int n, bsw2seq1_t *seq, bwtsw2_t **hits)
-{
+void bsw2_pair(const bsw2opt_t *opt, int64_t l_pac, const uint8_t *pac, int n, bsw2seq1_t *seq, bwtsw2_t **hits) {
 	extern int bsw2_resolve_duphits(const bntseq_t *bns, const bwt_t *bwt, bwtsw2_t *b, int IS);
 	bsw2pestat_t pes;
 	int i, j, k, n_rescued = 0, n_moved = 0, n_fixed = 0;
