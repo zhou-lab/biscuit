@@ -36,8 +36,8 @@
 #define SAI_MAGIC "SAI\1"
 
 typedef struct {
-	bwtint_t w;
-	int bid;
+  bwtint_t w;
+  int bid;
 } bwt_width_t;
 
 typedef struct {

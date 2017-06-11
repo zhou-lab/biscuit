@@ -79,7 +79,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns);
 
 // filter seeds in each chain by seed extension score
-void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_chain_v *chns, uint8_t parent);
+void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const bseq1_t *s, mem_chain_v *chns, uint8_t parent);
 
 void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn);
 

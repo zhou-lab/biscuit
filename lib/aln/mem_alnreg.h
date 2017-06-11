@@ -46,25 +46,49 @@ typedef struct {
   size_t n_pri; // number of regions on primary chromosomes
 } mem_alnreg_v;
 
-// 1 for proper pairing, 0 for improper pairing
-static inline void mem_alnreg_infer_isize(int64_t l_pac, mem_alnreg_t *p, mem_alnreg_t *q, int *proper, int *isize) {
-  int str_p = p->rb >= l_pac;
-  int str_q = q->rb >= l_pac;
-  if (str_p && !str_q) {
-    *isize = (l_pac<<1) - 1 - p->rb - q->rb;
-    *proper = 1;
-    return;
-  } else if (str_q && !str_p) {
-    *isize = (l_pac<<1) - 1 - q->rb - p->rb;
-    *proper = 1;
-    return;
-  } else {
-    int qq = (l_pac<<1) - 1 - q->rb;
-    *isize = p->rb > qq ? p->rb - qq : qq - p->rb;
-    *proper = 0;
-    return;
-  }
+// return 1 (success) or 0 (failure)
+static inline int mem_infer_is(int pos1, int pos2, int isrev1, int isrev2, int64_t *isize) {
+  if (isrev1 && !isrev2) {
+    *isize = pos1 - pos2;
+    return 1;
+  } else if (isrev2 && !isrev1) {
+    *isize = pos2 - pos1;
+    return 1;
+  } else return 0;
 }
+
+static inline int is_proper_pair(mem_alnreg_t *r1, mem_alnreg_t *r2, mem_pestat_t pes) {
+  // switch 1 and 2 if flag indicates otherwise
+  if (r1->flag & 0x80 && r2->flag & 0x40) {
+    mem_alnreg_t *tmp = r2;
+    r2 = r1; r1 = tmp;
+  }
+  if (r1->rid != r2->rid) return 0;
+  int64_t is;
+  if (!mem_infer_is(r1->pos, r2->pos, r1->is_rev, r2->is_rev, &is)) return 0;
+  if (is >= pes.low && is <= pes.high) return 1;
+  else return 0;
+}
+
+/* // 1 for proper pairing, 0 for improper pairing */
+/* static inline void mem_alnreg_infer_isize(int64_t l_pac, const mem_alnreg_t *p, const mem_alnreg_t *q, int *proper, int *isize) { */
+/*   int str_p = p->rb >= l_pac; */
+/*   int str_q = q->rb >= l_pac; */
+/*   if (str_p && !str_q) { */
+/*     *isize = (l_pac<<1) - 1 - p->rb - q->rb; */
+/*     *proper = 1; */
+/*     return; */
+/*   } else if (str_q && !str_p) { */
+/*     *isize = (l_pac<<1) - 1 - q->rb - p->rb; */
+/*     *proper = 1; */
+/*     return; */
+/*   } else { */
+/*     int qq = (l_pac<<1) - 1 - q->rb; */
+/*     *isize = p->rb > qq ? p->rb - qq : qq - p->rb; */
+/*     *proper = 0; */
+/*     return; */
+/*   } */
+/* } */
 
 // Merge aligned regions, aka mem_merge_reg1
 void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, mem_alnreg_v *regs);

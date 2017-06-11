@@ -83,16 +83,16 @@ inline static void mp_free(mempool_t *mp, bsw2entry_p e)
 	--mp->cnt; e->n = 0;
 	kv_push(bsw2entry_p, mp->pool, e);
 }
-static void mp_destroy(struct __mempool_t *mp)
-{
-	int i;
-	for (i = 0; i != kv_size(mp->pool); ++i) {
-		free(kv_A(mp->pool, i)->array);
-		free(kv_A(mp->pool, i));
-	}
-	kv_destroy(mp->pool);
-	free(mp);
+static void mp_destroy(struct __mempool_t *mp) {
+  unsigned i;
+  for (i = 0; i != kv_size(mp->pool); ++i) {
+    free(kv_A(mp->pool, i)->array);
+    free(kv_A(mp->pool, i));
+  }
+  kv_destroy(mp->pool);
+  free(mp);
 }
+
 /* --- END: memory pool --- */
 
 /* --- BEGIN: utilities --- */
@@ -169,7 +169,7 @@ static inline void remove_duplicate(bsw2entry_t *u, khash_t(qintv) *hash)
 		k = kh_put(qintv, hash, key, &ret);
 		j = -1;
 		if (ret == 0) {
-			if ((uint32_t)kh_value(hash, k) >= p->G) j = i;
+                  if ((uint32_t)kh_value(hash, k) >= (uint32_t) p->G) j = i;
 			else {
 				j = kh_value(hash, k)>>32;
 				kh_value(hash, k) = (uint64_t)i<<32 | p->G;
@@ -183,23 +183,22 @@ static inline void remove_duplicate(bsw2entry_t *u, khash_t(qintv) *hash)
 	}
 }
 // merge two entries
-static void merge_entry(const bsw2opt_t * __restrict opt, bsw2entry_t *u, bsw2entry_t *v, bwtsw2_t *b)
-{
-	int i;
-	if (u->n + v->n >= u->max) {
-		u->max = u->n + v->n;
-		u->array = (bsw2cell_t*)realloc(u->array, u->max * sizeof(bsw2cell_t));
-	}
-	for (i = 0; i != v->n; ++i) {
-		bsw2cell_t *p = v->array + i;
-		if (p->ppos >= 0) p->ppos += u->n;
-		if (p->cpos[0] >= 0) p->cpos[0] += u->n;
-		if (p->cpos[1] >= 0) p->cpos[1] += u->n;
-		if (p->cpos[2] >= 0) p->cpos[2] += u->n;
-		if (p->cpos[3] >= 0) p->cpos[3] += u->n;
-	}
-	memcpy(u->array + u->n, v->array, v->n * sizeof(bsw2cell_t));
-	u->n += v->n;
+static void merge_entry(bsw2entry_t *u, bsw2entry_t *v) {
+  int i;
+  if (u->n + v->n >= u->max) {
+    u->max = u->n + v->n;
+    u->array = (bsw2cell_t*)realloc(u->array, u->max * sizeof(bsw2cell_t));
+  }
+  for (i = 0; i != v->n; ++i) {
+    bsw2cell_t *p = v->array + i;
+    if (p->ppos >= 0) p->ppos += u->n;
+    if (p->cpos[0] >= 0) p->cpos[0] += u->n;
+    if (p->cpos[1] >= 0) p->cpos[1] += u->n;
+    if (p->cpos[2] >= 0) p->cpos[2] += u->n;
+    if (p->cpos[3] >= 0) p->cpos[3] += u->n;
+  }
+  memcpy(u->array + u->n, v->array, v->n * sizeof(bsw2cell_t));
+  u->n += v->n;
 }
 
 static inline bsw2cell_t *push_array_p(bsw2entry_t *e)
@@ -245,105 +244,104 @@ static void save_hits(const bwtl_t *bwt, int thres, bsw2hit_t *hits, bsw2entry_t
 }
 /* "narrow hits" are node-to-node hits that have a high score and
  * are not so repetitive (|SA interval|<=IS). */
-static void save_narrow_hits(const bwtl_t *bwtl, bsw2entry_t *u, bwtsw2_t *b1, int t, int IS)
-{
-	int i;
-	for (i = 0; i < u->n; ++i) {
-		bsw2hit_t *q;
-		bsw2cell_t *p = u->array + i;
-		if (p->G >= t && p->ql - p->qk + 1 <= IS) { // good narrow hit
-			if (b1->max == b1->n) {
-				b1->max = b1->max? b1->max<<1 : 4;
-				b1->hits = realloc(b1->hits, b1->max * sizeof(bsw2hit_t));
-			}
-			q = &b1->hits[b1->n++];
-			q->k = p->qk; q->l = p->ql;
-			q->len = p->qlen;
-			q->G = p->G; q->G2 = 0;
-			q->beg = bwtl->sa[u->tk]; q->end = q->beg + p->tlen;
-			q->flag = 0;
-			// delete p
-			p->qk = p->ql = 0; p->G = 0;
-			if (p->ppos >= 0) u->array[p->ppos].cpos[p->pj] = -3;
-		}
-	}
+static void save_narrow_hits(const bwtl_t *bwtl, bsw2entry_t *u, bwtsw2_t *b1, int t, int IS) {
+  int i;
+  for (i = 0; i < u->n; ++i) {
+    bsw2hit_t *q;
+    bsw2cell_t *p = u->array + i;
+    if (p->G >= t && p->ql - p->qk + 1 <= (unsigned) IS) { // good narrow hit
+      if (b1->max == b1->n) {
+        b1->max = b1->max? b1->max<<1 : 4;
+        b1->hits = realloc(b1->hits, b1->max * sizeof(bsw2hit_t));
+      }
+      q = &b1->hits[b1->n++];
+      q->k = p->qk; q->l = p->ql;
+      q->len = p->qlen;
+      q->G = p->G; q->G2 = 0;
+      q->beg = bwtl->sa[u->tk]; q->end = q->beg + p->tlen;
+      q->flag = 0;
+      // delete p
+      p->qk = p->ql = 0; p->G = 0;
+      if (p->ppos >= 0) u->array[p->ppos].cpos[p->pj] = -3;
+    }
+  }
 }
+
 /* after this, "narrow SA hits" will be expanded and the coordinates
  * will be obtained and stored in b->hits[*].k. */
-int bsw2_resolve_duphits(const bntseq_t *bns, const bwt_t *bwt, bwtsw2_t *b, int IS)
-{
-	int i, j, n, is_rev;
-	if (b->n == 0) return 0;
-	if (bwt && bns) { // convert to chromosomal coordinates if requested
-		int old_n = b->n;
-		bsw2hit_t *old_hits = b->hits;
-		for (i = n = 0; i < b->n; ++i) { // compute the memory to allocated
-			bsw2hit_t *p = old_hits + i;
-			if (p->l - p->k + 1 <= IS) n += p->l - p->k + 1;
-			else if (p->G > 0) ++n;
-		}
-		b->n = b->max = n;
-		b->hits = calloc(b->max, sizeof(bsw2hit_t));
-		for (i = j = 0; i < old_n; ++i) {
-			bsw2hit_t *p = old_hits + i;
-			if (p->l - p->k + 1 <= IS) { // the hit is no so repetitive
-				bwtint_t k;
-				if (p->G == 0 && p->k == 0 && p->l == 0 && p->len == 0) continue;
-				for (k = p->k; k <= p->l; ++k) {
-					b->hits[j] = *p;
-					b->hits[j].k = bns_depos(bns, bwt_sa(bwt, k), &is_rev);
-					b->hits[j].l = 0;
-					b->hits[j].is_rev = is_rev;
-					if (is_rev) b->hits[j].k -= p->len - 1;
-					++j;
-				}
-			} else if (p->G > 0) {
-				b->hits[j] = *p;
-				b->hits[j].k = bns_depos(bns, bwt_sa(bwt, p->k), &is_rev);
-				b->hits[j].l = 0;
-				b->hits[j].flag |= 1;
-				b->hits[j].is_rev = is_rev;
-				if (is_rev) b->hits[j].k -= p->len - 1;
-				++j;
-			}
-		}
-		free(old_hits);
-	}
-	for (i = j = 0; i < b->n; ++i) // squeeze out empty elements
-		if (b->hits[i].G) b->hits[j++] = b->hits[i];
-	b->n = j;
-	ks_introsort(hitG, b->n, b->hits);
-	for (i = 1; i < b->n; ++i) {
-		bsw2hit_t *p = b->hits + i;
-		for (j = 0; j < i; ++j) {
-			bsw2hit_t *q = b->hits + j;
-			int compatible = 1;
-			if (p->is_rev != q->is_rev) continue; // hits from opposite strands are not duplicates
-			if (p->l == 0 && q->l == 0) {
-				int qol = (p->end < q->end? p->end : q->end) - (p->beg > q->beg? p->beg : q->beg); // length of query overlap
-				if (qol < 0) qol = 0;
-				if ((float)qol / (p->end - p->beg) > MASK_LEVEL || (float)qol / (q->end - q->beg) > MASK_LEVEL) {
-					int64_t tol = (int64_t)(p->k + p->len < q->k + q->len? p->k + p->len : q->k + q->len)
-						- (int64_t)(p->k > q->k? p->k : q->k); // length of target overlap
-					if ((double)tol / p->len > MASK_LEVEL || (double)tol / q->len > MASK_LEVEL)
-						compatible = 0;
-				}
-			}
-			if (!compatible) {
-				p->G = 0;
-				if (q->G2 < p->G2) q->G2 = p->G2;
-				break;
-			}
-		}
-	}
-	n = i;
-	for (i = j = 0; i < n; ++i) {
-		if (b->hits[i].G == 0) continue;
-		if (i != j) b->hits[j++] = b->hits[i];
-		else ++j;
-	}
-	b->n = j;
-	return b->n;
+int bsw2_resolve_duphits(const bntseq_t *bns, const bwt_t *bwt, bwtsw2_t *b, int IS) {
+  int i, j, n, is_rev;
+  if (b->n == 0) return 0;
+  if (bwt && bns) { // convert to chromosomal coordinates if requested
+    int old_n = b->n;
+    bsw2hit_t *old_hits = b->hits;
+    for (i = n = 0; i < b->n; ++i) { // compute the memory to allocated
+      bsw2hit_t *p = old_hits + i;
+      if (p->l - p->k + 1 <= (unsigned) IS) n += p->l - p->k + 1;
+      else if (p->G > 0) ++n;
+    }
+    b->n = b->max = n;
+    b->hits = calloc(b->max, sizeof(bsw2hit_t));
+    for (i = j = 0; i < old_n; ++i) {
+      bsw2hit_t *p = old_hits + i;
+      if (p->l - p->k + 1 <= (unsigned) IS) { // the hit is no so repetitive
+        bwtint_t k;
+        if (p->G == 0 && p->k == 0 && p->l == 0 && p->len == 0) continue;
+        for (k = p->k; k <= p->l; ++k) {
+          b->hits[j] = *p;
+          b->hits[j].k = bns_depos(bns, bwt_sa(bwt, k), &is_rev);
+          b->hits[j].l = 0;
+          b->hits[j].is_rev = is_rev;
+          if (is_rev) b->hits[j].k -= p->len - 1;
+          ++j;
+        }
+      } else if (p->G > 0) {
+        b->hits[j] = *p;
+        b->hits[j].k = bns_depos(bns, bwt_sa(bwt, p->k), &is_rev);
+        b->hits[j].l = 0;
+        b->hits[j].flag |= 1;
+        b->hits[j].is_rev = is_rev;
+        if (is_rev) b->hits[j].k -= p->len - 1;
+        ++j;
+      }
+    }
+    free(old_hits);
+  }
+  for (i = j = 0; i < b->n; ++i) // squeeze out empty elements
+    if (b->hits[i].G) b->hits[j++] = b->hits[i];
+  b->n = j;
+  ks_introsort(hitG, b->n, b->hits);
+  for (i = 1; i < b->n; ++i) {
+    bsw2hit_t *p = b->hits + i;
+    for (j = 0; j < i; ++j) {
+      bsw2hit_t *q = b->hits + j;
+      int compatible = 1;
+      if (p->is_rev != q->is_rev) continue; // hits from opposite strands are not duplicates
+      if (p->l == 0 && q->l == 0) {
+        int qol = (p->end < q->end? p->end : q->end) - (p->beg > q->beg? p->beg : q->beg); // length of query overlap
+        if (qol < 0) qol = 0;
+        if ((float)qol / (p->end - p->beg) > MASK_LEVEL || (float)qol / (q->end - q->beg) > MASK_LEVEL) {
+          int64_t tol = (int64_t)(p->k + p->len < q->k + q->len? p->k + p->len : q->k + q->len)
+            - (int64_t)(p->k > q->k? p->k : q->k); // length of target overlap
+          if ((double)tol / p->len > MASK_LEVEL || (double)tol / q->len > MASK_LEVEL)
+            compatible = 0;
+        }
+      }
+      if (!compatible) {
+        p->G = 0;
+        if (q->G2 < p->G2) q->G2 = p->G2;
+        break;
+      }
+    }
+  }
+  n = i;
+  for (i = j = 0; i < n; ++i) {
+    if (b->hits[i].G == 0) continue;
+    if (i != j) b->hits[j++] = b->hits[i];
+    else ++j;
+  }
+  b->n = j;
+  return b->n;
 }
 
 int bsw2_resolve_query_overlaps(bwtsw2_t *b, float mask_level)
@@ -575,7 +573,7 @@ bwtsw2_t **bsw2_core(const bntseq_t *bns, const bsw2opt_t *opt, const bwtl_t *ta
 						if (w->n < u->n) { // swap
 							w = u; u = kv_A(stack->pending, pos-1); kv_A(stack->pending, pos-1) = w;
 						}
-						merge_entry(opt, w, u, b);
+						merge_entry(w, u);
 					}
 					if (cnt == 0) { // move from pending to stack0
 						remove_duplicate(w, rhash);

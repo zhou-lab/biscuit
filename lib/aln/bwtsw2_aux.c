@@ -97,118 +97,119 @@ bwtsw2_t *bsw2_dup_no_cigar(const bwtsw2_t *b)
 		(par).row = 5; (par).band_width = opt->bw;				\
 	} while (0)
 
-void bsw2_extend_left(const bsw2opt_t *opt, bwtsw2_t *b, uint8_t *_query, int lq, uint8_t *pac, bwtint_t l_pac, uint8_t *_mem)
-{
-	int i;
-	bwtint_t k;
-	uint8_t *target = 0, *query;
-	int8_t mat[25];
+void bsw2_extend_left(const bsw2opt_t *opt, bwtsw2_t *b, uint8_t *_query, int lq, uint8_t *pac, bwtint_t l_pac, uint8_t *_mem) {
+  (void) l_pac; (void) _mem;
+  int i;
+  bwtint_t k;
+  uint8_t *target = 0, *query;
+  int8_t mat[25];
 
-	bwa_fill_scmat(opt->a, opt->b, mat);
-	query = calloc(lq, 1);
-	// sort according to the descending order of query end
-	ks_introsort(hit, b->n, b->hits);
-	target = calloc(((lq + 1) / 2 * opt->a + opt->r) / opt->r + lq, 1);
-	// reverse _query
-	for (i = 0; i < lq; ++i) query[lq - i - 1] = _query[i];
-	// core loop
-	for (i = 0; i < b->n; ++i) {
-		bsw2hit_t *p = b->hits + i;
-		int lt = ((p->beg + 1) / 2 * opt->a + opt->r) / opt->r + lq;
-		int score, j, qle, tle;
-		p->n_seeds = 1;
-		if (p->l || p->k == 0) continue;
-		for (j = score = 0; j < i; ++j) {
-			bsw2hit_t *q = b->hits + j;
-			if (q->beg <= p->beg && q->k <= p->k && q->k + q->len >= p->k + p->len) {
-				if (q->n_seeds < (1<<13) - 2) ++q->n_seeds;
-				++score;
-			}
-		}
-		if (score) continue;
-		if (lt > p->k) lt = p->k;
-		for (k = p->k - 1, j = 0; k > 0 && j < lt; --k) // FIXME: k=0 not considered!
-			target[j++] = pac[k>>2] >> (~k&3)*2 & 0x3;
-		lt = j;
-		score = ksw_extend(p->beg, &query[lq - p->beg], lt, target, 5, mat, opt->q, opt->r, opt->bw, 0, -1, p->G, &qle, &tle, 0, 0, 0);
-		if (score > p->G) { // extensible
-			p->G = score;
-			p->k -= tle;
-			p->len += tle;
-			p->beg -= qle;
-		}
-	}
-	free(query); free(target);
+  bwa_fill_scmat(opt->a, opt->b, mat);
+  query = calloc(lq, 1);
+  // sort according to the descending order of query end
+  ks_introsort(hit, b->n, b->hits);
+  target = calloc(((lq + 1) / 2 * opt->a + opt->r) / opt->r + lq, 1);
+  // reverse _query
+  for (i = 0; i < lq; ++i) query[lq - i - 1] = _query[i];
+  // core loop
+  for (i = 0; i < b->n; ++i) {
+    bsw2hit_t *p = b->hits + i;
+    int lt = ((p->beg + 1) / 2 * opt->a + opt->r) / opt->r + lq;
+    int score, j, qle, tle;
+    p->n_seeds = 1;
+    if (p->l || p->k == 0) continue;
+    for (j = score = 0; j < i; ++j) {
+      bsw2hit_t *q = b->hits + j;
+      if (q->beg <= p->beg && q->k <= p->k && q->k + q->len >= p->k + p->len) {
+        if (q->n_seeds < (1<<13) - 2) ++q->n_seeds;
+        ++score;
+      }
+    }
+    if (score) continue;
+    if ((unsigned) lt > p->k) lt = p->k;
+    for (k = p->k - 1, j = 0; k > 0 && j < lt; --k) // FIXME: k=0 not considered!
+      target[j++] = pac[k>>2] >> (~k&3)*2 & 0x3;
+    lt = j;
+    score = ksw_extend(p->beg, &query[lq - p->beg], lt, target, 5, mat, opt->q, opt->r, opt->bw, 0, -1, p->G, &qle, &tle, 0, 0, 0);
+    if (score > p->G) { // extensible
+      p->G = score;
+      p->k -= tle;
+      p->len += tle;
+      p->beg -= qle;
+    }
+  }
+  free(query); free(target);
 }
 
-void bsw2_extend_rght(const bsw2opt_t *opt, bwtsw2_t *b, uint8_t *query, int lq, uint8_t *pac, bwtint_t l_pac, uint8_t *_mem)
-{
-	int i;
-	bwtint_t k;
-	uint8_t *target;
-	int8_t mat[25];
+void bsw2_extend_rght(const bsw2opt_t *opt, bwtsw2_t *b, uint8_t *query, int lq, uint8_t *pac, bwtint_t l_pac, uint8_t *_mem) {
+  (void) _mem;
+  int i;
+  bwtint_t k;
+  uint8_t *target;
+  int8_t mat[25];
 
-	bwa_fill_scmat(opt->a, opt->b, mat);
-	target = calloc(((lq + 1) / 2 * opt->a + opt->r) / opt->r + lq, 1);
-	for (i = 0; i < b->n; ++i) {
-		bsw2hit_t *p = b->hits + i;
-		int lt = ((lq - p->beg + 1) / 2 * opt->a + opt->r) / opt->r + lq;
-		int j, score, qle, tle;
-		if (p->l) continue;
-		for (k = p->k, j = 0; k < p->k + lt && k < l_pac; ++k)
-			target[j++] = pac[k>>2] >> (~k&3)*2 & 0x3;
-		lt = j;
-		score = ksw_extend(lq - p->beg, &query[p->beg], lt, target, 5, mat, opt->q, opt->r, opt->bw, 0, -1, 1, &qle, &tle, 0, 0, 0) - 1;
-//		if (score < p->G) fprintf(stderr, "[bsw2_extend_hits] %d < %d\n", score, p->G);
-		if (score >= p->G) {
-			p->G = score;
-			p->len = tle;
-			p->end = p->beg + qle;
-		}
-	}
-	free(target);
+  bwa_fill_scmat(opt->a, opt->b, mat);
+  target = calloc(((lq + 1) / 2 * opt->a + opt->r) / opt->r + lq, 1);
+  for (i = 0; i < b->n; ++i) {
+    bsw2hit_t *p = b->hits + i;
+    int lt = ((lq - p->beg + 1) / 2 * opt->a + opt->r) / opt->r + lq;
+    int j, score, qle, tle;
+    if (p->l) continue;
+    for (k = p->k, j = 0; k < p->k + lt && k < l_pac; ++k)
+      target[j++] = pac[k>>2] >> (~k&3)*2 & 0x3;
+    lt = j;
+    score = ksw_extend(lq - p->beg, &query[p->beg], lt, target, 5, mat, opt->q, opt->r, opt->bw, 0, -1, 1, &qle, &tle, 0, 0, 0) - 1;
+    //		if (score < p->G) fprintf(stderr, "[bsw2_extend_hits] %d < %d\n", score, p->G);
+    if (score >= p->G) {
+      p->G = score;
+      p->len = tle;
+      p->end = p->beg + qle;
+    }
+  }
+  free(target);
 }
 
 /* generate CIGAR array(s) in b->cigar[] */
-static void gen_cigar(const bsw2opt_t *opt, int lq, uint8_t *seq[2], int64_t l_pac, const uint8_t *pac, bwtsw2_t *b, const char *name)
-{
-	int i;
-	int8_t mat[25];
+static void gen_cigar(const bsw2opt_t *opt, int lq, uint8_t *seq[2], int64_t l_pac, const uint8_t *pac, bwtsw2_t *b, const char *name) {
+  int i;
+  int8_t mat[25];
 
-	bwa_fill_scmat(opt->a, opt->b, mat);
-	for (i = 0; i < b->n; ++i) {
-		bsw2hit_t *p = b->hits + i;
-		bsw2aux_t *q = b->aux + i;
-		uint8_t *query;
-		int beg, end, score;
-		if (p->l) continue;
-		beg = (p->flag & 0x10)? lq - p->end : p->beg;
-		end = (p->flag & 0x10)? lq - p->beg : p->end;
-		query = seq[(p->flag & 0x10)? 1 : 0] + beg;
-		q->cigar = bwa_gen_cigar(mat, opt->q, opt->r, opt->bw, l_pac, pac, end - beg, query, p->k, p->k + p->len, &score, &q->n_cigar, &q->nm);
+  bwa_fill_scmat(opt->a, opt->b, mat);
+  for (i = 0; i < b->n; ++i) {
+    bsw2hit_t *p = b->hits + i;
+    bsw2aux_t *q = b->aux + i;
+    uint8_t *query;
+    int beg, end, score;
+    if (p->l) continue;
+    beg = (p->flag & 0x10)? lq - p->end : p->beg;
+    end = (p->flag & 0x10)? lq - p->beg : p->end;
+    query = seq[(p->flag & 0x10)? 1 : 0] + beg;
+    q->cigar = bwa_gen_cigar(mat, opt->q, opt->r, opt->bw, l_pac, pac, end - beg, query, p->k, p->k + p->len, &score, &q->n_cigar, &q->nm);
+
+    (void) name;
 #if 0
-		if (name && score != p->G) { // debugging only
-			int j, glen = 0;
-			for (j = 0; j < q->n_cigar; ++j)
-				if ((q->cigar[j]&0xf) == 1 || (q->cigar[j]&0xf) == 2)
-					glen += q->cigar[j]>>4;
-			fprintf(stderr, "[E::%s] %s - unequal score: %d != %d; (qlen, aqlen, arlen, glen, bw) = (%d, %d, %d, %d, %d)\n",
-					__func__, name, score, p->G, lq, end - beg, p->len, glen, opt->bw);
-		}
+    if (name && score != p->G) { // debugging only
+      int j, glen = 0;
+      for (j = 0; j < q->n_cigar; ++j)
+        if ((q->cigar[j]&0xf) == 1 || (q->cigar[j]&0xf) == 2)
+          glen += q->cigar[j]>>4;
+      fprintf(stderr, "[E::%s] %s - unequal score: %d != %d; (qlen, aqlen, arlen, glen, bw) = (%d, %d, %d, %d, %d)\n",
+              __func__, name, score, p->G, lq, end - beg, p->len, glen, opt->bw);
+    }
 #endif
-		if (q->cigar && (beg != 0 || end < lq)) { // write soft clipping
-			q->cigar = realloc(q->cigar, 4 * (q->n_cigar + 2));
-			if (beg != 0) {
-				memmove(q->cigar + 1, q->cigar, q->n_cigar * 4);
-				q->cigar[0] = beg<<4 | 4;
-				++q->n_cigar;
-			}
-			if (end < lq) {
-				q->cigar[q->n_cigar] = (lq - end)<<4 | 4;
-				++q->n_cigar;
-			}
-		}
-	}
+    if (q->cigar && (beg != 0 || end < lq)) { // write soft clipping
+      q->cigar = realloc(q->cigar, 4 * (q->n_cigar + 2));
+      if (beg != 0) {
+        memmove(q->cigar + 1, q->cigar, q->n_cigar * 4);
+        q->cigar[0] = beg<<4 | 4;
+        ++q->n_cigar;
+      }
+      if (end < lq) {
+        q->cigar[q->n_cigar] = (lq - end)<<4 | 4;
+        ++q->n_cigar;
+      }
+    }
+  }
 }
 
 /* this is for the debugging purpose only */
@@ -474,72 +475,71 @@ static void update_mate_aux(bwtsw2_t *b, const bwtsw2_t *m)
 
 /* generate SAM lines for a sequence in ks with alignment stored in
  * b. ks->name and ks->seq will be freed and set to NULL in the end. */
-static void print_hits(const bntseq_t *bns, const bsw2opt_t *opt, bsw2seq1_t *ks, bwtsw2_t *b, int is_pe, bwtsw2_t *bmate)
-{
-	int i, k;
-	kstring_t str;
-	memset(&str, 0, sizeof(kstring_t));
-	if (b == 0 || b->n == 0) { // no hits
-		ksprintf(&str, "%s\t4\t*\t0\t0\t*\t*\t0\t0\t", ks->name);
-		for (i = 0; i < ks->l; ++i) kputc(ks->seq[i], &str);
-		if (ks->qual) {
-			kputc('\t', &str);
-			for (i = 0; i < ks->l; ++i) kputc(ks->qual[i], &str);
-		} else kputs("\t*", &str);
-		kputc('\n', &str);
-	}
-	for (i = 0; b && i < b->n; ++i) {
-		bsw2hit_t *p = b->hits + i;
-		bsw2aux_t *q = b->aux + i;
-		int j, beg, end, type = 0;
-		// print mandatory fields before SEQ
-		if (q->cigar == 0) q->flag |= 0x4;
-		ksprintf(&str, "%s\t%d", ks->name, q->flag | (opt->multi_2nd && i? 0x100 : 0));
-		ksprintf(&str, "\t%s\t%ld", q->chr>=0? bns->anns[q->chr].name : "*", (long)q->pos + 1);
-		if (p->l == 0 && q->cigar) { // not a repetitive hit
-			ksprintf(&str, "\t%d\t", q->pqual);
-			for (k = 0; k < q->n_cigar; ++k)
-				ksprintf(&str, "%d%c", q->cigar[k]>>4, (opt->hard_clip? "MIDNHHP" : "MIDNSHP")[q->cigar[k]&0xf]);
-		} else ksprintf(&str, "\t0\t*");
-		if (!is_pe) kputs("\t*\t0\t0\t", &str);
-		else ksprintf(&str, "\t%s\t%d\t%d\t", q->mchr==q->chr? "=" : (q->mchr<0? "*" : bns->anns[q->mchr].name), q->mpos+1, q->isize);
-		// get the sequence begin and end
-		beg = 0; end = ks->l;
-		if (opt->hard_clip && q->cigar) {
-			if ((q->cigar[0]&0xf) == 4) beg += q->cigar[0]>>4;
-			if ((q->cigar[q->n_cigar-1]&0xf) == 4) end -= q->cigar[q->n_cigar-1]>>4;
-		}
-		for (j = beg; j < end; ++j) {
-			if (p->flag&0x10) kputc(nt_comp_table[(int)ks->seq[ks->l - 1 - j]], &str);
-			else kputc(ks->seq[j], &str);
-		}
-		// print base quality if present
-		if (ks->qual) {
-			kputc('\t', &str);
-			for (j = beg; j < end; ++j) {
-				if (p->flag&0x10) kputc(ks->qual[ks->l - 1 - j], &str);
-				else kputc(ks->qual[j], &str);
-			}
-		} else kputs("\t*", &str);
-		// print optional tags
-		ksprintf(&str, "\tAS:i:%d\tXS:i:%d\tXF:i:%d\tXE:i:%d\tNM:i:%d", p->G, p->G2, p->flag>>16, p->n_seeds, q->nm);
-		if (q->nn) ksprintf(&str, "\tXN:i:%d", q->nn);
-		if (p->l) ksprintf(&str, "\tXI:i:%d", p->l - p->k + 1);
-		if (p->flag&BSW2_FLAG_MATESW) type |= 1;
-		if (p->flag&BSW2_FLAG_TANDEM) type |= 2;
-		if (type) ksprintf(&str, "\tXT:i:%d", type);
-		if (opt->cpy_cmt && ks->comment) {
-			int l = strlen(ks->comment);
-			if (l >= 6 && ks->comment[2] == ':' && ks->comment[4] == ':') {
-				kputc('\t', &str); kputs(ks->comment, &str);
-			}
-		}
-		kputc('\n', &str);
-	}
-	ks->sam = str.s;
-	free(ks->seq); ks->seq = 0;
-	free(ks->qual); ks->qual = 0;
-	free(ks->name); ks->name = 0;
+static void print_hits(const bntseq_t *bns, const bsw2opt_t *opt, bsw2seq1_t *ks, bwtsw2_t *b, int is_pe) {
+  int i, k;
+  kstring_t str;
+  memset(&str, 0, sizeof(kstring_t));
+  if (b == 0 || b->n == 0) { // no hits
+    ksprintf(&str, "%s\t4\t*\t0\t0\t*\t*\t0\t0\t", ks->name);
+    for (i = 0; i < ks->l; ++i) kputc(ks->seq[i], &str);
+    if (ks->qual) {
+      kputc('\t', &str);
+      for (i = 0; i < ks->l; ++i) kputc(ks->qual[i], &str);
+    } else kputs("\t*", &str);
+    kputc('\n', &str);
+  }
+  for (i = 0; b && i < b->n; ++i) {
+    bsw2hit_t *p = b->hits + i;
+    bsw2aux_t *q = b->aux + i;
+    int j, beg, end, type = 0;
+    // print mandatory fields before SEQ
+    if (q->cigar == 0) q->flag |= 0x4;
+    ksprintf(&str, "%s\t%d", ks->name, q->flag | (opt->multi_2nd && i? 0x100 : 0));
+    ksprintf(&str, "\t%s\t%ld", q->chr>=0? bns->anns[q->chr].name : "*", (long)q->pos + 1);
+    if (p->l == 0 && q->cigar) { // not a repetitive hit
+      ksprintf(&str, "\t%d\t", q->pqual);
+      for (k = 0; k < q->n_cigar; ++k)
+        ksprintf(&str, "%d%c", q->cigar[k]>>4, (opt->hard_clip? "MIDNHHP" : "MIDNSHP")[q->cigar[k]&0xf]);
+    } else ksprintf(&str, "\t0\t*");
+    if (!is_pe) kputs("\t*\t0\t0\t", &str);
+    else ksprintf(&str, "\t%s\t%d\t%d\t", q->mchr==q->chr? "=" : (q->mchr<0? "*" : bns->anns[q->mchr].name), q->mpos+1, q->isize);
+    // get the sequence begin and end
+    beg = 0; end = ks->l;
+    if (opt->hard_clip && q->cigar) {
+      if ((q->cigar[0]&0xf) == 4) beg += q->cigar[0]>>4;
+      if ((q->cigar[q->n_cigar-1]&0xf) == 4) end -= q->cigar[q->n_cigar-1]>>4;
+    }
+    for (j = beg; j < end; ++j) {
+      if (p->flag&0x10) kputc(nt_comp_table[(int)ks->seq[ks->l - 1 - j]], &str);
+      else kputc(ks->seq[j], &str);
+    }
+    // print base quality if present
+    if (ks->qual) {
+      kputc('\t', &str);
+      for (j = beg; j < end; ++j) {
+        if (p->flag&0x10) kputc(ks->qual[ks->l - 1 - j], &str);
+        else kputc(ks->qual[j], &str);
+      }
+    } else kputs("\t*", &str);
+    // print optional tags
+    ksprintf(&str, "\tAS:i:%d\tXS:i:%d\tXF:i:%d\tXE:i:%d\tNM:i:%d", p->G, p->G2, p->flag>>16, p->n_seeds, q->nm);
+    if (q->nn) ksprintf(&str, "\tXN:i:%d", q->nn);
+    if (p->l) ksprintf(&str, "\tXI:i:%d", p->l - p->k + 1);
+    if (p->flag&BSW2_FLAG_MATESW) type |= 1;
+    if (p->flag&BSW2_FLAG_TANDEM) type |= 2;
+    if (type) ksprintf(&str, "\tXT:i:%d", type);
+    if (opt->cpy_cmt && ks->comment) {
+      int l = strlen(ks->comment);
+      if (l >= 6 && ks->comment[2] == ':' && ks->comment[4] == ':') {
+        kputc('\t', &str); kputs(ks->comment, &str);
+      }
+    }
+    kputc('\n', &str);
+  }
+  ks->sam = str.s;
+  free(ks->seq); ks->seq = 0;
+  free(ks->qual); ks->qual = 0;
+  free(ks->name); ks->name = 0;
 }
 
 static void update_opt(bsw2opt_t *dst, const bsw2opt_t *src, int qlen)
@@ -558,89 +558,88 @@ static void update_opt(bsw2opt_t *dst, const bsw2opt_t *src, int qlen)
 
 /* Core routine to align reads in _seq. It is separated from
  * process_seqs() to realize multi-threading */ 
-static void bsw2_aln_core(bsw2seq_t *_seq, const bsw2opt_t *_opt, const bntseq_t *bns, uint8_t *pac, const bwt_t *target, int is_pe)
-{
-	int x;
-	bsw2opt_t opt;
-	bsw2global_t *pool = bsw2_global_init();
-	bwtsw2_t **buf;
-	buf = calloc(_seq->n, sizeof(void*));
-	for (x = 0; x < _seq->n; ++x) {
-		bsw2seq1_t *p = _seq->seq + x;
-		uint8_t *seq[2], *rseq[2];
-		int i, l, k;
-		bwtsw2_t *b[2];
-		l = p->l;
-		update_opt(&opt, _opt, p->l);
-		if (pool->max_l < l) { // then enlarge working space for aln_extend_core()
-			int tmp = ((l + 1) / 2 * opt.a + opt.r) / opt.r + l;
-			pool->max_l = l;
-			pool->aln_mem = realloc(pool->aln_mem, (tmp + 2) * 24);
-		}
-		// set seq[2] and rseq[2]
-		seq[0] = calloc(l * 4, 1);
-		seq[1] = seq[0] + l;
-		rseq[0] = seq[1] + l; rseq[1] = rseq[0] + l;
-		// convert sequences to 2-bit representation
-		for (i = k = 0; i < l; ++i) {
-			int c = nst_nt4_table[(int)p->seq[i]];
-			if (c >= 4) { c = (int)(drand48() * 4); ++k; } // FIXME: ambiguous bases are not properly handled
-			seq[0][i] = c;
-			seq[1][l-1-i] = 3 - c;
-			rseq[0][l-1-i] = 3 - c;
-			rseq[1][i] = c;
-		}
-		if (l - k < opt.t) { // too few unambiguous bases
-			buf[x] = calloc(1, sizeof(bwtsw2_t));
-			free(seq[0]); continue;
-		}
-		// alignment
-		b[0] = bsw2_aln1_core(&opt, bns, pac, target, l, seq, pool);
-		for (k = 0; k < b[0]->n; ++k)
-			if (b[0]->hits[k].n_seeds < opt.t_seeds) break;
-		if (k < b[0]->n) {
-			b[1] = bsw2_aln1_core(&opt, bns, pac, target, l, rseq, pool);
-			for (i = 0; i < b[1]->n; ++i) {
-				bsw2hit_t *p = &b[1]->hits[i];
-				int x = p->beg;
-				p->flag ^= 0x10, p->is_rev ^= 1; // flip the strand
-				p->beg = l - p->end;
-				p->end = l - x;
-			}
-			flag_fr(b);
-			merge_hits(b, l, 0);
-			bsw2_resolve_duphits(0, 0, b[0], 0);
-			bsw2_resolve_query_overlaps(b[0], opt.mask_level);
-		} else b[1] = 0;
-		// generate CIGAR and print SAM
-		buf[x] = bsw2_dup_no_cigar(b[0]);
-		// free
-		free(seq[0]);
-		bsw2_destroy(b[0]);
-	}
-	if (is_pe) bsw2_pair(&opt, bns->l_pac, pac, _seq->n, _seq->seq, buf);
-	for (x = 0; x < _seq->n; ++x) {
-		bsw2seq1_t *p = _seq->seq + x;
-		uint8_t *seq[2];
-		int i;
-		seq[0] = malloc(p->l * 2); seq[1] = seq[0] + p->l;
-		for (i = 0; i < p->l; ++i) {
-			int c = nst_nt4_table[(int)p->seq[i]];
-			if (c >= 4) c = (int)(drand48() * 4);
-			seq[0][i] = c;
-			seq[1][p->l-1-i] = 3 - c;
-		}
-		update_opt(&opt, _opt, p->l);
-		write_aux(&opt, bns, p->l, seq, pac, buf[x], _seq->seq[x].name);
-		free(seq[0]);
-	}
-	for (x = 0; x < _seq->n; ++x) {
-		if (is_pe) update_mate_aux(buf[x], buf[x^1]);
-		print_hits(bns, &opt, &_seq->seq[x], buf[x], is_pe, buf[x^1]);
-	}
-	for (x = 0; x < _seq->n; ++x) bsw2_destroy(buf[x]);
-	free(buf);
-	bsw2_global_destroy(pool);
+static void bsw2_aln_core(bsw2seq_t *_seq, const bsw2opt_t *_opt, const bntseq_t *bns, uint8_t *pac, const bwt_t *target, int is_pe) {
+  int x;
+  bsw2opt_t opt;
+  bsw2global_t *pool = bsw2_global_init();
+  bwtsw2_t **buf;
+  buf = calloc(_seq->n, sizeof(void*));
+  for (x = 0; x < _seq->n; ++x) {
+    bsw2seq1_t *p = _seq->seq + x;
+    uint8_t *seq[2], *rseq[2];
+    int i, l, k;
+    bwtsw2_t *b[2];
+    l = p->l;
+    update_opt(&opt, _opt, p->l);
+    if (pool->max_l < l) { // then enlarge working space for aln_extend_core()
+      int tmp = ((l + 1) / 2 * opt.a + opt.r) / opt.r + l;
+      pool->max_l = l;
+      pool->aln_mem = realloc(pool->aln_mem, (tmp + 2) * 24);
+    }
+    // set seq[2] and rseq[2]
+    seq[0] = calloc(l * 4, 1);
+    seq[1] = seq[0] + l;
+    rseq[0] = seq[1] + l; rseq[1] = rseq[0] + l;
+    // convert sequences to 2-bit representation
+    for (i = k = 0; i < l; ++i) {
+      int c = nst_nt4_table[(int)p->seq[i]];
+      if (c >= 4) { c = (int)(drand48() * 4); ++k; } // FIXME: ambiguous bases are not properly handled
+      seq[0][i] = c;
+      seq[1][l-1-i] = 3 - c;
+      rseq[0][l-1-i] = 3 - c;
+      rseq[1][i] = c;
+    }
+    if (l - k < opt.t) { // too few unambiguous bases
+      buf[x] = calloc(1, sizeof(bwtsw2_t));
+      free(seq[0]); continue;
+    }
+    // alignment
+    b[0] = bsw2_aln1_core(&opt, bns, pac, target, l, seq, pool);
+    for (k = 0; k < b[0]->n; ++k)
+      if (b[0]->hits[k].n_seeds < opt.t_seeds) break;
+    if (k < b[0]->n) {
+      b[1] = bsw2_aln1_core(&opt, bns, pac, target, l, rseq, pool);
+      for (i = 0; i < b[1]->n; ++i) {
+        bsw2hit_t *p = &b[1]->hits[i];
+        int x = p->beg;
+        p->flag ^= 0x10, p->is_rev ^= 1; // flip the strand
+        p->beg = l - p->end;
+        p->end = l - x;
+      }
+      flag_fr(b);
+      merge_hits(b, l, 0);
+      bsw2_resolve_duphits(0, 0, b[0], 0);
+      bsw2_resolve_query_overlaps(b[0], opt.mask_level);
+    } else b[1] = 0;
+    // generate CIGAR and print SAM
+    buf[x] = bsw2_dup_no_cigar(b[0]);
+    // free
+    free(seq[0]);
+    bsw2_destroy(b[0]);
+  }
+  if (is_pe) bsw2_pair(&opt, bns->l_pac, pac, _seq->n, _seq->seq, buf);
+  for (x = 0; x < _seq->n; ++x) {
+    bsw2seq1_t *p = _seq->seq + x;
+    uint8_t *seq[2];
+    int i;
+    seq[0] = malloc(p->l * 2); seq[1] = seq[0] + p->l;
+    for (i = 0; i < p->l; ++i) {
+      int c = nst_nt4_table[(int)p->seq[i]];
+      if (c >= 4) c = (int)(drand48() * 4);
+      seq[0][i] = c;
+      seq[1][p->l-1-i] = 3 - c;
+    }
+    update_opt(&opt, _opt, p->l);
+    write_aux(&opt, bns, p->l, seq, pac, buf[x], _seq->seq[x].name);
+    free(seq[0]);
+  }
+  for (x = 0; x < _seq->n; ++x) {
+    if (is_pe) update_mate_aux(buf[x], buf[x^1]);
+    print_hits(bns, &opt, &_seq->seq[x], buf[x], is_pe);
+  }
+  for (x = 0; x < _seq->n; ++x) bsw2_destroy(buf[x]);
+  free(buf);
+  bsw2_global_destroy(pool);
 }
 
 #ifdef HAVE_PTHREAD
@@ -724,53 +723,52 @@ static void process_seqs(bsw2seq_t *_seq, const bsw2opt_t *opt, const bntseq_t *
 	_seq->n = 0;
 }
 
-void bsw2_aln(const bsw2opt_t *opt, const bntseq_t *bns, bwt_t * const target, const char *fn, const char *fn2)
-{
-	gzFile fp, fp2;
-	kseq_t *ks, *ks2;
-	int l, is_pe = 0, i, n;
-	uint8_t *pac;
-	bsw2seq_t *_seq;
-	bseq1_t *bseq;
+void bsw2_aln(const bsw2opt_t *opt, const bntseq_t *bns, bwt_t * const target, const char *fn, const char *fn2) {
+  gzFile fp, fp2;
+  kseq_t *ks, *ks2;
+  int l, is_pe = 0, i, n;
+  uint8_t *pac;
+  bsw2seq_t *_seq;
+  bseq1_t *bseq;
 
-	pac = calloc(bns->l_pac/4+1, 1);
-	for (l = 0; l < bns->n_seqs; ++l)
-		err_printf("@SQ\tSN:%s\tLN:%d\n", bns->anns[l].name, bns->anns[l].len);
-	err_fread_noeof(pac, 1, bns->l_pac/4+1, bns->fp_pac);
-	fp = xzopen(fn, "r");
-	ks = kseq_init(fp);
-	_seq = calloc(1, sizeof(bsw2seq_t));
-	if (fn2) {
-		fp2 = xzopen(fn2, "r");
-		ks2 = kseq_init(fp2);
-		is_pe = 1;
-	} else fp2 = 0, ks2 = 0, is_pe = 0;
-	while ((bseq = bseq_read(opt->chunk_size * opt->n_threads, &n, ks, ks2)) != 0) {
-		int size = 0;
-		if (n > _seq->max) {
-			_seq->max = n;
-			kroundup32(_seq->max);
-			_seq->seq = realloc(_seq->seq, _seq->max * sizeof(bsw2seq1_t));
-		}
-		_seq->n = n;
-		for (i = 0; i < n; ++i) {
-			bseq1_t *b = &bseq[i];
-			bsw2seq1_t *p = &_seq->seq[i];
-			p->tid = -1; p->l = b->l_seq;
-			p->name = b->name; p->seq = b->seq; p->qual = b->qual; p->comment = b->comment; p->sam = 0;
-			size += p->l;
-		}
-		fprintf(stderr, "[bsw2_aln] read %d sequences/pairs (%d bp) ...\n", n, size);
-		free(bseq);
-		process_seqs(_seq, opt, bns, pac, target, is_pe);
-	}
-	// free
-	free(pac);
-	free(_seq->seq); free(_seq);
-	kseq_destroy(ks);
-	err_gzclose(fp);
-	if (fn2) {
-		kseq_destroy(ks2);
-		err_gzclose(fp2);
-	}
+  pac = calloc(bns->l_pac/4+1, 1);
+  for (l = 0; l < bns->n_seqs; ++l)
+    err_printf("@SQ\tSN:%s\tLN:%d\n", bns->anns[l].name, bns->anns[l].len);
+  err_fread_noeof(pac, 1, bns->l_pac/4+1, bns->fp_pac);
+  fp = xzopen(fn, "r");
+  ks = kseq_init(fp);
+  _seq = calloc(1, sizeof(bsw2seq_t));
+  if (fn2) {
+    fp2 = xzopen(fn2, "r");
+    ks2 = kseq_init(fp2);
+    is_pe = 1;
+  } else fp2 = 0, ks2 = 0, is_pe = 0;
+  while ((bseq = bseq_read(opt->chunk_size * opt->n_threads, &n, ks, ks2)) != 0) {
+    int size = 0;
+    if (n > _seq->max) {
+      _seq->max = n;
+      kroundup32(_seq->max);
+      _seq->seq = realloc(_seq->seq, _seq->max * sizeof(bsw2seq1_t));
+    }
+    _seq->n = n;
+    for (i = 0; i < n; ++i) {
+      bseq1_t *b = &bseq[i];
+      bsw2seq1_t *p = &_seq->seq[i];
+      p->tid = -1; p->l = b->l_seq;
+      p->name = b->name; p->seq = (char*) b->seq; p->qual = b->qual; p->comment = b->comment; p->sam = 0;
+      size += p->l;
+    }
+    fprintf(stderr, "[bsw2_aln] read %d sequences/pairs (%d bp) ...\n", n, size);
+    free(bseq);
+    process_seqs(_seq, opt, bns, pac, target, is_pe);
+  }
+  // free
+  free(pac);
+  free(_seq->seq); free(_seq);
+  kseq_destroy(ks);
+  err_gzclose(fp);
+  if (fn2) {
+    kseq_destroy(ks2);
+    err_gzclose(fp2);
+  }
 }

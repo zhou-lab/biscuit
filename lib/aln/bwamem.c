@@ -185,7 +185,7 @@ typedef struct {
   const bwt_t *bwt;
   const bntseq_t *bns;
   const uint8_t *pac;
-  const mem_pestat_t pes;
+  mem_pestat_t pes;
   bwtintv_cache_t **intv_cache;
   bseq1_t *seqs;
   mem_alnreg_v *regs;
@@ -312,10 +312,9 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   free(w.intv_cache);
 
   /***** Step 2: Obtain PE statistics *****/
-  mem_pestat_t pes;
   if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
-    if (pes0) pes = *pes0;
-    else pes = mem_pestat(opt, n, w.regs);
+    if (pes0) w.pes = *pes0;
+    else w.pes = mem_pestat(opt, n, w.regs);
     /* if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0 */
     /* else w.pes = mem_pestat(opt, n, w.regs); // otherwise, infer the insert size distribution from data */
   }

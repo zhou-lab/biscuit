@@ -35,68 +35,67 @@ typedef struct {
 	bseq1_t *seqs;
 } ktp_data_t;
 
-static void *process(void *shared, int step, void *_data)
-{
-	ktp_aux_t *aux = (ktp_aux_t*)shared;
-	ktp_data_t *data = (ktp_data_t*)_data;
-	int i;
-	if (step == 0) {
-		ktp_data_t *ret;
-		int64_t size = 0;
-		ret = calloc(1, sizeof(ktp_data_t));
-		ret->seqs = bis_bseq_read(aux->actual_chunk_size, &ret->n_seqs, aux->ks, aux->ks2);
-		if (ret->seqs == 0) {
-			free(ret);
-			return 0;
-		}
-		if (!aux->copy_comment)
-			for (i = 0; i < ret->n_seqs; ++i) {
-				free(ret->seqs[i].comment);
-				ret->seqs[i].comment = 0;
-			}
-		for (i = 0; i < ret->n_seqs; ++i) size += ret->seqs[i].l_seq;
-		if (bwa_verbose >= 3)
-			fprintf(stderr, "[M::%s] read %d sequences (%ld bp)...\n", __func__, ret->n_seqs, (long)size);
-		return ret;
-	} else if (step == 1) {
-		const mem_opt_t *opt = aux->opt;
-		const bwaidx_t *idx = aux->idx;
-		if (opt->flag & MEM_F_SMARTPE) {
-			bseq1_t *sep[2];
-			int n_sep[2];
-			mem_opt_t tmp_opt = *opt;
-			bseq_classify(data->n_seqs, data->seqs, n_sep, sep);
-			if (bwa_verbose >= 3)
-				fprintf(stderr, "[M::%s] %d single-end sequences; %d paired-end sequences\n", __func__, n_sep[0], n_sep[1]);
-			if (n_sep[0]) {
-				tmp_opt.flag &= ~MEM_F_PE;
-				mem_process_seqs(&tmp_opt, idx->bwt, idx->bns, idx->pac, aux->n_processed, n_sep[0], sep[0], 0);
-				for (i = 0; i < n_sep[0]; ++i)
-					data->seqs[sep[0][i].id].sam = sep[0][i].sam;
-			}
-			if (n_sep[1]) {
-				tmp_opt.flag |= MEM_F_PE;
-				mem_process_seqs(&tmp_opt, idx->bwt, idx->bns, idx->pac, aux->n_processed + n_sep[0], n_sep[1], sep[1], aux->pes0);
-				for (i = 0; i < n_sep[1]; ++i)
-					data->seqs[sep[1][i].id].sam = sep[1][i].sam;
-			}
-			free(sep[0]); free(sep[1]);
-		} else mem_process_seqs(opt, idx->bwt, idx->bns, idx->pac, aux->n_processed, data->n_seqs, data->seqs, aux->pes0);
-		aux->n_processed += data->n_seqs;
-		return data;
-	} else if (step == 2) {
-		for (i = 0; i < data->n_seqs; ++i) {
-			if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
-			free(data->seqs[i].name); free(data->seqs[i].comment);
-			free(data->seqs[i].seq); free(data->seqs[i].qual); free(data->seqs[i].sam);
+static void *process(void *shared, int step, void *_data) {
+  ktp_aux_t *aux = (ktp_aux_t*)shared;
+  ktp_data_t *data = (ktp_data_t*)_data;
+  int i;
+  if (step == 0) {
+    ktp_data_t *ret;
+    int64_t size = 0;
+    ret = calloc(1, sizeof(ktp_data_t));
+    ret->seqs = bis_bseq_read(aux->actual_chunk_size, &ret->n_seqs, aux->ks, aux->ks2);
+    if (ret->seqs == 0) {
+      free(ret);
+      return 0;
+    }
+    if (!aux->copy_comment)
+      for (i = 0; i < ret->n_seqs; ++i) {
+        free(ret->seqs[i].comment);
+        ret->seqs[i].comment = 0;
+      }
+    for (i = 0; i < ret->n_seqs; ++i) size += ret->seqs[i].l_seq;
+    if (bwa_verbose >= 3)
+      fprintf(stderr, "[M::%s] read %d sequences (%ld bp)...\n", __func__, ret->n_seqs, (long)size);
+    return ret;
+  } else if (step == 1) {
+    const mem_opt_t *opt = aux->opt;
+    const bwaidx_t *idx = aux->idx;
+    if (opt->flag & MEM_F_SMARTPE) {
+      bseq1_t *sep[2];
+      int n_sep[2];
+      mem_opt_t tmp_opt = *opt;
+      bseq_classify(data->n_seqs, data->seqs, n_sep, sep);
+      if (bwa_verbose >= 3)
+        fprintf(stderr, "[M::%s] %d single-end sequences; %d paired-end sequences\n", __func__, n_sep[0], n_sep[1]);
+      if (n_sep[0]) {
+        tmp_opt.flag &= ~MEM_F_PE;
+        mem_process_seqs(&tmp_opt, idx->bwt, idx->bns, idx->pac, aux->n_processed, n_sep[0], sep[0], 0);
+        for (i = 0; i < n_sep[0]; ++i)
+          data->seqs[sep[0][i].id].sam = sep[0][i].sam;
+      }
+      if (n_sep[1]) {
+        tmp_opt.flag |= MEM_F_PE;
+        mem_process_seqs(&tmp_opt, idx->bwt, idx->bns, idx->pac, aux->n_processed + n_sep[0], n_sep[1], sep[1], aux->pes0);
+        for (i = 0; i < n_sep[1]; ++i)
+          data->seqs[sep[1][i].id].sam = sep[1][i].sam;
+      }
+      free(sep[0]); free(sep[1]);
+    } else mem_process_seqs(opt, idx->bwt, idx->bns, idx->pac, aux->n_processed, data->n_seqs, data->seqs, aux->pes0);
+    aux->n_processed += data->n_seqs;
+    return data;
+  } else if (step == 2) {
+    for (i = 0; i < data->n_seqs; ++i) {
+      if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
+      free(data->seqs[i].name); free(data->seqs[i].comment);
+      free(data->seqs[i].seq); free(data->seqs[i].qual); free(data->seqs[i].sam);
       /* bisulfite free, the pointers can be NULL */
       free(data->seqs[i].bisseq[0]);
       free(data->seqs[i].bisseq[1]);
-		}
-		free(data->seqs); free(data);
-		return 0;
-	}
-	return 0;
+    }
+    free(data->seqs); free(data);
+    return 0;
+  }
+  return 0;
 }
 
 static void update_a(mem_opt_t *opt, const mem_opt_t *opt0)

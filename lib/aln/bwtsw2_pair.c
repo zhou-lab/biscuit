@@ -23,69 +23,68 @@ typedef struct {
 	double avg, std;
 } bsw2pestat_t;
 
-bsw2pestat_t bsw2_stat(int n, bwtsw2_t **buf, kstring_t *msg, int max_ins)
-{
-	int i, k, x, p25, p50, p75, tmp, max_len = 0;
-	uint64_t *isize;
-	bsw2pestat_t r;
+bsw2pestat_t bsw2_stat(int n, bwtsw2_t **buf, kstring_t *msg, int max_ins) {
+  int i, k, x, p25, p50, p75, tmp, max_len = 0;
+  uint64_t *isize;
+  bsw2pestat_t r;
 
-	memset(&r, 0, sizeof(bsw2pestat_t));
-	isize = calloc(n, 8);
-	for (i = k = 0; i < n; i += 2) {
-		bsw2hit_t *t[2];
-		int l;
-		if (buf[i] == 0 || buf[i]->n != 1 || buf[i+1]->n != 1) continue; // more than 1 hits
-		t[0] = &buf[i]->hits[0]; t[1] = &buf[i+1]->hits[0];
-		if (t[0]->G2 > 0.8 * t[0]->G) continue; // the best hit is not good enough
-		if (t[1]->G2 > 0.8 * t[1]->G) continue; // the best hit is not good enough
-		l = t[0]->k > t[1]->k? t[0]->k - t[1]->k + t[1]->len : t[1]->k - t[0]->k + t[0]->len;
-		if (l >= max_ins) continue; // skip pairs with excessively large insert
-		max_len = max_len > t[0]->end - t[0]->beg? max_len : t[0]->end - t[0]->beg;
-		max_len = max_len > t[1]->end - t[1]->beg? max_len : t[1]->end - t[1]->beg;
-		isize[k++] = l;
-	}
-	ks_introsort_64(k, isize);
-	p25 = isize[(int)(.25 * k + .499)];
-	p50 = isize[(int)(.50 * k + .499)];
-	p75 = isize[(int)(.75 * k + .499)];
-	ksprintf(msg, "[%s] infer the insert size distribution from %d high-quality pairs.\n", __func__, k);
-	if (k < 8) {
-		ksprintf(msg, "[%s] fail to infer the insert size distribution: too few good pairs.\n", __func__);
-		free(isize);
-		r.failed = 1;
-		return r;
-	}
-	tmp    = (int)(p25 - OUTLIER_BOUND * (p75 - p25) + .499);
-	r.low  = tmp > max_len? tmp : max_len;
-	if (r.low < 1) r.low = 1;
-	r.high = (int)(p75 + OUTLIER_BOUND * (p75 - p25) + .499);
-	if (r.low > r.high) {
-		ksprintf(msg, "[%s] fail to infer the insert size distribution: upper bound is smaller than max read length.\n", __func__);
-		free(isize);
-		r.failed = 1;
-		return r;
-	}
-	ksprintf(msg, "[%s] (25, 50, 75) percentile: (%d, %d, %d)\n", __func__, p25, p50, p75);
-	ksprintf(msg, "[%s] low and high boundaries for computing mean and std.dev: (%d, %d)\n", __func__, r.low, r.high);
-	for (i = x = 0, r.avg = 0; i < k; ++i)
-		if (isize[i] >= r.low && isize[i] <= r.high)
-			r.avg += isize[i], ++x;
-	r.avg /= x;
-	for (i = 0, r.std = 0; i < k; ++i)
-		if (isize[i] >= r.low && isize[i] <= r.high)
-			r.std += (isize[i] - r.avg) * (isize[i] - r.avg);
-	r.std = sqrt(r.std / x);
-	ksprintf(msg, "[%s] mean and std.dev: (%.2f, %.2f)\n", __func__, r.avg, r.std);
-	tmp  = (int)(p25 - 3. * (p75 - p25) + .499);
-	r.low  = tmp > max_len? tmp : max_len;
-	if (r.low < 1) r.low = 1;
-	r.high = (int)(p75 + 3. * (p75 - p25) + .499);
-	if (r.low > r.avg - MAX_STDDEV * r.std) r.low = (int)(r.avg - MAX_STDDEV * r.std + .499);
-	r.low = tmp > max_len? tmp : max_len;
-	if (r.high < r.avg - MAX_STDDEV * r.std) r.high = (int)(r.avg + MAX_STDDEV * r.std + .499);
-	ksprintf(msg, "[%s] low and high boundaries for proper pairs: (%d, %d)\n", __func__, r.low, r.high);
-	free(isize);
-	return r;
+  memset(&r, 0, sizeof(bsw2pestat_t));
+  isize = calloc(n, 8);
+  for (i = k = 0; i < n; i += 2) {
+    bsw2hit_t *t[2];
+    int l;
+    if (buf[i] == 0 || buf[i]->n != 1 || buf[i+1]->n != 1) continue; // more than 1 hits
+    t[0] = &buf[i]->hits[0]; t[1] = &buf[i+1]->hits[0];
+    if (t[0]->G2 > 0.8 * t[0]->G) continue; // the best hit is not good enough
+    if (t[1]->G2 > 0.8 * t[1]->G) continue; // the best hit is not good enough
+    l = t[0]->k > t[1]->k? t[0]->k - t[1]->k + t[1]->len : t[1]->k - t[0]->k + t[0]->len;
+    if (l >= max_ins) continue; // skip pairs with excessively large insert
+    max_len = max_len > t[0]->end - t[0]->beg? max_len : t[0]->end - t[0]->beg;
+    max_len = max_len > t[1]->end - t[1]->beg? max_len : t[1]->end - t[1]->beg;
+    isize[k++] = l;
+  }
+  ks_introsort_64(k, isize);
+  p25 = isize[(int)(.25 * k + .499)];
+  p50 = isize[(int)(.50 * k + .499)];
+  p75 = isize[(int)(.75 * k + .499)];
+  ksprintf(msg, "[%s] infer the insert size distribution from %d high-quality pairs.\n", __func__, k);
+  if (k < 8) {
+    ksprintf(msg, "[%s] fail to infer the insert size distribution: too few good pairs.\n", __func__);
+    free(isize);
+    r.failed = 1;
+    return r;
+  }
+  tmp    = (int)(p25 - OUTLIER_BOUND * (p75 - p25) + .499);
+  r.low  = tmp > max_len? tmp : max_len;
+  if (r.low < 1) r.low = 1;
+  r.high = (int)(p75 + OUTLIER_BOUND * (p75 - p25) + .499);
+  if (r.low > r.high) {
+    ksprintf(msg, "[%s] fail to infer the insert size distribution: upper bound is smaller than max read length.\n", __func__);
+    free(isize);
+    r.failed = 1;
+    return r;
+  }
+  ksprintf(msg, "[%s] (25, 50, 75) percentile: (%d, %d, %d)\n", __func__, p25, p50, p75);
+  ksprintf(msg, "[%s] low and high boundaries for computing mean and std.dev: (%d, %d)\n", __func__, r.low, r.high);
+  for (i = x = 0, r.avg = 0; i < k; ++i)
+    if (isize[i] >= r.low && isize[i] <= r.high)
+      r.avg += isize[i], ++x;
+  r.avg /= x;
+  for (i = 0, r.std = 0; i < k; ++i)
+    if (isize[i] >= r.low && isize[i] <= r.high)
+      r.std += (isize[i] - r.avg) * (isize[i] - r.avg);
+  r.std = sqrt(r.std / x);
+  ksprintf(msg, "[%s] mean and std.dev: (%.2f, %.2f)\n", __func__, r.avg, r.std);
+  tmp  = (int)(p25 - 3. * (p75 - p25) + .499);
+  r.low  = tmp > max_len? tmp : max_len;
+  if (r.low < 1) r.low = 1;
+  r.high = (int)(p75 + 3. * (p75 - p25) + .499);
+  if (r.low > r.avg - MAX_STDDEV * r.std) r.low = (int)(r.avg - MAX_STDDEV * r.std + .499);
+  r.low = tmp > max_len? tmp : max_len;
+  if (r.high < r.avg - MAX_STDDEV * r.std) r.high = (int)(r.avg + MAX_STDDEV * r.std + .499);
+  ksprintf(msg, "[%s] low and high boundaries for proper pairs: (%d, %d)\n", __func__, r.low, r.high);
+  free(isize);
+  return r;
 }
 
 typedef struct {

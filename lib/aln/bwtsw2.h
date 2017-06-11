@@ -20,10 +20,10 @@ typedef struct {
 } bsw2opt_t;
 
 typedef struct {
-	bwtint_t k, l;
-	uint32_t flag:18, n_seeds:13, is_rev:1;
-	int len, G, G2;
-	int beg, end;
+  bwtint_t k, l;
+  uint32_t flag:18, n_seeds:13, is_rev:1;
+  int len, G, G2;
+  int beg, end;
 } bsw2hit_t;
 
 typedef struct {
@@ -44,8 +44,8 @@ typedef struct {
 } bsw2global_t;
 
 typedef struct {
-	int l, tid;
-	char *name, *seq, *qual, *sam, *comment;
+  int l, tid;
+  char *name, *seq, *qual, *sam, *comment;
 } bsw2seq1_t;
 
 #ifdef __cplusplus

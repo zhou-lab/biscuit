@@ -25,7 +25,7 @@
  */
 
 #include <math.h>
-#include "bwamem.h"
+#include "mem_alnreg.h"
 #include "utils.h"
 #include "kvec.h"
 #include "wzmisc.h"
@@ -36,17 +36,6 @@
 #define OUTLIER_BOUND 2.0
 #define MAPPING_BOUND 3.0
 #define MAX_STDDEV    4.0
-
-// return 1 (success) or 0 (failure)
-static inline int mem_infer_is(int pos1, int pos2, int isrev1, int isrev2, int64_t *isize) {
-  if (isrev1 && !isrev2) {
-    *isize = pos1 - pos2;
-    return 1;
-  } else if (isrev2 && !isrev1) {
-    *isize = pos2 - pos1;
-    return 1;
-  } else return 0;
-}
 
 static int cal_sub(const mem_opt_t *opt, mem_alnreg_v *regs) {
 

@@ -45,7 +45,7 @@ int bam_filter(char *ifn, char *ofn, char *reg, void *data, bam_filter_f func) {
     if (idx == 0)
       wzfatal("[%s:%d] Random alignment retrieval only works for indexed BAM files.\n", __func__, __LINE__);
 
-    int tid, beg, end;
+    int tid=0, beg, end;
     char *_reg = strdup(reg); /* a temporary string to modify */
     char *name_lim = (char *) hts_parse_reg(_reg, &beg, &end);
     if (name_lim) {

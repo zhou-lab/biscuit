@@ -24,9 +24,10 @@
  */
 
 #include <limits.h>
-#include "bwamem.h"
+#include "mem_alnreg.h"
 #include "wzmisc.h"
 #include "ksort.h"
+#include "ksw.h"
 #include "kstring.h"
 #include "kvec.h"
 #include "utils.h"
@@ -312,7 +313,7 @@ static void mem_mark_primary_se_core(const mem_opt_t *opt, int n_mark, mem_alnre
 
 void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
-  if (regs->n == 0) return 0;
+  if (regs->n == 0) return;
 
   // initiate the default of secondary labels
   int i;
@@ -343,7 +344,7 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
   // when there are mapping to primary chromosome and 
   // not all mappings are on primary chromosomes, remark primary mapping
-  if (regs->n_pri >= 0 && (unsigned) regs->n_pri < regs->n) {
+  if (regs->n_pri > 0 && (unsigned) regs->n_pri < regs->n) {
 
     // double-dip z, expand the memory size to regs->n
     kv_resize(int, z, regs->n);
@@ -371,7 +372,7 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
     /************************/
     // mark primary for hits mapped to the primary assembly only
     if (regs->n_pri > 0) {
-      for (i = 0; i < regs->n_pri; ++i) {
+      for (i = 0; (unsigned) i < regs->n_pri; ++i) {
         regs->a[i].sub = 0;
         regs->a[i].secondary = -1;
       }
@@ -396,22 +397,24 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
  * This function SW-aligns the mate sequence, and can be slow */
 // regs  - target region
 // l_ms  - length of mate sequence
-// ms    - mate sequence
+// ms    - mate sequence (should be const?)
 // mregs - mate regions
 // aka mem_matesw
-static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, const mem_alnreg_t *reg, int l_ms, const uint8_t *ms, mem_alnreg_v *mregs) {
+static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, const mem_alnreg_t *reg, int l_ms, uint8_t *ms, mem_alnreg_v *mregs) {
   
   int64_t l_pac = bns->l_pac;
   int i;
-  for (i=0; i<mregs->n; ++i) {
-    int64_t dist, proper;
-    mem_alnreg_infer_isize(l_pac, reg, &mregs->a[i], &proper, &dist);
-    if (proper && dist >= pes->low && dist <= pes->high) return 0;
+  for (i=0; (unsigned) i<mregs->n; ++i) { // if proper pair already exists
+    int isrev1; int64_t pos1 = bns_depos(bns, reg->rb, &isrev1);
+    int isrev2; int64_t pos2 = bns_depos(bns, mregs->a[i].rb, &isrev2);
+    int64_t is;
+    if (mem_infer_is(pos1, pos2, isrev1, isrev2, &is) && is >= pes.low && is <= pes.high)
+      continue;
   }
 
   int read_is_rev = reg->rb >= l_pac;
   int mate_is_rev = !read_is_rev;
-  int is_larger = mate_is_rev; // whether the mate has larger coordinate
+  /* int is_larger = mate_is_rev; // whether the mate has larger coordinate */
 
   /* make the mate read sequence the direction of the primary read */
   uint8_t *mate_seq, *rev = 0;
@@ -422,15 +425,15 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   } else mate_seq = (uint8_t*) ms;
 
   /* determine reference boundary */
-  int64_t rb = max(0, reg->rb + pes->low - l_ms);
-  int64_t re = min(l_pac<<1, reg->rb + pes->high);
+  int64_t rb = max(0, reg->rb + pes.low - l_ms);
+  int64_t re = min(l_pac<<1, reg->rb + pes.high);
 
   /* ref is in the direction of the primary read */
   uint8_t *ref = 0; int rid;
   if (rb < re) ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
 
   /* no funny things happening */
-  if (reg->rid != rid || re - rb < opt->min_seed_len) { free(rev); free(ref); return 0; }
+  if (reg->rid != rid || re - rb < opt->min_seed_len) { free(rev); free(ref); return; }
 
   // mate alignment, very slow
   /* bss !rev parent
@@ -440,7 +443,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
    * 1   0    1 **/
   uint8_t parent = reg->bss ^ (reg->rb < l_pac);
   int xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
-  kswr_t aln = ksw_align2(l_ms, seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
+  kswr_t aln = ksw_align2(l_ms, mate_seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
 
   /* make mate mem_alnreg_t b */
   if (aln.score >= opt->min_seed_len && aln.qb >= 0) { // something goes wrong if aln.qb < 0
@@ -464,7 +467,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
 
     // insert b into ma s.t. ma remains sorted
     kv_push(mem_alnreg_t, *mregs, b); /* make room for a new element */
-    for (i = 0; i < mregs->n - 1; ++i)    // find the insertion point 
+    for (i = 0; (unsigned) i < mregs->n - 1; ++i)    // find the insertion point 
       if (mregs->a[i].score < b.score) break;
     int tmp = i;
     for (i = mregs->n - 1; i > tmp; --i)  // move b s.t. ma remains sorted
@@ -485,6 +488,7 @@ void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
   // find good alignment regions
   mem_alnreg_v good_regs_pair[2];
   kv_init(good_regs_pair[0]); kv_init(good_regs_pair[1]);
+  int i; unsigned j;
   for (i = 0; i < 2; ++i)
     for (j = 0; j < regs_pair[i].n; ++j) 
       if (regs_pair[i].a[j].score >= regs_pair[i].a[0].score - opt->pen_unpaired)
@@ -492,8 +496,8 @@ void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
 
   // rescue mate alignment of good alignment if necessary
   for (i = 0; i < 2; ++i)
-    for (j = 0; j < good_regs_pair[i].n && j < opt->max_matesw; ++j)
-      mem_alnreg_matesw_core(opt, bns, pac, pes, &good_regs_pair[i].a[j], s[!i].l_seq, (uint8_t) s[!i].seq, &regs_pair[!i]);
+    for (j = 0; j < good_regs_pair[i].n && (int) j < opt->max_matesw; ++j)
+      mem_alnreg_matesw_core(opt, bns, pac, pes, &good_regs_pair[i].a[j], s[!i].l_seq, (uint8_t*) s[!i].seq, &regs_pair[!i]);
 
   free(good_regs_pair[0].a); free(good_regs_pair[1].a);
 }

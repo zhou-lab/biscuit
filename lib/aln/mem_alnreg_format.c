@@ -26,11 +26,11 @@
 
 #include <math.h>
 #include <stdlib.h>
-#include "bwamem.h"
+#include "mem_alnreg.h"
 #include "kvec.h"
 #include "kstring.h"
 #include "wzmisc.h"
-#include "sam.h"
+/* #include "sam.h" */
 
 
 // set CIGAR
@@ -195,19 +195,6 @@ static void mem_alnreg_setSA(const bntseq_t *bns, const mem_alnreg_t *p0, const 
   free(str.s);
 }
 
-int is_proper_pair(mem_alnreg_t *r1, mem_alnreg_t *r2, mem_pestat_t *pes) {
-
-  // switch 1 and 2 if flag indicates otherwise
-  if (r1->flag & BAM_FREAD2 && r2->flag & BAM_FREAD1) {
-    mem_alnreg_t *tmp = r2;
-    r2 = r1; r1 = tmp;
-  }
-    
-  if (r1->rid != r2->rid) return 0;
-  if (r1->pos - r2->pos < pes->high && r1->pos - r2->pos > pes->low) return 1;
-  else return 0;
-}
-
 /*************************
  * format SAM
  *************************
@@ -225,7 +212,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
   p.flag |= m0 ? 0x1 : 0; // is paired in sequencing
   p.flag |= m0 && m.rid < 0 ? 0x8 : 0; // is mate mapped
 
-  if (p.rid >= 0 && m0 && m.rid >= 0 && pes && is_proper_pair(&p, &m, pes)) {
+  if (p.rid >= 0 && m0 && m.rid >= 0 && pes->set && is_proper_pair(&p, &m, *pes)) {
     p.flag |= 2; m.flag |= 2;
   }
   // copy mate coordinate to alignment
@@ -368,8 +355,8 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
 // universal_mreg is the arbitrarily selected mate reg to pair with every reg in regs
 void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, const mem_alnreg_t *universal_mreg) {
 
-  if (!(opt->flag & MEM_F_ALL)) // output all alignments, hence no need to output alternatives
-    mem_gen_alt(opt, bns, pac, s, regs);
+  /* if (!(opt->flag & MEM_F_ALL)) // output all alignments, hence no need to output alternatives */
+  /*   mem_gen_alt(opt, bns, pac, s, regs); */
   // mem_gen_sa
 
   kstring_t str = {0};
@@ -451,7 +438,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   // Actual pairing and set mapQ
   int pscore, sub_pscore; // best and 2nd best pairing score
   int n_subpairings; int z[2];
-  mem_pair(opt, bns, pac, pes, s, regs_pair, id, &pscore, &sub_pscore, &n_subpairings, z);
+  mem_pair(opt, bns, pes, regs_pair, id, &pscore, &sub_pscore, &n_subpairings, z);
   if (pscore <= 0) goto NO_PAIRING;
   // opt->pen_unpaired - penalty for not pairing
   int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired;
@@ -506,14 +493,14 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   // write SAM
   for (i = 0; i < 2; ++i) {
 
-    if (!(opt->flag & MEM_F_ALL)) mem_gen_alt(opt, bns, pac, &s[i], &regs_pair[i]);
+    /* if (!(opt->flag & MEM_F_ALL)) mem_gen_alt(opt, bns, pac, &s[i], &regs_pair[i]); */
 
     mem_alnreg_t *reg = regs_pair[i].a + z[i];
     mem_alnreg_t *mreg = regs_pair[!i].a + z[!i];
     mem_alnreg_v *regs = &regs_pair[i];
 
     mem_alnreg_setSAM(opt, bns, pac, &s[i], reg);
-    mem_alnreg_formatSAM(opt, bns, &str, &s[i], reg, mreg, regs, 1, pes);
+    mem_alnreg_formatSAM(opt, bns, &str, &s[i], reg, mreg, regs, 1, &pes);
 
     // h[i].XA = XA[i]? XA[i][z[i]] : 0;
     // aa[i][n_aa[i]++] = h[i];
@@ -524,7 +511,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       if (p->score < opt->T || p->secondary >= 0 || !p->is_alt) continue;
       p->flag |= 0x800;
       mem_alnreg_setSAM(opt, bns, pac, &s[i], p);
-      mem_alnreg_formatSAM(opt, bns, &str, &s[i], p, NULL, regs, 0, pes); // is mate none?
+      mem_alnreg_formatSAM(opt, bns, &str, &s[i], p, NULL, regs, 0, &pes); // is mate none?
       // g[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, p);
       // g[i].XA = XA[i]? XA[i][n_pri[i]] : 0;
       // aa[i][n_aa[i]++] = g[i];
