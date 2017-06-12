@@ -746,7 +746,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
     /**** seed extension ****/
     int aw[2]; // aw: actual bandwidth used in extension aw[0] - left extension; a[1] - right extension
     mem_alnreg_t *reg = kv_pushp(mem_alnreg_t, *regs);
-    memset(reg, 0, sizeof(mem_alnreg_t));
+    memset(reg, 0, sizeof(mem_alnreg_t)); // reset every new mem_alnreg_t
     reg->w = aw[0] = aw[1] = opt->w;
     reg->score = reg->truesc = -1;
     reg->rid = c->rid;

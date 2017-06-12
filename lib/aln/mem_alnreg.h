@@ -99,6 +99,11 @@ static inline int get_pri_idx(double XA_drop_ratio, const mem_alnreg_t *a, int i
   return -1;
 }
 
+static inline void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
+  unsigned k;
+  for (k = 0; k<regs->n; ++k)
+    regs->a[k].flag = 0;
+}
 
 mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pairs);
 

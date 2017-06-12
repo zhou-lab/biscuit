@@ -112,9 +112,9 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
 }
 
 static void mem_alnreg_freeSAM(mem_alnreg_v *regs) {
-  int i; unsigned j;
-  for (i = 0; i < 2; ++i)
-    for (j = 0; j < regs->n; ++j)
+  unsigned j;
+  for (j = 0; j < regs->n; ++j)
+    if (regs->a[j].n_cigar > 0)
       free(regs->a[j].cigar);
 }
 
@@ -326,7 +326,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
   // SA: other parts of a chimeric primary mapping
   if (regs0) mem_alnreg_setSA(bns, p0, regs0, str);
   // PA: ratio of score / alt_score, higher the ratio, the more accurate the position
-  if (is_primary) ksprintf(str, "\tPA:f:%.3f", (double) p.score / p.alt_sc); // used to be lowercase pa, just to be consistent
+  if (is_primary && p.alt_sc > 0) ksprintf(str, "\tPA:f:%.3f", (double) p.score / p.alt_sc); // used to be lowercase pa, just to be consistent
   // XA: alternative alignment
   if (regs0) mem_alnreg_setXA(opt, bns, p0, regs0, str);
   if (s->comment) { kputc('\t', str); kputs(s->comment, str); }

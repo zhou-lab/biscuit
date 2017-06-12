@@ -198,3 +198,6 @@ test_tview1: biscuit
 
 test_tview2: biscuit
 	./biscuit tview -n NS500653:105:HLJKJAFXX:1:11102:20185:16363 -g chr11:5312345 -m 1 test3/AmpliconSeq/bam/DRM2.bam ~/references/hg19/hg19.fa
+
+test_align1: biscuit
+	./biscuit align ~/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/probe.fastq

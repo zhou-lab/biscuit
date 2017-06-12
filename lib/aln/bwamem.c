@@ -121,8 +121,9 @@ int mem_approx_mapq_se(const mem_opt_t *opt, const mem_alnreg_t *a)
 
 // TODO (future plan): group hits into a uint64_t[] array. This will be cleaner and more flexible
 
-uint8_t *bseq_bsconvert(bseq1_t *s, uint8_t parent) {
-  if (s->bisseq[parent]) return s->bisseq[parent];
+void bseq_bsconvert(bseq1_t *s, uint8_t parent) {
+  if (s->bisseq[parent]) return;
+
   uint32_t i;
   if (parent) {
     s->bisseq[1] = calloc(s->l_seq, sizeof(uint8_t));
@@ -130,14 +131,12 @@ uint8_t *bseq_bsconvert(bseq1_t *s, uint8_t parent) {
       if (s->seq[i] == 1) s->bisseq[1][i] = 3;
       else s->bisseq[1][i] = s->seq[i];
     }
-    return s->bisseq[1];
   } else {
     s->bisseq[0] = calloc(s->l_seq, sizeof(uint8_t));
     for (i=0; i< (unsigned) s->l_seq; ++i) {
       if (s->seq[i] == 2) s->bisseq[0][i] = 0;
       else s->bisseq[0][i] = s->seq[i];
     }
-    return s->bisseq[0];
   }
 }
 
@@ -147,7 +146,7 @@ uint8_t *bseq_bsconvert(bseq1_t *s, uint8_t parent) {
 static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs, uint8_t parent) {
   /* int l_seq, char *seq,  */
   int l_seq = bseq->l_seq;
-  /* uint8_t *bisseq = bseq_bsconvert(bseq, parent); */
+  bseq_bsconvert(bseq, parent); // set bseq->bisseq
 
   /* WZ: I think it's always 2-bit encoding */
   /* for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so */
@@ -235,12 +234,6 @@ static void bis_worker1(void *data, int i, int tid)
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 1);
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
   }
-}
-
-static void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
-  unsigned k;
-  for (k = 0; k<regs->n; ++k)
-    regs->a[k].flag = 0;
 }
 
 /**

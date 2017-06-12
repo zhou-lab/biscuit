@@ -58,7 +58,10 @@ typedef struct {
   
   /* reads can only be mapped to parent or daughter strands
    * opt->parent&1: is restricted
-   * opt->parent>>1: restricted strand */
+   * opt->parent>>1: restricted strand
+   * 0,1 - both
+   * 2 - parent
+   * 3 - daughter */
   uint8_t parent;
 
   /* the following would almost be impossible unless some kind of sequence context capture
