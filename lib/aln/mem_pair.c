@@ -57,7 +57,7 @@ static int cal_sub(const mem_opt_t *opt, mem_alnreg_v *regs) {
 typedef struct { size_t n, m; int64_t *a; } int64_v;
 mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pairs) {
 
-  int64_v isize = {0};
+  int64_v isize = {0,0,0};
 
   /* infer isize distribution based on the first reg from the two reads */
   int i;

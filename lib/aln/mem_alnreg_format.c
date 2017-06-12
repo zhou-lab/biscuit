@@ -26,6 +26,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <limits.h>
 #include "mem_alnreg.h"
 #include "kvec.h"
 #include "kstring.h"
@@ -135,7 +136,7 @@ static void mem_alnreg_setXA(const mem_opt_t *opt, const bntseq_t *bns, const me
   // or if all primary number of alts is higher than opt->max_XA_hits
   if (cnt > opt->max_XA_hits_alt || (!has_alt && cnt > opt->max_XA_hits)) return;
 
-  kstring_t str = {0};
+  kstring_t str = {0,0,0};
   for (i=0; i<regs0->n; ++i) {
 
     mem_alnreg_t *q = regs0->a + i;
@@ -170,7 +171,7 @@ static void mem_alnreg_setSA(const bntseq_t *bns, const mem_alnreg_t *p0, const 
 
   if (!regs0 || p0->flag & 0x100) return;
 
-  kstring_t str = {0};
+  kstring_t str = {0,0,0};
   unsigned i;
   for (i=0; i < regs0->n; ++i) {
     mem_alnreg_t *q = regs0->a + i;
@@ -205,7 +206,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
 
   // make copies
   mem_alnreg_t p = *p0;
-  mem_alnreg_t m = {0};
+  mem_alnreg_t m; memset(&m, 0, sizeof(mem_alnreg_t));
   if (m0) m = *m0;
 
   // set mate-related flags
@@ -359,7 +360,7 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   /*   mem_gen_alt(opt, bns, pac, s, regs); */
   // mem_gen_sa
 
-  kstring_t str = {0};
+  kstring_t str = {0,0,0};
 
   // set cigar, mapq etc.
   // only the first mapping is the primary mapping
@@ -403,7 +404,7 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
   // string output to s->sam
   if (l == 0) { // unmapped read
-    mem_alnreg_t reg = {0};
+    mem_alnreg_t reg; memset(&reg, 0, sizeof(mem_alnreg_t));
     reg.rid = -1;
     reg.flag |= 0x4;
     mem_alnreg_formatSAM(opt, bns, &str, s, &reg, universal_mreg, regs, 1, NULL);
@@ -521,7 +522,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     mem_alnreg_freeSAM(&regs_pair[i]);
   }
 
-  mem_alnreg_t *best[2] = {0};
+  mem_alnreg_t *best[2] = {0,0};
  NO_PAIRING:                // pairing with the best in mate alignment
 
   // looking for the best alnreg to pair in the following order

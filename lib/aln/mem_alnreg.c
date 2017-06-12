@@ -448,7 +448,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   /* make mate mem_alnreg_t b */
   if (aln.score >= opt->min_seed_len && aln.qb >= 0) { // something goes wrong if aln.qb < 0
 
-    mem_alnreg_t b = {0};
+    mem_alnreg_t b; memset(&b, 0, sizeof(mem_alnreg_t));
     b.rid = reg->rid;
     b.is_alt = reg->is_alt;
 
