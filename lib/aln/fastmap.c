@@ -48,14 +48,18 @@ static void *process(void *shared, int step, void *_data) {
       free(ret);
       return 0;
     }
+
     if (!aux->copy_comment)
       for (i = 0; i < ret->n_seqs; ++i) {
         free(ret->seqs[i].comment);
         ret->seqs[i].comment = 0;
       }
+
     for (i = 0; i < ret->n_seqs; ++i) size += ret->seqs[i].l_seq;
+    
     if (bwa_verbose >= 3)
       fprintf(stderr, "[M::%s] read %d sequences (%ld bp)...\n", __func__, ret->n_seqs, (long)size);
+    
     return ret;
   } else if (step == 1) {
     const mem_opt_t *opt = aux->opt;
@@ -120,6 +124,41 @@ static void update_a(mem_opt_t *opt, const mem_opt_t *opt0) {
     if (!opt0->pen_clip5) opt->pen_clip5 *= opt->a;
     if (!opt0->pen_clip3) opt->pen_clip3 *= opt->a;
     if (!opt0->pen_unpaired) opt->pen_unpaired *= opt->a;
+  }
+}
+
+static void infer_alt_chromosomes(bntseq_t *bns) {
+  // logic: if the chr1,...chr22,chrX,chrY,chrM,
+  // then mark everything with chrUn and _random and _hap as alt
+  int i;
+  for (i=0; i<bns->n_seqs; ++i) if (bns->anns[i].is_alt) break;
+  if (i<bns->n_seqs) return;    // skip if alt info is present
+  
+  int found[25]; memset(found, 0, 25*sizeof(int));
+  for (i=0; i<bns->n_seqs; ++i) {
+    if (strncmp(bns->anns[i].name, "chr", 3) == 0) {
+      if (strlen(bns->anns[i].name) == 4) {
+        if (toupper(bns->anns[i].name[3]) == 'X') found[22] = 1;
+        else if (toupper(bns->anns[i].name[3]) == 'Y') found[23] = 1;
+        else if (toupper(bns->anns[i].name[3]) == 'M') found[24] = 1;
+        else if (isdigit(bns->anns[i].name[3])) {
+          int n = bns->anns[i].name[3]-'0';
+          if (n>0 && n<=22) found[n-1] = 1;
+        }
+      } else if (strlen(bns->anns[i].name) == 5 &&
+                 isdigit(bns->anns[i].name[3]) && isdigit(bns->anns[i].name[4])) {
+        int n = atoi(bns->anns[i].name+3);
+        if (n>0 && n<=22) found[n-1] = 1;
+      }
+    }
+  }
+
+  for (i=0; i<25; ++i) if (!found[i]) break;
+  if (i<25) return;
+  for (i=0; i<bns->n_seqs; ++i) {
+    if (strncmp(bns->anns[i].name, "chrUn", 5)==0) bns->anns[i].is_alt = 1;
+    if (strstr(bns->anns[i].name, "_random")) bns->anns[i].is_alt = 1;
+    if (strstr(bns->anns[i].name, "_hap")) bns->anns[i].is_alt = 1;
   }
 }
 
@@ -352,6 +391,10 @@ int main_align(int argc, char *argv[]) {
     if ((aux.idx = bwa_idx_load(argv[optind], BWA_IDX_ALL)) == 0) return 1; // FIXME: memory leak
   } else if (bwa_verbose >= 3)
     fprintf(stderr, "[M::%s] load the bwa index from shared memory\n", __func__);
+
+  // infer alternative chromosomes from name
+  infer_alt_chromosomes(aux.idx->bns);
+  
   if (ignore_alt)
     for (i = 0; i < aux.idx->bns->n_seqs; ++i)
       aux.idx->bns->anns[i].is_alt = 0;
