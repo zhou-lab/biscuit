@@ -34,8 +34,8 @@
 /* #include "sam.h" */
 
 
-// set CIGAR
-// mapQ and flag are set outside this function
+// set CIGAR, pos, is_rev
+// mapQ and most flags (except reverse strand) are set outside this function
 static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_t *reg) {
 
   // nt4 encoding
@@ -68,9 +68,11 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
   }
   int l_MD = strlen((char*) (cigar+n_cigar))+1;
 
-  // pos
-  int is_rev;
-  int64_t rpos = bns_depos(bns, reg->rb < bns->l_pac ? reg->rb : reg->re-1, &is_rev);
+  // pos and is_rev
+  int _is_rev;
+  int64_t rpos = bns_depos(bns, reg->rb < bns->l_pac ? reg->rb : reg->re-1, &_is_rev);
+  reg->is_rev = _is_rev;
+  reg->flag |= reg->is_rev ? 0x10 : 0;
 
   // squeeze out leading and trailing deletions
   if (n_cigar > 0) { // squeeze out leading or trailing deletions
@@ -87,8 +89,8 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
   // add clipping to CIGAR
   if (reg->qb != 0 || reg->qe != s->l_seq) {
     int clip5, clip3;
-    clip5 = is_rev ? s->l_seq - reg->qe : reg->qb;
-    clip3 = is_rev ? reg->qb : s->l_seq - reg->qe;
+    clip5 = reg->is_rev ? s->l_seq - reg->qe : reg->qb;
+    clip3 = reg->is_rev ? reg->qb : s->l_seq - reg->qe;
     cigar = realloc(cigar, 4 * (n_cigar + 2) + l_MD);
     if (clip5) {
       memmove(cigar+1, cigar, n_cigar * 4 + l_MD); // make room for 5'-end clipping
@@ -106,7 +108,6 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
 
   assert(bns_pos2rid(bns, rpos) == reg->rid);
   reg->pos = rpos - bns->anns[reg->rid].offset;
-  reg->sam_set = 1;
 
   return;
 }
@@ -119,9 +120,10 @@ static void mem_alnreg_freeSAM(mem_alnreg_v *regs) {
 }
 
 /* Generate XA, put to str */
-static void mem_alnreg_setXA(const mem_opt_t *opt, const bntseq_t *bns, const mem_alnreg_t *p0, const mem_alnreg_v *regs0, kstring_t *sam_str) {
+static void mem_alnreg_tagXA(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_v *regs0, kstring_t *sam_str) {
 
-  if (!regs0 || !(opt->flag & MEM_F_ALL)) return;
+  // no need to set XA if all alignments are output as records
+  if (!regs0 || (opt->flag & MEM_F_ALL)) return;
 
   int cnt = 0, has_alt = 0; unsigned i;
   for (i=0; i<regs0->n; ++i) {
@@ -137,12 +139,20 @@ static void mem_alnreg_setXA(const mem_opt_t *opt, const bntseq_t *bns, const me
   if (cnt > opt->max_XA_hits_alt || (!has_alt && cnt > opt->max_XA_hits)) return;
 
   kstring_t str = {0,0,0};
-  for (i=0; i<regs0->n; ++i) {
+  int n;
+  for (i=0, n=0; i<regs0->n; ++i) {
 
     mem_alnreg_t *q = regs0->a + i;
     int r = get_pri_idx(opt->XA_drop_ratio, regs0->a, i);
-    if (r < 0 || regs0->a + r != p0 || q->n_cigar == 0) continue;
+    if (r < 0 || regs0->a + r != p0) continue;
 
+    // try set cigar if haven't yet
+    if (q->n_cigar == 0) {
+      mem_alnreg_setSAM(opt, bns, pac, s, q);
+      if (q->n_cigar == 0) continue;
+    }
+    
+    if (n) kputc(';', &str);
     kputs(bns->anns[q->rid].name, &str);
     kputc(',', &str); 
     kputc("+-"[q->is_rev], &str);
@@ -156,7 +166,7 @@ static void mem_alnreg_setXA(const mem_opt_t *opt, const bntseq_t *bns, const me
     }
     kputc(',', &str);
     kputw(q->NM, &str);
-    kputc(';', &str);
+    ++n;
   }
 
   if (str.l) {
@@ -167,7 +177,7 @@ static void mem_alnreg_setXA(const mem_opt_t *opt, const bntseq_t *bns, const me
 }
 
 /* Generate SA-tag, put to str */
-static void mem_alnreg_setSA(const bntseq_t *bns, const mem_alnreg_t *p0, const mem_alnreg_v *regs0, kstring_t *sam_str) {
+static void mem_alnreg_tagSA(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_v *regs0, kstring_t *sam_str) {
 
   if (!regs0 || p0->flag & 0x100) return;
 
@@ -176,6 +186,12 @@ static void mem_alnreg_setSA(const bntseq_t *bns, const mem_alnreg_t *p0, const 
   for (i=0; i < regs0->n; ++i) {
     mem_alnreg_t *q = regs0->a + i;
     if (q == p0 || q->n_cigar == 0 || q->flag & 0x100) continue;
+
+    // try set cigar if haven't yet
+    if (q->n_cigar == 0) {
+      mem_alnreg_setSAM(opt, bns, pac, s, q);
+      if (q->n_cigar == 0) continue;
+    }
 
     kputs(bns->anns[q->rid].name, &str);
     kputc(',', &str);
@@ -202,7 +218,7 @@ static void mem_alnreg_setSA(const bntseq_t *bns, const mem_alnreg_t *p0, const 
  * mate is set at final stage because the mate might be asymmetric with alternative mappings
  * It doesn't not change the mem_alnreg_t inputs
  *************************/
-void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *str, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_t *m0, const mem_alnreg_v *regs0, int is_primary, mem_pestat_t *pes) {
+void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,  kstring_t *str, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_t *m0, const mem_alnreg_v *regs0, int is_primary, mem_pestat_t *pes) {
 
   // make copies
   mem_alnreg_t p = *p0;
@@ -324,11 +340,11 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, kstring_t *
   // RG: read group
   if (bwa_rg_id[0]) { kputsn("\tRG:Z:", 6, str); kputs(bwa_rg_id, str); }
   // SA: other parts of a chimeric primary mapping
-  if (regs0) mem_alnreg_setSA(bns, p0, regs0, str);
+  if (regs0) mem_alnreg_tagSA(opt, bns, pac, s, p0, regs0, str);
   // PA: ratio of score / alt_score, higher the ratio, the more accurate the position
   if (is_primary && p.alt_sc > 0) ksprintf(str, "\tPA:f:%.3f", (double) p.score / p.alt_sc); // used to be lowercase pa, just to be consistent
   // XA: alternative alignment
-  if (regs0) mem_alnreg_setXA(opt, bns, p0, regs0, str);
+  if (regs0) mem_alnreg_tagXA(opt, bns, pac, s, p0, regs0, str);
   if (s->comment) { kputc('\t', str); kputs(s->comment, str); }
   // XR: reference/chromosome annotation
   if ((opt->flag&MEM_F_REF_HDR) && p.rid >= 0 && bns->anns[p.rid].anno != 0 && bns->anns[p.rid].anno[0] != 0) {
@@ -365,6 +381,7 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   // set cigar, mapq etc.
   // only the first mapping is the primary mapping
   int l; unsigned k;
+  kvec_t(int) to_output;  kv_init(to_output);
   for (k = l = 0; k < regs->n; ++k) {
     mem_alnreg_t *p = regs->a + k;
 
@@ -386,8 +403,6 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     if (l && p->secondary < 0) p->flag |= (opt->flag&MEM_F_NO_MULTI) ? 0x10000 : 0x800;
     // secondary mapping
     if (p->secondary >= 0) p->flag |= 0x100;
-    // is on the reverse strand
-    p->flag |= p->is_rev ? 0x10 : 0;
 
     // mapQ
     // set mapQ for primary mapping
@@ -396,10 +411,16 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     if (l && !p->is_alt) p->mapq = min(p->mapq, regs->a[0].mapq);
 
     mem_alnreg_setSAM(opt, bns, pac, s, p);
-    mem_alnreg_formatSAM(opt, bns, &str, s, p, universal_mreg, regs, !k, NULL);
-
+    kv_push(int, to_output, k);
     ++l;
   }
+
+  // output, note each read's output depends on the cigar of other reads
+  unsigned i;
+  for (i = 0; i < to_output.n; ++i)
+    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &regs->a[to_output.a[i]], universal_mreg, regs, !k, NULL);
+  kv_destroy(to_output);
+  
   mem_alnreg_freeSAM(regs);
 
   // string output to s->sam
@@ -407,7 +428,7 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     mem_alnreg_t reg; memset(&reg, 0, sizeof(mem_alnreg_t));
     reg.rid = -1;
     reg.flag |= 0x4;
-    mem_alnreg_formatSAM(opt, bns, &str, s, &reg, universal_mreg, regs, 1, NULL);
+    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &reg, universal_mreg, regs, 1, NULL);
   }
   s->sam = str.s;
 }
@@ -501,7 +522,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     mem_alnreg_v *regs = &regs_pair[i];
 
     mem_alnreg_setSAM(opt, bns, pac, &s[i], reg);
-    mem_alnreg_formatSAM(opt, bns, &str, &s[i], reg, mreg, regs, 1, &pes);
+    mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], reg, mreg, regs, 1, &pes);
 
     // h[i].XA = XA[i]? XA[i][z[i]] : 0;
     // aa[i][n_aa[i]++] = h[i];
@@ -512,7 +533,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       if (p->score < opt->T || p->secondary >= 0 || !p->is_alt) continue;
       p->flag |= 0x800;
       mem_alnreg_setSAM(opt, bns, pac, &s[i], p);
-      mem_alnreg_formatSAM(opt, bns, &str, &s[i], p, NULL, regs, 0, &pes); // is mate none?
+      mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], p, NULL, regs, 0, &pes); // is mate none?
       // g[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, p);
       // g[i].XA = XA[i]? XA[i][n_pri[i]] : 0;
       // aa[i][n_aa[i]++] = g[i];
