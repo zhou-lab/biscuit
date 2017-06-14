@@ -46,27 +46,31 @@ typedef struct {
   size_t n_pri; // number of regions on primary chromosomes
 } mem_alnreg_v;
 
-// return 1 (success) or 0 (failure)
-static inline int mem_infer_is(int pos1, int pos2, int isrev1, int isrev2, int64_t *isize) {
+// note: pos1 == isrev1 ? end1 : beg1; pos2 == isrev2 ? end2 : beg2
+static inline int mem_infer_isize(int64_t pos1, int64_t pos2, int isrev1, int isrev2, int64_t *isize) {
   if (isrev1 && !isrev2) {
     *isize = pos1 - pos2;
     return 1;
   } else if (isrev2 && !isrev1) {
     *isize = pos2 - pos1;
     return 1;
-  } else return 0;
+  } else return 0;  
 }
 
-static inline int is_proper_pair(mem_alnreg_t *r1, mem_alnreg_t *r2, mem_pestat_t pes) {
-  // switch 1 and 2 if flag indicates otherwise
-  if (r1->flag & 0x80 && r2->flag & 0x40) {
-    mem_alnreg_t *tmp = r2;
-    r2 = r1; r1 = tmp;
-  }
+// return 1 (success) or 0 (failure)
+static inline int mem_alnreg_isize(const bntseq_t *bns, const mem_alnreg_t *r1, const mem_alnreg_t *r2, int64_t *isize) {
   if (r1->rid != r2->rid) return 0;
-  int64_t is;
-  if (!mem_infer_is(r1->pos, r2->pos, r1->is_rev, r2->is_rev, &is)) return 0;
-  if (is >= pes.low && is <= pes.high) return 1;
+  int isrev1 = r1->rb > bns->l_pac;
+  int isrev2 = r2->rb > bns->l_pac;
+  int64_t pos1 = isrev1 ? (bns->l_pac<<1) - 1 - r1->rb : r1->rb;
+  int64_t pos2 = isrev2 ? (bns->l_pac<<1) - 1 - r2->rb : r2->rb;
+  return mem_infer_isize(pos1, pos2, isrev1, isrev2, isize);
+}
+
+static inline int is_proper_pair(const bntseq_t *bns, const mem_alnreg_t *r1, const mem_alnreg_t *r2, mem_pestat_t pes) {
+  int64_t isize;
+  if (!mem_alnreg_isize(bns, r1, r2, &isize)) return 0;
+  if (isize >= pes.low && isize <= pes.high) return 1;
   else return 0;
 }
 
@@ -105,7 +109,7 @@ static inline void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
     regs->a[k].flag = 0;
 }
 
-mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pairs);
+mem_pestat_t mem_pestat(const mem_opt_t *opt, const bntseq_t *bns, int n, const mem_alnreg_v *regs_pairs);
 
 void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a);
 /* int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes[4], uint64_t id, bseq1_t s[2], mem_alnreg_v a[2]); */
@@ -134,7 +138,16 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
 void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, bseq1_t s[2], mem_alnreg_v regs_pair[2]);
   
 /* void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a, int extra_flag, const mem_aln_t *m); */
-void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, const mem_alnreg_t *universal_mreg);
+void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, const mem_alnreg_t *universal_mreg, mem_pestat_t *pes);
 void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t pes);
+
+static inline void mem_alnreg_freeSAM(mem_alnreg_v *regs) {
+  unsigned j;
+  for (j = 0; j < regs->n; ++j)
+    if (regs->a[j].n_cigar > 0) {
+      free(regs->a[j].cigar);
+      regs->a[j].n_cigar = 0;
+    }
+}
 
 #endif /* _MEM_ALNREG_H */

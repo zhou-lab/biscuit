@@ -372,21 +372,21 @@ void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns) {
     int large_overlap = 0;
     for (k = 0; k < to_keep.n; ++k) { /* compare with all included chains for overlap */
 
-      mem_chain_t ci = chns->a[i];
-      mem_chain_t ck = chns->a[to_keep.a[k]];
-      int b_max = chn_beg(ck) > chn_beg(ci) ? chn_beg(ck) : chn_beg(ci);
-      int e_min = chn_end(ck) < chn_end(ci) ? chn_end(ck) : chn_end(ci);
+      mem_chain_t *ci = &chns->a[i];
+      mem_chain_t *ck = &chns->a[to_keep.a[k]];
+      int b_max = chn_beg(*ck) > chn_beg(*ci) ? chn_beg(*ck) : chn_beg(*ci);
+      int e_min = chn_end(*ck) < chn_end(*ci) ? chn_end(*ck) : chn_end(*ci);
 
       // have overlap; don't consider overlap where the kept chain is ALT while the current chain is primary
-      if (e_min > b_max && (!ck.is_alt || ci.is_alt)) {
-        int li = chn_end(ci) - chn_beg(ci);
-        int lj = chn_end(ck) - chn_beg(ck);
+      if (e_min > b_max && (!ck->is_alt || ci->is_alt)) {
+        int li = chn_end(*ci) - chn_beg(*ci);
+        int lj = chn_end(*ck) - chn_beg(*ck);
         int min_l = li < lj ? li : lj;
         if (e_min - b_max >= min_l * opt->mask_level && // by default mask_level is 0.5
             min_l < opt->max_chain_gap) { // significant overlap
           large_overlap = 1;
-          if (ck.first < 0) ck.first = i; // keep the first shadowed hit s.t. mapq can be more accurate
-          if (ci.w < ck.w * opt->drop_ratio && ck.w - ci.w >= opt->min_seed_len<<1)
+          if (ck->first < 0) ck->first = i; // keep the first shadowed hit s.t. mapq can be more accurate
+          if (ci->w < ck->w * opt->drop_ratio && ck->w - ci->w >= opt->min_seed_len<<1)
             break;
         }
       }
@@ -420,6 +420,8 @@ void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns) {
     if (c->kept == 0) free(c->seeds);
     else chns->a[k++] = *c;
   }
+
+  chns->n = k;
 
   return;
 }

@@ -201,3 +201,25 @@ test_tview2: biscuit
 
 test_align1: biscuit
 	./biscuit align ~/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/probe.fastq
+
+# this tests auto-inference of alt-chroms, should output haps in XA and chr6 alignment in POS
+test_align2: biscuit
+	./biscuit align /home/wanding.zhou/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/probe_cg11945228_A.fastq
+
+# all infinium probes
+# master typeI -t 5 debug : Real time: 68.444 sec; CPU: 319.421 sec
+# develop2 typeI -t 5 debug : Real time: 69.772 sec; CPU: 321.330 sec
+# develop2 typeII -t 5 debug : Real time: 206.006 sec; CPU: 1002.591 sec
+# comparesam test/InfiniumEPIC/1_dev_typeI test/InfiniumEPIC/1_master_typeI >1
+# comparesam test/InfiniumEPIC/1_dev_typeII test/InfiniumEPIC/1_master_typeII >2
+test_align3: biscuit
+	./biscuit align -t 5 ~/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/typeI.fastq >test/InfiniumEPIC/1_dev_typeI
+	./biscuit align -t 5 ~/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/typeII.fastq >test/InfiniumEPIC/1_dev_typeII
+
+# paired-end read 1
+test_align4: biscuit
+	./biscuit align ~/references/hg19/biscuit/hg19.fa test/HumanBrainCpH/fastq_chr19/read_SRR1029055.86652754.1.fastq test/HumanBrainCpH/fastq_chr19/read_SRR1029055.86652754.2.fastq >test/HumanBrainCpH/1_dev
+
+test_align5: biscuit
+	./biscuit align -F -t 5 ~/references/hg19/biscuit/hg19.fa test/HumanBrainCpH/fastq_chr19/read1.fastq test/HumanBrainCpH/fastq_chr19/read2.fastq >test/HumanBrainCpH/1_dev
+

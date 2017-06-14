@@ -55,7 +55,7 @@ static int cal_sub(const mem_opt_t *opt, mem_alnreg_v *regs) {
 }
 
 typedef struct { size_t n, m; int64_t *a; } int64_v;
-mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pairs) {
+mem_pestat_t mem_pestat(const mem_opt_t *opt, const bntseq_t *bns, int n, const mem_alnreg_v *regs_pairs) {
 
   int64_v isize = {0,0,0};
 
@@ -83,11 +83,19 @@ mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pa
     // skip if on different bisulfite converted strands
     if (best0->bss != best1->bss) continue;
 
-    if (mem_infer_is(best0->pos, best1->pos, best0->is_rev, best1->is_rev, &is))
+    if (mem_alnreg_isize(bns, best0, best1, &is))
       if (is <= opt->max_ins) kv_push(int64_t, isize, is);
   }
 
   if (bwa_verbose >= 3) fprintf(stderr, "[M::%s] # candidate unique pairs: %ld\n", __func__, isize.n);
+
+  mem_pestat_t pes; memset(&pes, 0, sizeof(mem_pestat_t));
+  if (isize.n < MIN_DIR_CNT) {
+    fprintf(stderr, "[M:%s] There are not enough pairs for insert size inference\n", __func__);
+    free(isize.a);
+    pes.failed = 1;
+    return pes;
+  }
 
   // sort
   ks_introsort_64s(isize.n, isize.a);
@@ -96,7 +104,6 @@ mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pa
   int p50 = isize.a[(int)(.50 * isize.n + .499)];
   int p75 = isize.a[(int)(.75 * isize.n + .499)];
 
-  mem_pestat_t pes;
   pes.low  = (int)(p25 - OUTLIER_BOUND * (p75 - p25) + .499);
   pes.high = (int)(p75 + OUTLIER_BOUND * (p75 - p25) + .499);
 
@@ -125,7 +132,7 @@ mem_pestat_t mem_pestat(const mem_opt_t *opt, int n, const mem_alnreg_v *regs_pa
     pes.low  = (int)(pes.avg - MAX_STDDEV * pes.std + .499);
   if (pes.high < pes.avg - MAX_STDDEV * pes.std) 
     pes.high = (int)(pes.avg + MAX_STDDEV * pes.std + .499);
-  if (pes.low < 1) pes.low = 1;
+  // if (pes.low < 1) pes.low = 1;
 
   fprintf(stderr, "[M::%s] low and high boundaries for proper pairs: (%d, %d)\n", __func__, pes.low, pes.high);
   free(isize.a);
@@ -171,7 +178,7 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
       if ((int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
 
       int64_t is;
-      if (mem_infer_is(v.a[k].x, v.a[i].x, v.a[k].y>>1 & 1, v.a[i].y>>1 & 1, &is) &&
+      if (mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, &is) &&
           is >= pes.low && is <= pes.high) {
 
         /* score of the insert by merging score of the two 

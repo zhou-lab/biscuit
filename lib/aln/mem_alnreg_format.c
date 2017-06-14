@@ -38,6 +38,8 @@
 // mapQ and most flags (except reverse strand) are set outside this function
 static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_t *reg) {
 
+  if (reg->n_cigar > 0) return;
+  
   // nt4 encoding
   uint8_t *query = malloc(s->l_seq); int i;
   for (i = 0; i < s->l_seq; ++i)
@@ -103,20 +105,14 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
     }
   }
   free(query);
-  reg->cigar = cigar;
   reg->n_cigar = n_cigar;
+  if (reg->n_cigar > 0) reg->cigar = cigar;
+  else free(cigar);
 
   assert(bns_pos2rid(bns, rpos) == reg->rid);
   reg->pos = rpos - bns->anns[reg->rid].offset;
 
   return;
-}
-
-static void mem_alnreg_freeSAM(mem_alnreg_v *regs) {
-  unsigned j;
-  for (j = 0; j < regs->n; ++j)
-    if (regs->a[j].n_cigar > 0)
-      free(regs->a[j].cigar);
 }
 
 /* Generate XA, put to str */
@@ -229,7 +225,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
   p.flag |= m0 ? 0x1 : 0; // is paired in sequencing
   p.flag |= m0 && m.rid < 0 ? 0x8 : 0; // is mate mapped
 
-  if (p.rid >= 0 && m0 && m.rid >= 0 && pes->set && is_proper_pair(&p, &m, *pes)) {
+  if (p.rid >= 0 && m0 && m.rid >= 0 && pes && is_proper_pair(bns, &p, &m, *pes)) {
     p.flag |= 2; m.flag |= 2;
   }
   // copy mate coordinate to alignment
@@ -370,7 +366,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
 
 // Single-End
 // universal_mreg is the arbitrarily selected mate reg to pair with every reg in regs
-void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, const mem_alnreg_t *universal_mreg) {
+void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, const mem_alnreg_t *universal_mreg, mem_pestat_t *pes) {
 
   /* if (!(opt->flag & MEM_F_ALL)) // output all alignments, hence no need to output alternatives */
   /*   mem_gen_alt(opt, bns, pac, s, regs); */
@@ -418,17 +414,15 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   // output, note each read's output depends on the cigar of other reads
   unsigned i;
   for (i = 0; i < to_output.n; ++i)
-    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &regs->a[to_output.a[i]], universal_mreg, regs, !k, NULL);
+    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &regs->a[to_output.a[i]], universal_mreg, regs, !k, pes);
   kv_destroy(to_output);
   
-  mem_alnreg_freeSAM(regs);
-
   // string output to s->sam
   if (l == 0) { // unmapped read
     mem_alnreg_t reg; memset(&reg, 0, sizeof(mem_alnreg_t));
     reg.rid = -1;
     reg.flag |= 0x4;
-    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &reg, universal_mreg, regs, 1, NULL);
+    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &reg, universal_mreg, regs, 1, pes);
   }
   s->sam = str.s;
 }
@@ -539,8 +533,6 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       // aa[i][n_aa[i]++] = g[i];
     }
     s[i].sam = strdup(str.s); str.l = 0;
-
-    mem_alnreg_freeSAM(&regs_pair[i]);
   }
 
   mem_alnreg_t *best[2] = {0,0};
@@ -552,16 +544,19 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   // 3) best alnreg primary or non-primary
   for (i = 0; i < 2; ++i) {
     mem_alnreg_v *regs = regs_pair + i;
-    best[i] = &regs->a[0];
-    if (best[i]->score < opt->T && 
-        regs_pair[i].n_pri < regs->n && 
-        regs->a[regs_pair[i].n_pri].score >= opt->T)
-      best[i] = regs->a + regs_pair[i].n_pri;
+    if (regs->n > 0) {
+      best[i] = &regs->a[0];
+      if (best[i]->score < opt->T && 
+          regs_pair[i].n_pri < regs->n && 
+          regs->a[regs_pair[i].n_pri].score >= opt->T)
+        best[i] = regs->a + regs_pair[i].n_pri;
+      mem_alnreg_setSAM(opt, bns, pac, &s[i], best[i]);
+    } else best[i] = NULL;
   }
 
   // output
   for (i = 0; i < 2; ++i)
-    mem_reg2sam_se(opt, bns, pac, &s[i], &regs_pair[i], best[!i]);
+    mem_reg2sam_se(opt, bns, pac, &s[i], &regs_pair[i], best[!i], &pes);
 
   /* if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name); */
   return;

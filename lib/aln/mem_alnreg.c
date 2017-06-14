@@ -32,34 +32,6 @@
 #include "kvec.h"
 #include "utils.h"
 
-/**
- * instead of outputing sam, output tab-delimited table of aligned region
- * currently for debugging only */
-void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a) {
-  uint32_t i;
-
-  kstring_t str = {0,0,0};
-  for (i = 0; i < a->n; ++i) {
-    const mem_alnreg_t *p = &a->a[i];
-    int is_rev, rid, qb = p->qb, qe = p->qe;
-    int64_t pos, rb = p->rb, re = p->re;
-    pos = bns_depos(bns, rb < bns->l_pac? rb : re - 1, &is_rev);
-    rid = bns_pos2rid(bns, pos);
-    assert(rid == p->rid);
-    pos -= bns->anns[rid].offset;
-    kputs(s->name, &str); kputc('\t', &str);
-    kputw(s->l_seq, &str); kputc('\t', &str);
-    if (is_rev) qb ^= qe, qe ^= qb, qb ^= qe; // swap
-    kputw(qb, &str); kputc('\t', &str); kputw(qe, &str); kputc('\t', &str);
-    kputs(bns->anns[rid].name, &str); kputc('\t', &str);
-    kputw(bns->anns[rid].len, &str); kputc('\t', &str);
-    kputw(pos, &str); kputc('\t', &str); kputw(pos + (re - rb), &str); kputc('\t', &str);
-    ksprintf(&str, "%.3f", (double)p->truesc / opt->a / (qe - qb > re - rb? qe - qb : re - rb));
-    kputc('\n', &str);
-  }
-  s->sam = str.s;
-}
-
 /**********************
  * Merge mem_alnreg_t *
  **********************/
@@ -75,16 +47,16 @@ KSORT_INIT(mem_ars, mem_alnreg_t, alnreg_slt)
 #define PATCH_MAX_R_BW 0.05f
 #define PATCH_MIN_SC_RATIO 0.90f
 
-/* return the score for concatenating mem_alnreg_t *a and mem_alnreg_t *b
- * previously called mem_patch_reg */
-static int mem_test_reg_concatenation(
-    const mem_opt_t *opt,    // options
-    const bntseq_t *bns,     // reference info
-    const uint8_t *pac,      // reference
-    uint8_t *query,          // read sequence
-    const mem_alnreg_t *a,   // reg to merge, left on query
-    const mem_alnreg_t *b,   // reg to merge, right on query
-    int *_w) {
+/* opt - options
+   bns - reference meta
+   pac - reference
+   query - read sequence
+   a - reg to merge, left on query
+   b - reg to merge, right on query
+   previously called mem_patch_reg
+
+   return the score for concatenating mem_alnreg_t *a and mem_alnreg_t *b */
+static int mem_test_reg_concatenation(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, const mem_alnreg_t *a, const mem_alnreg_t *b, int *_w) {
 
   if (bns == 0 || pac == 0 || query == 0) return 0;
 
@@ -132,7 +104,7 @@ static int mem_test_reg_concatenation(
 }
 
 /* sort deduplicate mem_alnreg_v 
- * Note when used with bns==pac==query==0, there is no merge */
+   Note when used with bns==pac==query==0, there is no merge */
 void mem_sort_deduplicate(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint8_t *query, mem_alnreg_v *regs) {
 
   if (regs->n <= 1)
@@ -238,15 +210,14 @@ void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
     mem_test_and_remove_exact(opt, regs, bseq->l_seq);
 
   if (bwa_verbose >= 4) {
-    err_printf("* %ld alnreg remain after merging duplicated alnreg's\n", regs->n);
+    err_printf("* %ld regions remain after merging duplicated regions\n", regs->n);
     for (i = 0; i < regs->n; ++i) {
       mem_alnreg_t *p = &regs->a[i];
       printf("** %d, [%d,%d) <=> [%ld,%ld)\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re);
     }
   }
 
-  /* if the reference is an alternative chromosome,
-   * the alignment is automatically alternative */
+  /* region is on ALT chromosomes */
   for (i = 0; i < regs->n; ++i) {
     mem_alnreg_t *p = &regs->a[i];
     if (p->rid >= 0 && bns->anns[p->rid].is_alt)
@@ -405,11 +376,9 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   int64_t l_pac = bns->l_pac;
   int i;
   for (i=0; (unsigned) i<mregs->n; ++i) { // if proper pair already exists
-    int isrev1; int64_t pos1 = bns_depos(bns, reg->rb, &isrev1);
-    int isrev2; int64_t pos2 = bns_depos(bns, mregs->a[i].rb, &isrev2);
     int64_t is;
-    if (mem_infer_is(pos1, pos2, isrev1, isrev2, &is) && is >= pes.low && is <= pes.high)
-      continue;
+    if (mem_alnreg_isize(bns, reg, &mregs->a[i], &is) && is >= pes.low && is <= pes.high)
+      return;
   }
 
   int read_is_rev = reg->rb >= l_pac;
@@ -502,4 +471,33 @@ void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
   free(good_regs_pair[0].a); free(good_regs_pair[1].a);
 }
 
+/****************
+ * Table Output *
+ ****************/
 
+/* instead of outputing sam, output tab-delimited table of aligned region
+   currently for debugging only */
+void mem_reg2ovlp(const mem_opt_t *opt, const bntseq_t *bns, bseq1_t *s, mem_alnreg_v *a) {
+  uint32_t i;
+
+  kstring_t str = {0,0,0};
+  for (i = 0; i < a->n; ++i) {
+    const mem_alnreg_t *p = &a->a[i];
+    int is_rev, rid, qb = p->qb, qe = p->qe;
+    int64_t pos, rb = p->rb, re = p->re;
+    pos = bns_depos(bns, rb < bns->l_pac? rb : re - 1, &is_rev);
+    rid = bns_pos2rid(bns, pos);
+    assert(rid == p->rid);
+    pos -= bns->anns[rid].offset;
+    kputs(s->name, &str); kputc('\t', &str);
+    kputw(s->l_seq, &str); kputc('\t', &str);
+    if (is_rev) qb ^= qe, qe ^= qb, qb ^= qe; // swap
+    kputw(qb, &str); kputc('\t', &str); kputw(qe, &str); kputc('\t', &str);
+    kputs(bns->anns[rid].name, &str); kputc('\t', &str);
+    kputw(bns->anns[rid].len, &str); kputc('\t', &str);
+    kputw(pos, &str); kputc('\t', &str); kputw(pos + (re - rb), &str); kputc('\t', &str);
+    ksprintf(&str, "%.3f", (double)p->truesc / opt->a / (qe - qb > re - rb? qe - qb : re - rb));
+    kputc('\n', &str);
+  }
+  s->sam = str.s;
+}

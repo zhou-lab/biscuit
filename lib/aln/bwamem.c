@@ -252,8 +252,10 @@ static void bis_worker2(void *data, int i, int tid) {
     } else {			/* output sam */
       mem_mark_primary_se(w->opt, &w->regs[i], w->n_processed + i);
       mem_alnreg_resetFLAG(&w->regs[i]);
-      mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], NULL);
+      mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], NULL, NULL);
     }
+
+    mem_alnreg_freeSAM(&w->regs[i]);
     free(w->regs[i].a);
   } else {			/* paired-end */
     if (bwa_verbose >= 4)
@@ -267,6 +269,9 @@ static void bis_worker2(void *data, int i, int tid) {
     mem_alnreg_resetFLAG(&w->regs[i<<1|0]);
     mem_alnreg_resetFLAG(&w->regs[i<<1|1]);
     mem_reg2sam_pe(w->opt, w->bns, w->pac, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1], w->pes);
+
+    mem_alnreg_freeSAM(&w->regs[i<<1|0]);
+    mem_alnreg_freeSAM(&w->regs[i<<1|1]);
     free(w->regs[i<<1|0].a); free(w->regs[i<<1|1].a);
   }
 }
@@ -307,7 +312,7 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   /***** Step 2: Obtain PE statistics *****/
   if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
     if (pes0) w.pes = *pes0;
-    else w.pes = mem_pestat(opt, n, w.regs);
+    else w.pes = mem_pestat(opt, w.bns, n, w.regs);
     /* if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0 */
     /* else w.pes = mem_pestat(opt, n, w.regs); // otherwise, infer the insert size distribution from data */
   }
