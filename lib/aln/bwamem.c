@@ -93,8 +93,7 @@ mem_opt_t *mem_opt_init() {
  * Integrated interface *
  ************************/
 
-int mem_approx_mapq_se(const mem_opt_t *opt, const mem_alnreg_t *a)
-{
+int mem_approx_mapq_se(const mem_opt_t *opt, const mem_alnreg_t *a) {
   int mapq, l, sub = a->sub? a->sub : opt->min_seed_len * opt->a;
   double identity;
   sub = a->csub > sub? a->csub : sub;
@@ -298,10 +297,9 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   /* w.pes = pes; // isn't this shared across all threads? */
 
   /***** Step 1: Generate mapping position *****/
-  /* w.intv_cache[i] is used by thread i only */
   w.intv_cache = malloc(opt->n_threads * sizeof(bwtintv_cache_t));
   for (i = 0; i < opt->n_threads; ++i)
-    w.intv_cache[i] = bwtintv_cache_init();
+    w.intv_cache[i] = bwtintv_cache_init(); // w.intv_cache[i] is used by thread i only
 
   kt_for(opt->n_threads, bis_worker1, &w, (opt->flag&MEM_F_PE)? n>>1 : n);
 
@@ -313,8 +311,6 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
     if (pes0) w.pes = *pes0;
     else w.pes = mem_pestat(opt, w.bns, n, w.regs);
-    /* if (pes0) memcpy(pes, pes0, 4 * sizeof(mem_pestat_t)); // if pes0 != NULL, set the insert-size distribution as pes0 */
-    /* else w.pes = mem_pestat(opt, n, w.regs); // otherwise, infer the insert size distribution from data */
   }
 
   /***** Step 3: Pairing and generate mapping *****/
