@@ -210,10 +210,10 @@ static void mem_alnreg_tagSA(const mem_opt_t *opt, const bntseq_t *bns, const ui
 
 /*************************
  * format SAM
- *************************
- * mate is set at final stage because the mate might be asymmetric with alternative mappings
- * It doesn't not change the mem_alnreg_t inputs
  *************************/
+// mate is set at final stage because the mate might be asymmetric with alternative mappings
+// It doesn't not change the mem_alnreg_t inputs, since one alignment may be paired 
+// with multiple other alignments 
 void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,  kstring_t *str, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_t *m0, const mem_alnreg_v *regs0, int is_primary, mem_pestat_t *pes) {
 
   // make copies
@@ -364,20 +364,14 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
  * output SAM format in bseq1_t *s->sam *
  ****************************************/
 
-// Single-End
-// universal_mreg is the arbitrarily selected mate reg to pair with every reg in regs
-void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, const mem_alnreg_t *universal_mreg, mem_pestat_t *pes) {
+typedef kvec_t(int) int_v;
 
-  /* if (!(opt->flag & MEM_F_ALL)) // output all alignments, hence no need to output alternatives */
-  /*   mem_gen_alt(opt, bns, pac, s, regs); */
-  // mem_gen_sa
-
-  kstring_t str = {0,0,0};
+static int_v mem_alnreg_select_format(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs) {
 
   // set cigar, mapq etc.
   // only the first mapping is the primary mapping
   int l; unsigned k;
-  kvec_t(int) to_output;  kv_init(to_output);
+  int_v to_output;  kv_init(to_output);
   for (k = l = 0; k < regs->n; ++k) {
     mem_alnreg_t *p = regs->a + k;
 
@@ -411,20 +405,34 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     ++l;
   }
 
-  // output, note each read's output depends on the cigar of other reads
-  unsigned i;
-  for (i = 0; i < to_output.n; ++i)
-    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &regs->a[to_output.a[i]], universal_mreg, regs, !k, pes);
-  kv_destroy(to_output);
-  
+  return to_output;
+}
+
+// Single-End
+// universal_mreg is the arbitrarily selected mate reg to pair with every reg in regs
+void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs) {
+
+  /* if (!(opt->flag & MEM_F_ALL)) // output all alignments, hence no need to output alternatives */
+  /*   mem_gen_alt(opt, bns, pac, s, regs); */
+  // mem_gen_sa
+
+  kstring_t str = {0,0,0};
+  int_v to_output = mem_alnreg_select_format(opt, bns, pac, s, regs);
+
   // string output to s->sam
-  if (l == 0) { // unmapped read
+  if (to_output.n > 0) {
+    // output, note each read's output depends on the cigar of other reads
+    unsigned i;
+    for (i = 0; i < to_output.n; ++i)
+      mem_alnreg_formatSAM(opt, bns, pac, &str, s, &regs->a[to_output.a[i]], NULL, regs, !i, NULL);
+  } else { // unmapped read
     mem_alnreg_t reg; memset(&reg, 0, sizeof(mem_alnreg_t));
     reg.rid = -1;
-    reg.flag |= 0x4;
-    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &reg, universal_mreg, regs, 1, pes);
+    reg.flag = 0x4;
+    mem_alnreg_formatSAM(opt, bns, pac, &str, s, &reg, NULL, regs, 1, NULL);
   }
   s->sam = str.s;
+  kv_destroy(to_output);
 }
 
 // Paired-End
@@ -458,7 +466,6 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   if (pscore <= 0) goto NO_PAIRING;
   // opt->pen_unpaired - penalty for not pairing
   int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired;
-  kstring_t str; str.l = str.m = 0; str.s = 0;
   if (pscore > score_unpaired) { // use z for pairing
     // mapQ of pairing (q_pe)
     sub_pscore = max(sub_pscore, score_unpaired);
@@ -508,18 +515,13 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
   // write SAM
   for (i = 0; i < 2; ++i) {
-
-    /* if (!(opt->flag & MEM_F_ALL)) mem_gen_alt(opt, bns, pac, &s[i], &regs_pair[i]); */
-
+    kstring_t str = {0,0,0};
     mem_alnreg_t *reg = regs_pair[i].a + z[i];
     mem_alnreg_t *mreg = regs_pair[!i].a + z[!i];
     mem_alnreg_v *regs = &regs_pair[i];
 
     mem_alnreg_setSAM(opt, bns, pac, &s[i], reg);
     mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], reg, mreg, regs, 1, &pes);
-
-    // h[i].XA = XA[i]? XA[i][z[i]] : 0;
-    // aa[i][n_aa[i]++] = h[i];
 
     // output one ALT hit as unpaired mapping?
     if (regs->n_pri < regs->n) {
@@ -528,37 +530,46 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
       p->flag |= 0x800;
       mem_alnreg_setSAM(opt, bns, pac, &s[i], p);
       mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], p, NULL, regs, 0, &pes); // is mate none?
-      // g[i] = mem_reg2aln(opt, bns, pac, s[i].l_seq, s[i].seq, p);
-      // g[i].XA = XA[i]? XA[i][n_pri[i]] : 0;
-      // aa[i][n_aa[i]++] = g[i];
     }
-    s[i].sam = strdup(str.s); str.l = 0;
+    s[i].sam = str.s;
   }
 
   mem_alnreg_t *best[2] = {0,0};
+  int_v to_outputs[2];
+  mem_alnreg_t unmapped_reg[2]; // the "unmapped" alignment
  NO_PAIRING:                // pairing with the best in mate alignment
 
-  // looking for the best alnreg to pair in the following order
-  // 1) best primary chromosome alnrneg if the score > opt->T; 
-  // 2) best non-primary chromosome alnreg if the score > opt->T
-  // 3) best alnreg primary or non-primary
+  // looking for the best alnreg to pair
   for (i = 0; i < 2; ++i) {
     mem_alnreg_v *regs = regs_pair + i;
-    if (regs->n > 0) {
-      best[i] = &regs->a[0];
-      if (best[i]->score < opt->T && 
-          regs_pair[i].n_pri < regs->n && 
-          regs->a[regs_pair[i].n_pri].score >= opt->T)
-        best[i] = regs->a + regs_pair[i].n_pri;
-      mem_alnreg_setSAM(opt, bns, pac, &s[i], best[i]);
-    } else best[i] = NULL;
+    to_outputs[i] = mem_alnreg_select_format(opt, bns, pac, &s[i], regs);
+    if (to_outputs[i].n > 0) {
+      best[i] = &regs->a[to_outputs[i].a[0]];
+    } else {
+      memset(&unmapped_reg[i], 0, sizeof(mem_alnreg_t));
+      unmapped_reg[i].rid = -1; 
+      unmapped_reg[i].flag = 0x40<<i | 0x1 | 0x4;
+      best[i] = &unmapped_reg[i];
+    }
   }
 
   // output
-  for (i = 0; i < 2; ++i)
-    mem_reg2sam_se(opt, bns, pac, &s[i], &regs_pair[i], best[!i], &pes);
+  for (i = 0; i < 2; ++i) {
+    kstring_t str = {0,0,0};
+    mem_alnreg_v *regs = regs_pair + i;
+    if (to_outputs[i].n) {
+      for (j = 0; j < to_outputs[i].n; ++j) {
+        mem_alnreg_t *p = &regs->a[to_outputs[i].a[j]];
+        if (!best[!i]) p->flag |= 0x8; // distinguish unmapped mate from unpaired read
+        mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], &regs->a[to_outputs[i].a[j]], best[!i], regs, !j, &pes);
+      }
+    } else mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], best[i], best[!i], NULL, 1, &pes);
 
-  /* if (strcmp(s[0].name, s[1].name) != 0) err_fatal(__func__, "paired reads have different names: \"%s\", \"%s\"\n", s[0].name, s[1].name); */
+    s[i].sam = str.s;
+  }
+
+  for (i = 0; i < 2; ++i) kv_destroy(to_outputs[i]);
+
   return;
 }
 

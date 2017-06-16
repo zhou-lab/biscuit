@@ -138,7 +138,7 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
 void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_pestat_t pes, bseq1_t s[2], mem_alnreg_v regs_pair[2]);
   
 /* void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a, int extra_flag, const mem_aln_t *m); */
-void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs, const mem_alnreg_t *universal_mreg, mem_pestat_t *pes);
+void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs);
 void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t pes);
 
 static inline void mem_alnreg_freeSAM(mem_alnreg_v *regs) {

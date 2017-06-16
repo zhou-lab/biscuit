@@ -223,3 +223,6 @@ test_align4: biscuit
 test_align5: biscuit
 	./biscuit align -F -t 5 ~/references/hg19/biscuit/hg19.fa test/HumanBrainCpH/fastq_chr19/read1.fastq test/HumanBrainCpH/fastq_chr19/read2.fastq >test/HumanBrainCpH/1_dev
 
+
+
+

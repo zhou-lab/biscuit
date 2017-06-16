@@ -251,7 +251,7 @@ static void bis_worker2(void *data, int i, int tid) {
     } else {			/* output sam */
       mem_mark_primary_se(w->opt, &w->regs[i], w->n_processed + i);
       mem_alnreg_resetFLAG(&w->regs[i]);
-      mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i], NULL, NULL);
+      mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i]);
     }
 
     mem_alnreg_freeSAM(&w->regs[i]);

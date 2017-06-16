@@ -55,7 +55,10 @@ static void *process(void *shared, int step, void *_data) {
         ret->seqs[i].comment = 0;
       }
 
-    for (i = 0; i < ret->n_seqs; ++i) size += ret->seqs[i].l_seq;
+    for (i = 0; i < ret->n_seqs; ++i) {
+      ret->seqs[i].sam = 0;
+      size += ret->seqs[i].l_seq;
+    }
     
     if (bwa_verbose >= 3)
       fprintf(stderr, "[M::%s] read %d sequences (%ld bp)...\n", __func__, ret->n_seqs, (long)size);
