@@ -631,55 +631,55 @@ int64_t bis_bns_fasta2bntseq(gzFile fp_fa, const char *prefix, uint8_t parent) {
   return l;
 }
 
-int64_t dump_forward_pac(gzFile fp_fa, const char *prefix)
-{
-	extern void seq_reverse(int len, ubyte_t *seq, int is_comp); // in bwaseqio.c
-	kseq_t *seq;
-	char name[1024];
-	bntseq_t *bns;
-	uint8_t *pac = 0;
-	int32_t m_seqs, m_holes;
-	int64_t ret = -1, m_pac;
-	bntamb1_t *q;
-	FILE *fp;
+int64_t dump_forward_pac(gzFile fp_fa, const char *prefix) {
 
-	// initialization
-	seq = kseq_init(fp_fa);
-	bns = (bntseq_t*)calloc(1, sizeof(bntseq_t));
-	bns->seed = 11; // fixed seed for random generator
-	srand48(bns->seed);
-	m_seqs = m_holes = 8; m_pac = 0x10000;
-	bns->anns = (bntann1_t*)calloc(m_seqs, sizeof(bntann1_t));
-	bns->ambs = (bntamb1_t*)calloc(m_holes, sizeof(bntamb1_t));
-	pac = calloc(m_pac/4, 1);
-	q = bns->ambs;
-	strcpy(name, prefix); strcat(name, ".bis.pac");
-	fp = xopen(name, "wb");
-	// read sequences
-	while (kseq_read(seq) >= 0) pac = add1(seq, bns, pac, &m_pac, &m_seqs, &m_holes, &q);
+  extern void seq_reverse(int len, ubyte_t *seq, int is_comp); // in bwaseqio.c
+  kseq_t *seq;
+  char name[1024];
+  bntseq_t *bns;
+  uint8_t *pac = 0;
+  int32_t m_seqs, m_holes;
+  int64_t ret = -1, m_pac;
+  bntamb1_t *q;
+  FILE *fp;
 
-	ret = bns->l_pac;
-	{ // finalize .pac file
-		ubyte_t ct;
-		err_fwrite(pac, 1, (bns->l_pac>>2) + ((bns->l_pac&3) == 0? 0 : 1), fp);
-		// the following codes make the pac file size always (l_pac/4+1+1)
-		if (bns->l_pac % 4 == 0) {
-			ct = 0;
-			err_fwrite(&ct, 1, 1, fp);
-		}
-		ct = bns->l_pac % 4;
-		err_fwrite(&ct, 1, 1, fp);
-		// close .pac file
-		err_fflush(fp);
-		err_fclose(fp);
-	}
+  // initialization
+  seq = kseq_init(fp_fa);
+  bns = (bntseq_t*)calloc(1, sizeof(bntseq_t));
+  bns->seed = 11; // fixed seed for random generator
+  srand48(bns->seed);
+  m_seqs = m_holes = 8; m_pac = 0x10000;
+  bns->anns = (bntann1_t*)calloc(m_seqs, sizeof(bntann1_t));
+  bns->ambs = (bntamb1_t*)calloc(m_holes, sizeof(bntamb1_t));
+  pac = calloc(m_pac/4, 1);
+  q = bns->ambs;
+  strcpy(name, prefix); strcat(name, ".bis.pac");
+  fp = xopen(name, "wb");
+  // read sequences
+  while (kseq_read(seq) >= 0) pac = add1(seq, bns, pac, &m_pac, &m_seqs, &m_holes, &q);
+
+  ret = bns->l_pac;
+  { // finalize .pac file
+    ubyte_t ct;
+    err_fwrite(pac, 1, (bns->l_pac>>2) + ((bns->l_pac&3) == 0? 0 : 1), fp);
+    // the following codes make the pac file size always (l_pac/4+1+1)
+    if (bns->l_pac % 4 == 0) {
+      ct = 0;
+      err_fwrite(&ct, 1, 1, fp);
+    }
+    ct = bns->l_pac % 4;
+    err_fwrite(&ct, 1, 1, fp);
+    // close .pac file
+    err_fflush(fp);
+    err_fclose(fp);
+  }
   /* re-dump forward bis bns, otherwise the .bis.ann and .bis.amb have twice as long pac  */
   /* strcpy(name, prefix); strcat(name, ".bis"); */
   /* bis_bns_dump(bns, prefix); */
 
   bns_destroy(bns);
-	kseq_destroy(seq);
-	free(pac);
-	return ret;
+  kseq_destroy(seq);
+  free(pac);
+  return ret;
 }
 
