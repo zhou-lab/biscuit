@@ -176,13 +176,14 @@ int main_align(int argc, char *argv[]) {
   char *p, *rg_line = 0, *hdr_line = 0;
   const char *mode = 0;
   void *ko = 0, *ko2 = 0;
-  mem_pestat_t pes[4];
+  //mem_pestat_t pes[4];
   ktp_aux_t aux;
 
   memset(&aux, 0, sizeof(ktp_aux_t));
-  memset(pes, 0, 4 * sizeof(mem_pestat_t));
-  for (i = 0; i < 4; ++i) pes[i].failed = 1;
+  //memset(pes, 0, 4 * sizeof(mem_pestat_t));
+  //for (i = 0; i < 4; ++i) pes[i].failed = 1;
 
+  aux.pes0 = NULL;
   aux.opt = opt = mem_opt_init();
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
   memset(&opt0, 0, sizeof(mem_opt_t));
@@ -266,24 +267,24 @@ int main_align(int argc, char *argv[]) {
         }
       } else hdr_line = bwa_insert_header(optarg, hdr_line);
     } else if (c == 'I') { // specify the insert size distribution
-      aux.pes0 = pes;
-      pes[1].failed = 0;
-      pes[1].avg = strtod(optarg, &p);
-      pes[1].std = pes[1].avg * .1;
+      mem_pestat_t *pes = calloc(1, sizeof(mem_pestat_t));
+      pes->avg = strtod(optarg, &p);
+      pes->avg = strtod(optarg, &p);
+      pes->std = pes->avg * .1;
       if (*p != 0 && ispunct(*p) && isdigit(p[1]))
-        pes[1].std = strtod(p+1, &p);
-      pes[1].high = (int)(pes[1].avg + 4. * pes[1].std + .499);
-      pes[1].low  = (int)(pes[1].avg - 4. * pes[1].std + .499);
-      if (pes[1].low < 1) pes[1].low = 1;
+        pes->std = strtod(p+1, &p);
+      pes->high = (int)(pes->avg + 4. * pes->std + .499);
+      pes->low  = (int)(pes->avg - 4. * pes->std + .499);
+      //if (pes->low < 1) pes->low = 1;
       if (*p != 0 && ispunct(*p) && isdigit(p[1]))
-        pes[1].high = (int)(strtod(p+1, &p) + .499);
+        pes->high = (int)(strtod(p+1, &p) + .499);
       if (*p != 0 && ispunct(*p) && isdigit(p[1]))
-        pes[1].low  = (int)(strtod(p+1, &p) + .499);
+        pes->low  = (int)(strtod(p+1, &p) + .499);
       if (bwa_verbose >= 3)
         fprintf(stderr, "[M::%s] mean insert size: %.3f, stddev: %.3f, max: %d, min: %d\n",
-                __func__, pes[1].avg, pes[1].std, pes[1].high, pes[1].low);
-    }
-    else return 1;
+                __func__, pes->avg, pes->std, pes->high, pes->low);
+      aux.pes0 = pes;
+    } else return 1;
   }
 
   if (rg_line) {
@@ -438,6 +439,7 @@ int main_align(int argc, char *argv[]) {
   bwa_idx_destroy(aux.idx);
   kseq_destroy(aux.ks);
   err_gzclose(fp); kclose(ko);
+  free(aux.pes0);
   if (aux.ks2) {
     kseq_destroy(aux.ks2);
     err_gzclose(fp2); kclose(ko2);

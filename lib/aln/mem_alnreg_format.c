@@ -436,6 +436,47 @@ void mem_reg2sam_se(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 }
 
 // Paired-End
+// pairing with the best in mate alignment
+void mem_reg2sam_pe_nopairing(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t pes) {
+
+  mem_alnreg_t *best[2] = {0,0};
+  int_v to_outputs[2];
+  mem_alnreg_t unmapped_reg[2]; // the "unmapped" alignment
+
+  // looking for the best alnreg to pair
+  int i;
+  for (i = 0; i < 2; ++i) {
+    mem_alnreg_v *regs = regs_pair + i;
+    to_outputs[i] = mem_alnreg_select_format(opt, bns, pac, &s[i], regs);
+    if (to_outputs[i].n > 0) {
+      best[i] = &regs->a[to_outputs[i].a[0]];
+    } else {
+      memset(&unmapped_reg[i], 0, sizeof(mem_alnreg_t));
+      unmapped_reg[i].rid = -1; 
+      unmapped_reg[i].flag = 0x40<<i | 0x1 | 0x4;
+      best[i] = &unmapped_reg[i];
+    }
+  }
+
+  // output
+  for (i = 0; i < 2; ++i) {
+    kstring_t str = {0,0,0};
+    mem_alnreg_v *regs = regs_pair + i;
+    if (to_outputs[i].n) {
+      unsigned j;
+      for (j = 0; j < to_outputs[i].n; ++j) {
+        mem_alnreg_t *p = &regs->a[to_outputs[i].a[j]];
+        if (!best[!i]) p->flag |= 0x8; // distinguish unmapped mate from unpaired read
+        mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], &regs->a[to_outputs[i].a[j]], best[!i], regs, !j, &pes);
+      }
+    } else mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], best[i], best[!i], NULL, 1, &pes);
+
+    s[i].sam = str.s;
+  }
+
+  for (i = 0; i < 2; ++i) kv_destroy(to_outputs[i]);
+}
+
 #define raw_mapq(diff, a) ((int)(6.02 * (diff) / (a) + .499))
 void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t pes) {
 
@@ -445,8 +486,8 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     for (k = 0; k<regs_pair[i].n; ++k)
       regs_pair[i].a[k].flag |= (0x40 << i) | 1; // set which is read1/2
   
-  if (opt->flag & MEM_F_NOPAIRING) goto NO_PAIRING;
-  if (regs_pair[0].n_pri == 0 || regs_pair[1].n_pri == 0) goto NO_PAIRING;
+  if (opt->flag & MEM_F_NOPAIRING) return mem_reg2sam_pe_nopairing(opt, bns, pac, s, regs_pair, pes);
+  if (regs_pair[0].n_pri == 0 || regs_pair[1].n_pri == 0) return mem_reg2sam_pe_nopairing(opt, bns, pac, s, regs_pair, pes);
 
   // check if an end has multiple hits even after mate-SW, skip pairing if the case
   int is_multi[2]; unsigned j;
@@ -457,13 +498,13 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     is_multi[i] = j < regs_pair[i].n_pri ? 1 : 0;
   }
   // TODO: in rare cases, the true hit may be long but with low score
-  if (is_multi[0] || is_multi[1]) goto NO_PAIRING;
+  if (is_multi[0] || is_multi[1]) return mem_reg2sam_pe_nopairing(opt, bns, pac, s, regs_pair, pes);
 
   // Actual pairing and set mapQ
   int pscore, sub_pscore; // best and 2nd best pairing score
   int n_subpairings; int z[2];
   mem_pair(opt, bns, pes, regs_pair, id, &pscore, &sub_pscore, &n_subpairings, z);
-  if (pscore <= 0) goto NO_PAIRING;
+  if (pscore <= 0) return mem_reg2sam_pe_nopairing(opt, bns, pac, s, regs_pair, pes);
   // opt->pen_unpaired - penalty for not pairing
   int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired;
   if (pscore > score_unpaired) { // use z for pairing
@@ -513,63 +554,29 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     }
   }
 
+  // set SAM
+  for (i = 0; i < 2; ++i)
+    mem_alnreg_setSAM(opt, bns, pac, &s[i], &regs_pair[i].a[z[i]]);
+
   // write SAM
   for (i = 0; i < 2; ++i) {
     kstring_t str = {0,0,0};
+    mem_alnreg_v *regs = &regs_pair[i];
     mem_alnreg_t *reg = regs_pair[i].a + z[i];
     mem_alnreg_t *mreg = regs_pair[!i].a + z[!i];
-    mem_alnreg_v *regs = &regs_pair[i];
 
-    mem_alnreg_setSAM(opt, bns, pac, &s[i], reg);
     mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], reg, mreg, regs, 1, &pes);
 
     // output one ALT hit as unpaired mapping?
     if (regs->n_pri < regs->n) {
       mem_alnreg_t *p = &regs->a[regs->n_pri]; // output the best ALT hit
-      if (p->score < opt->T || p->secondary >= 0 || !p->is_alt) continue;
-      p->flag |= 0x800;
-      mem_alnreg_setSAM(opt, bns, pac, &s[i], p);
-      mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], p, NULL, regs, 0, &pes); // is mate none?
-    }
-    s[i].sam = str.s;
-  }
-
-  mem_alnreg_t *best[2] = {0,0};
-  int_v to_outputs[2];
-  mem_alnreg_t unmapped_reg[2]; // the "unmapped" alignment
- NO_PAIRING:                // pairing with the best in mate alignment
-
-  // looking for the best alnreg to pair
-  for (i = 0; i < 2; ++i) {
-    mem_alnreg_v *regs = regs_pair + i;
-    to_outputs[i] = mem_alnreg_select_format(opt, bns, pac, &s[i], regs);
-    if (to_outputs[i].n > 0) {
-      best[i] = &regs->a[to_outputs[i].a[0]];
-    } else {
-      memset(&unmapped_reg[i], 0, sizeof(mem_alnreg_t));
-      unmapped_reg[i].rid = -1; 
-      unmapped_reg[i].flag = 0x40<<i | 0x1 | 0x4;
-      best[i] = &unmapped_reg[i];
-    }
-  }
-
-  // output
-  for (i = 0; i < 2; ++i) {
-    kstring_t str = {0,0,0};
-    mem_alnreg_v *regs = regs_pair + i;
-    if (to_outputs[i].n) {
-      for (j = 0; j < to_outputs[i].n; ++j) {
-        mem_alnreg_t *p = &regs->a[to_outputs[i].a[j]];
-        if (!best[!i]) p->flag |= 0x8; // distinguish unmapped mate from unpaired read
-        mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], &regs->a[to_outputs[i].a[j]], best[!i], regs, !j, &pes);
+      if (p->score >= opt->T && p->secondary < 0) {
+        p->flag |= 0x800;
+        mem_alnreg_setSAM(opt, bns, pac, &s[i], p);
+        mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], p, NULL, regs, 0, &pes); // is mate none?
       }
-    } else mem_alnreg_formatSAM(opt, bns, pac, &str, &s[i], best[i], best[!i], NULL, 1, &pes);
-
+    }
     s[i].sam = str.s;
   }
-
-  for (i = 0; i < 2; ++i) kv_destroy(to_outputs[i]);
-
-  return;
 }
 
