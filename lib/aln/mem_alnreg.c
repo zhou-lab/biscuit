@@ -94,7 +94,7 @@ static int mem_test_reg_concatenation(const mem_opt_t *opt, const bntseq_t *bns,
   // predicted score from ref
   int r_s = (int)((double)(b->re - a->rb) / ((b->re - b->rb) + (a->re - a->rb)) * (b->score + a->score) + .499);
 
-  if (bwa_verbose >= 4) printf("* score=%d;(%d,%d)\n", score, q_s, r_s);
+  if (bwa_verbose >= 4) printf("[%s] score=%d;(%d,%d)\n", __func__, score, q_s, r_s);
 
   if ((double) score / max(q_s, r_s) < PATCH_MIN_SC_RATIO) return 0;
 
@@ -210,7 +210,7 @@ void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
     mem_test_and_remove_exact(opt, regs, bseq->l_seq);
 
   if (bwa_verbose >= 4) {
-    err_printf("* %ld regions remain after merging duplicated regions\n", regs->n);
+    printf("[%s] %ld regions remain after merging duplicated regions\n", __func__, regs->n);
     mem_print_regions(bns, regs);
   }
 
@@ -284,6 +284,11 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
   if (regs->n == 0) return;
 
+  if (bwa_verbose >= 5) {
+    printf("[%s] Before marking\n", __func__);
+    mem_print_regions(NULL, regs);
+  }
+
   // initiate the default of secondary labels
   int i;
   for (i = regs->n_pri = 0; (unsigned) i < regs->n; ++i) {
@@ -303,10 +308,8 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
   mem_mark_primary_se_core(opt, (int) regs->n, regs, &z);
 
   if (bwa_verbose >= 5) {
-    for (i=0; i<regs->n; ++i) {
-      mem_alnreg_t *p = regs->a + i;
-      printf("in-marking (round1): %ld - %d\n", p->rb, p->secondary);
-    }
+    printf("[%s] 1st round marking\n", __func__); 
+    mem_print_regions(NULL, regs);
   }
 
   /* set alt_sc - the score of primary mapping if it's on
@@ -361,10 +364,8 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
 
   if (bwa_verbose >= 5) {
-    for (i=0; i<regs->n; ++i) {
-      mem_alnreg_t *p = regs->a + i;
-      printf("in-marking (round2): %ld - %d\n", p->rb, p->secondary);
-    }
+    printf("[%s] 2nd round marking\n", __func__);
+    mem_print_regions(NULL, regs);
   }
   free(z.a);
   return;
@@ -393,8 +394,6 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
       return;
   }
 
-  int read_is_rev = reg->rb >= l_pac;
-  //int mate_is_rev = !read_is_rev;
   /* int is_larger = mate_is_rev; // whether the mate has larger coordinate */
 
   /* make the mate read sequence opposite to the direction of the primary read */
@@ -426,11 +425,10 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   int xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
   kswr_t aln = ksw_align2(l_ms, mate_seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
 
-    /* if (bwa_verbose >= 5) { */
-    /*   printf("[%s] TryAdding matesw-ed region %ld-%ld. %d,%d\n", __func__, rb, re, l_ms, read_is_rev); */
-    /*   mem_print_region1(bns, reg); */
-    /*   printf("score %d\n", aln.score); */
-    /* } */
+  if (bwa_verbose >= 6) {
+    printf("===== [%s] Try adding matesw-ed region %ld-%ld. score:%d\n", __func__, rb, re, aln.score);
+    mem_print_region1(bns, reg);
+  }
   /* make mate mem_alnreg_t b */
   if (aln.score >= opt->min_seed_len && aln.qb >= 0) { // something goes wrong if aln.qb < 0
 
@@ -453,10 +451,10 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
     b.seedcov = min(b.re-b.rb, b.qe-b.qb) >> 1;
     b.bss = reg->bss;
 
-    if (bwa_verbose >= 5) {
-      printf("[%s] Adding matesw-ed region:\n", __func__);
+    if (bwa_verbose >= 6) {
+      printf("[%s] Add matesw-ed region:\n", __func__);
       mem_print_region1(bns, &b);
-      printf("[%s] for:\n", __func__);
+      printf("[%s] for original alignment:\n", __func__);
       mem_print_region1(bns, reg);
     }
 

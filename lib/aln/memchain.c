@@ -163,18 +163,18 @@ void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn) {
   uint32_t i; int j;
   for (i = 0; i < chn->n; ++i) {
     mem_chain_t *p = &chn->a[i];
-    err_printf("* Found CHAIN(%d): n=%d; weight=%d", i, p->n, mem_chain_weight(p));
+    printf("* Found CHAIN(%d): n=%d; weight=%d", i, p->n, mem_chain_weight(p));
     for (j = 0; j < p->n; ++j) {
       bwtint_t pos;
       int is_rev;
       pos = bns_depos(bns, p->seeds[j].rbeg, &is_rev);
       if (is_rev) pos -= p->seeds[j].len - 1;
-      err_printf("\t%d;%d;%d,%ld(%s:%c%ld)",
-		 p->seeds[j].score, p->seeds[j].len, p->seeds[j].qbeg,
-		 (long)p->seeds[j].rbeg, bns->anns[p->rid].name,
-		 "+-"[is_rev], (long)(pos - bns->anns[p->rid].offset) + 1);
+      printf("\t%d;%d;%d,%ld(%s:%c%ld)",
+             p->seeds[j].score, p->seeds[j].len, p->seeds[j].qbeg,
+             (long)p->seeds[j].rbeg, bns->anns[p->rid].name,
+             "+-"[is_rev], (long)(pos - bns->anns[p->rid].offset) + 1);
     }
-    err_putchar('\n');
+    putchar('\n');
   }
 }
 
@@ -330,7 +330,7 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 #undef traverse_func
 
   for (i = 0; i < chain.n; ++i) chain.a[i].frac_rep = (float)l_rep / bseq->l_seq;
-  if (bwa_verbose >= 4) printf("* fraction of repetitive seeds: %.3f\n", (float)l_rep / bseq->l_seq);
+  if (bwa_verbose >= 4) printf("[%s] fraction of repetitive seeds: %.3f\n", __func__, (float)l_rep / bseq->l_seq);
 
   kb_destroy(chn, tree);
   return chain;
@@ -574,14 +574,16 @@ static void left_extend_seed_set_align_beg(
 
     if (bwa_verbose >= 4) {
       int j;
-      printf("*** Left ref:   "); for (j = 0; j < tmp; ++j) putchar("ACGTN"[(int)rs[j]]); putchar('\n');
-      printf("*** Left query: "); for (j = 0; j < s->qbeg; ++j) putchar("ACGTN"[(int)qs[j]]); putchar('\n');
+      printf("*** [%s] Left ref:   ", __func__); 
+      for (j = 0; j < tmp; ++j) putchar("ACGTN"[(int)rs[j]]); putchar('\n');
+      printf("*** [%s] Left query: ", __func__);
+      for (j = 0; j < s->qbeg; ++j) putchar("ACGTN"[(int)qs[j]]); putchar('\n');
     }
 
     int max_off; // max off diagonal distance
     ar->score = ksw_extend2(s->qbeg, qs, tmp, rs, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, *aw, opt->pen_clip5, opt->zdrop, s->len * opt->a, &qle, &tle, &gtle, &gscore, &max_off);
 
-    if (bwa_verbose >= 4) { printf("*** Left extension: prev_score=%d; score=%d; bandwidth=%d; max_off_diagonal_dist=%d\n", prev, ar->score, *aw, max_off); fflush(stdout); }
+    if (bwa_verbose >= 4) { printf("*** [%s] Left extension: prev_score=%d; score=%d; bandwidth=%d; max_off_diagonal_dist=%d\n", __func__, prev, ar->score, *aw, max_off); fflush(stdout); }
 
     if (ar->score == prev || max_off < (*aw>>1) + (*aw>>2)) break;
   }
@@ -631,14 +633,16 @@ static void right_extend_seed_set_align_end(
 
     if (bwa_verbose >= 4) {
       int j;
-      printf("*** Right ref:   "); for (j = 0; j < rmax[1] - rmax[0] - re; ++j) putchar("ACGTN"[(int)rseq[re+j]]); putchar('\n');
-      printf("*** Right query: "); for (j = 0; j < l_query - qe; ++j) putchar("ACGTN"[(int)query[qe+j]]); putchar('\n');
+      printf("*** [%s] Right ref:   ", __func__);
+      for (j = 0; j < rmax[1] - rmax[0] - re; ++j) putchar("ACGTN"[(int)rseq[re+j]]); putchar('\n');
+      printf("*** [%s] Right query: ", __func__);
+      for (j = 0; j < l_query - qe; ++j) putchar("ACGTN"[(int)query[qe+j]]); putchar('\n');
     }
 
     int max_off;  // max off-diagonal distance
     ar->score = ksw_extend2(l_query - qe, query + qe, rmax[1] - rmax[0] - re, rseq + re, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, *aw, opt->pen_clip3, opt->zdrop, sc0, &qle, &tle, &gtle, &gscore, &max_off);
 
-    if (bwa_verbose >= 4) { printf("*** Right extension: prev_score=%d; score=%d; bandwidth=%d; max_off_diagonal_dist=%d\n", prev, ar->score, *aw, max_off); fflush(stdout); }
+    if (bwa_verbose >= 4) { printf("*** [%s] Right extension: prev_score=%d; score=%d; bandwidth=%d; max_off_diagonal_dist=%d\n", __func__, prev, ar->score, *aw, max_off); fflush(stdout); }
 
     if (ar->score == prev || max_off < (*aw>>1) + (*aw>>2)) break;
   }
@@ -724,8 +728,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
     if (u < regs->n) {
 
       if (bwa_verbose >= 4)
-        printf("** Seed(%d) [%ld;%ld,%ld] is almost contained in an existing alignment [%d,%d) <=> [%ld,%ld)\n",
-            k, (long)s->len, (long)s->qbeg, (long)s->rbeg, regs->a[u].qb, regs->a[u].qe, (long)regs->a[u].rb, (long)regs->a[u].re);
+        printf("** [%s] Seed(%d) [%ld;%ld,%ld] is almost contained in an existing alignment [%d,%d) <=> [%ld,%ld)\n", __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg, regs->a[u].qb, regs->a[u].qe, (long)regs->a[u].rb, (long)regs->a[u].re);
 
       for (i = k + 1; i < c->n; ++i) { // check overlapping seeds in the same chain
         const mem_seed_t *t;
@@ -742,7 +745,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
       }
 
       if (bwa_verbose >= 4)
-        printf("** Seed(%d) might lead to a different alignment even though it is contained. Extension will be performed.\n", k);
+        printf("** [%s] Seed(%d) might lead to a different alignment even though it is contained. Extension will be performed.\n", __func__, k);
     }
 
     /**** seed extension ****/
@@ -753,7 +756,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
     reg->score = reg->truesc = -1;
     reg->rid = c->rid;
 
-    if (bwa_verbose >= 4) err_printf("** ---> Extending from seed(%d) [%ld;%ld,%ld] @ %s <---\n", k, (long)s->len, (long)s->qbeg, (long)s->rbeg, bns->anns[c->rid].name);
+    if (bwa_verbose >= 4) err_printf("** ---> [%s] Extending from seed(%d) [%ld;%ld,%ld] @ %s <---\n", __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg, bns->anns[c->rid].name);
 
     left_extend_seed_set_align_beg(opt, s, query, rseq, rmax, &aw[0], parent, reg);
     right_extend_seed_set_align_end(opt, s, query, l_query, rseq, rmax, &aw[1], parent, reg);
@@ -761,7 +764,7 @@ void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac
     reg->bss = mem_getbss(parent, bns, reg->rb); /* set bisulfite strand */
     reg->parent = parent;
 
-    if (bwa_verbose >= 4) printf("*** Added alignment region: [%d,%d) <=> [%ld,%ld); score=%d; {left,right}_bandwidth={%d,%d}\n", reg->qb, reg->qe, (long) reg->rb, (long)reg->re, reg->score, aw[0], aw[1]);
+    if (bwa_verbose >= 4) printf("*** [%s] Added alignment region: [%d,%d) <=> [%ld,%ld); score=%d; {left,right}_bandwidth={%d,%d}\n", __func__, reg->qb, reg->qe, (long) reg->rb, (long)reg->re, reg->score, aw[0], aw[1]);
  
     /* compute seedcov */
     for (i = 0, reg->seedcov = 0; i < c->n; ++i) {

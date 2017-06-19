@@ -198,21 +198,17 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
     // sort by the insert score
     ks_introsort_128(proper_pairs.n, proper_pairs.a);
 
-    if (bwa_verbose >= 5) {
+    if (bwa_verbose >= 4) {
       int u;
       for (u = proper_pairs.n - 1; u; --u) {
         i = proper_pairs.a[u].y >> 32;
         k = proper_pairs.a[u].y << 32 >> 32;
         mem_alnreg_t *p1 = &regs_pair[0].a[v.a[i].y<<32>>34];
         mem_alnreg_t *p2 = &regs_pair[1].a[v.a[k].y<<32>>34];
-        int _is_rev; int64_t rpos;
-        rpos = bns_depos(bns, p1->rb < bns->l_pac ? p1->rb : p1->re-1, &_is_rev);
-        p1->pos = rpos - bns->anns[p1->rid].offset;
-        rpos = bns_depos(bns, p2->rb < bns->l_pac ? p2->rb : p2->re-1, &_is_rev);
-        p2->pos = rpos - bns->anns[p2->rid].offset;
-        printf("[%s] proper pair pairing read 1: %d, [%d,%d) <=> [%ld,%ld,%s,%d) <> read 2: %d, [%d,%d) <=> [%ld,%ld,%s,%d)\n", __func__,
-            p1->score, p1->qb, p1->qe, (long)p1->rb, (long)p1->re, bns->anns[p1->rid].name, p1->pos,
-            p2->score, p2->qb, p2->qe, (long)p2->rb, (long)p2->re, bns->anns[p2->rid].name, p2->pos);
+        printf("[%s] Found proper pairing: ", __func__);
+        mem_print_region1(bns, p1);
+        printf(" -- with: ");
+        mem_print_region1(bns, p2);
       }
     }
 

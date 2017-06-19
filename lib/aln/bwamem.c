@@ -143,7 +143,6 @@ void bseq_bsconvert(bseq1_t *s, uint8_t parent) {
  * @param bseq - read sequence
  * @return mem_alnreg_v* regs */
 static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs, uint8_t parent) {
-  /* int l_seq, char *seq,  */
   int l_seq = bseq->l_seq;
   bseq_bsconvert(bseq, parent); // set bseq->bisseq
 
@@ -157,12 +156,15 @@ static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq
   mem_chain_flt(opt, &chn);
   /* filter seeds in the chain by seed score */
   mem_flt_chained_seeds(opt, bns, pac, bseq, &chn, parent);
-  if (bwa_verbose >= 4) mem_print_chain(bns, &chn);
+  if (bwa_verbose >= 4) {
+    printf("[%s] %zu chains remained.\n", __func__, chn.n);
+    mem_print_chain(bns, &chn);
+  }
 
   uint32_t i;
   for (i = 0; i < chn.n; ++i) {
     mem_chain_t *p = &chn.a[i];
-    if (bwa_verbose >= 4) err_printf("* ---> Processing chain(%d) <---\n", i);
+    if (bwa_verbose >= 4) err_printf("[%s] * ---> Processing chain(%d) <---\n", __func__, i);
     /* add mem_chain_t *p to mem_alnreg_v *regs */
     mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, parent);
     free(chn.a[i].seeds);
@@ -201,9 +203,9 @@ static void bis_worker1(void *data, int i, int tid)
   worker_t *w = (worker_t*)data;
   mem_alnreg_v *regs; const mem_opt_t *opt=w->opt;
 
-  if (!(opt->flag&MEM_F_PE)) {	/* single-end */
+  if (!(opt->flag&MEM_F_PE)) {	// SE
 
-    if (bwa_verbose >= 4) printf("=====> Processing read '%s' <=====\n", w->seqs[i].name);
+    if (bwa_verbose >= 4) printf("=====> [%s] Processing read '%s' <=====\n", __func__, w->seqs[i].name);
 
     regs = &w->regs[i]; kv_init(*regs);
     if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
@@ -212,12 +214,12 @@ static void bis_worker1(void *data, int i, int tid)
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 1);
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
-  } else {			/* paired-end */
+  } else {			// PE
 
     // sanity check the read names
     check_paired_read_names(w->seqs[i<<1|0].name, w->seqs[i<<1|1].name);
 
-    if (bwa_verbose >= 4) printf("=====> Processing read '%s'/1 <=====\n", w->seqs[i<<1|0].name);
+    if (bwa_verbose >= 4) printf("=====> [%s] Processing read '%s'/1 <=====\n", __func__, w->seqs[i<<1|0].name);
     regs = &w->regs[i<<1|0];
     kv_init(*regs);
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
@@ -225,7 +227,7 @@ static void bis_worker1(void *data, int i, int tid)
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
-    if (bwa_verbose >= 4) printf("=====> Processing read '%s'/2 <=====\n", w->seqs[i<<1|1].name);
+    if (bwa_verbose >= 4) printf("=====> [%s] Processing read '%s'/2 <=====\n", __func__, w->seqs[i<<1|1].name);
     regs = &w->regs[i<<1|1];
     kv_init(*regs);
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
@@ -242,45 +244,28 @@ static void bis_worker1(void *data, int i, int tid)
 static void bis_worker2(void *data, int i, int tid) {
   (void) tid;
   worker_t *w = (worker_t*)data;
-  if (!(w->opt->flag&MEM_F_PE)) { /* single-end */
+  if (!(w->opt->flag&MEM_F_PE)) { // SE
     if (bwa_verbose >= 4)
-      printf("=====> Finalizing read '%s' <=====\n", w->seqs[i].name);
+      printf("=====> [%s] Finalizing SE read '%s' <=====\n", __func__, w->seqs[i].name);
 
-    /* if (w->opt->flag & MEM_F_ALN_REG) { [> output mem_alnreg_t directly <] */
-    /*   mem_reg2ovlp(w->opt, w->bns, &w->seqs[i], &w->regs[i]); */
-    /* } else {			[> output sam <] */
     mem_mark_primary_se(w->opt, &w->regs[i], w->n_processed + i);
     mem_alnreg_resetFLAG(&w->regs[i]);
     mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i]);
 
     mem_alnreg_freeSAM(&w->regs[i]);
     free(w->regs[i].a);
-  } else {			/* paired-end */
+  } else {			// PE
     if (bwa_verbose >= 4)
-      printf("=====> Finalizing read pair '%s' <=====\n", w->seqs[i<<1|0].name);
+      printf("=====> [%s] Finalizing PE read '%s' <=====\n", __func__, w->seqs[i<<1|0].name);
 
     if (!(w->opt->flag & MEM_F_NO_RESCUE)) 
       mem_alnreg_matesw(w->opt, w->bns, w->pac, w->pes, &w->seqs[i<<1], &w->regs[i<<1]);
 
-  if (bwa_verbose >= 5) {
-    printf("Before primary-marking1\n");
-    mem_print_regions(w->bns, &w->regs[i<<1|0]);
-  }
+    if (bwa_verbose >= 4) printf("====== [%s] Primary-marking read 1\n", __func__);
     mem_mark_primary_se(w->opt, &w->regs[i<<1|0], i<<1|0);
-  if (bwa_verbose >= 5) {
-    printf("After primary-marking1\n");
-    mem_print_regions(w->bns, &w->regs[i<<1|0]);
-  }
 
-  if (bwa_verbose >= 5) {
-    printf("Before primary-marking2\n");
-    mem_print_regions(w->bns, &w->regs[i<<1|1]);
-  }
+    if (bwa_verbose >= 4) printf("====== [%s] Primary-marking read 2\n", __func__);
     mem_mark_primary_se(w->opt, &w->regs[i<<1|1], i<<1|1);
-  if (bwa_verbose >= 5) {
-    printf("After primary-marking2\n");
-    mem_print_regions(w->bns, &w->regs[i<<1|1]);
-  }
 
     mem_alnreg_resetFLAG(&w->regs[i<<1|0]);
     mem_alnreg_resetFLAG(&w->regs[i<<1|1]);
@@ -324,7 +309,9 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
     bwtintv_cache_destroy(w.intv_cache[i]);
   free(w.intv_cache);
 
-  /***** Step 2: Obtain PE statistics *****/
+  /********************************
+   * Step 2: Obtain PE statistics *
+   ********************************/
   if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
     if (pes0) w.pes = *pes0;
     else w.pes = mem_pestat(opt, w.bns, n, w.regs);

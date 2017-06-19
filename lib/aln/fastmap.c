@@ -45,7 +45,7 @@ static void *process(void *shared, int step, void *_data) {
   if (step == 0) {
     int64_t size = 0;
     ktp_data_t *ret = calloc(1, sizeof(ktp_data_t));
-    if (aux->_seq1) {  // prompt supplied input
+    if (aux->_seq1) {  // prompt supplied input, for debug
       if (aux->__processed) return 0;
       ret->seqs = bis_create_bseq1(aux->_seq1, aux->_seq2, &ret->n_seqs);
       if (aux->_seq2)  aux->opt->flag |= MEM_F_PE;
@@ -84,9 +84,6 @@ static void *process(void *shared, int step, void *_data) {
       mem_opt_t tmp_opt = *opt;
 
       bseq_classify(data->n_seqs, data->seqs, n_sep, sep);
-
-      if (bwa_verbose >= 3)
-        fprintf(stderr, "[M::%s] %d single-end sequences; %d paired-end sequences\n", __func__, n_sep[0], n_sep[1]);
 
       if (n_sep[0]) {           // single-end
         tmp_opt.flag &= ~MEM_F_PE;
