@@ -189,8 +189,9 @@ static void mem_alnreg_tagSA(const mem_opt_t *opt, const bntseq_t *bns, const ui
       if (q->n_cigar == 0) continue;
     }
 
-    kputs(bns->anns[q->rid].name, &str);
-    kputc(',', &str);
+    kputs(bns->anns[q->rid].name, &str); kputc(',', &str);
+    kputl(q->pos+1, &str); kputc(',', &str);
+    kputc("+-"[q->is_rev], &str); kputc(',', &str);
     int k;
     for (k = 0; k < q->n_cigar; ++k) {
       kputw(q->cigar[k]>>4, &str);
@@ -443,6 +444,8 @@ void mem_reg2sam_pe_nopairing(const mem_opt_t *opt, const bntseq_t *bns, const u
   int_v to_outputs[2];
   mem_alnreg_t unmapped_reg[2]; // the "unmapped" alignment
 
+  if (bwa_verbose >= 4) printf("PE no pairing.\n");
+
   // looking for the best alnreg to pair
   int i;
   for (i = 0; i < 2; ++i) {
@@ -480,6 +483,15 @@ void mem_reg2sam_pe_nopairing(const mem_opt_t *opt, const bntseq_t *bns, const u
 #define raw_mapq(diff, a) ((int)(6.02 * (diff) / (a) + .499))
 void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t pes) {
 
+  if (bwa_verbose >= 5) {
+    printf("[%s] Began pairing format:\n", __func__);
+    printf("[%s] Read 1:\n", __func__);
+    mem_print_regions(bns, &regs_pair[0]);
+    printf("[%s] Read 2:\n", __func__);
+    mem_print_regions(bns, &regs_pair[1]);
+    printf("\n");
+  }
+
   // flags for paired reads
   int i; unsigned k;
   for (i=0; i<2; ++i)
@@ -492,8 +504,11 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   // check if an end has multiple hits even after mate-SW, skip pairing if the case
   int is_multi[2]; unsigned j;
   for (i = 0; i < 2; ++i) {
-    for (j = 1; j < regs_pair[i].n_pri; ++j) // start from the second
+    for (j = 1; j < regs_pair[i].n_pri; ++j) {// start from the second
+      //printf("final %d:%u - %d - %d, %d\n",i,j,regs_pair[i].a[j].secondary,regs_pair[i].a[j].score, regs_pair[i].n_pri); 
+      //mem_print_region1(bns, &regs_pair[i].a[j]);
       if (regs_pair[i].a[j].secondary < 0 && regs_pair[i].a[j].score >= opt->T) break;
+    }
     // if there is a primary chromosome, primary, good alignment
     is_multi[i] = j < regs_pair[i].n_pri ? 1 : 0;
   }
@@ -505,10 +520,22 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   int n_subpairings; int z[2];
   mem_pair(opt, bns, pes, regs_pair, id, &pscore, &sub_pscore, &n_subpairings, z);
   if (pscore <= 0) return mem_reg2sam_pe_nopairing(opt, bns, pac, s, regs_pair, pes);
+
+  if (bwa_verbose >= 4) {
+    mem_alnreg_t *p1 = &regs_pair[0].a[z[0]];
+    mem_alnreg_t *p2 = &regs_pair[1].a[z[1]];
+    mem_alnreg_setSAM(opt, bns, pac, &s[0], p1);
+    mem_alnreg_setSAM(opt, bns, pac, &s[1], p2);
+    printf("** pairing read 1: %d, [%d,%d) <=> [%ld,%ld,%s,%d) <> read 2: %d, [%d,%d) <=> [%ld,%ld,%s,%d)\n", 
+        p1->score, p1->qb, p1->qe, (long)p1->rb, (long)p1->re, bns->anns[p1->rid].name, p1->pos,
+        p2->score, p2->qb, p2->qe, (long)p2->rb, (long)p2->re, bns->anns[p2->rid].name, p2->pos);
+  }
+
   // opt->pen_unpaired - penalty for not pairing
   int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired;
   if (pscore > score_unpaired) { // use z for pairing
     // mapQ of pairing (q_pe)
+    if (bwa_verbose >= 4) printf("Favor pairing\n");
     sub_pscore = max(sub_pscore, score_unpaired);
     int q_pe = raw_mapq(pscore - sub_pscore, opt->a);
     if (n_subpairings > 0) q_pe -= (int)(4.343 * log(n_subpairings+1) + .499);
@@ -536,6 +563,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
     c[0]->mapq = min(q_se[0], raw_mapq(c[0]->score - c[0]->csub, opt->a));
     c[1]->mapq = min(q_se[1], raw_mapq(c[1]->score - c[1]->csub, opt->a));
   } else {                         // use best hits for pairing
+    if (bwa_verbose >= 4) printf("Favor best hits in pairing\n");
     z[0] = z[1] = 0;
     regs_pair[0].a[0].mapq = mem_approx_mapq_se(opt, &regs_pair[0].a[0]);
     regs_pair[1].a[0].mapq = mem_approx_mapq_se(opt, &regs_pair[1].a[0]);

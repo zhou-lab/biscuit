@@ -246,13 +246,12 @@ static void bis_worker2(void *data, int i, int tid) {
     if (bwa_verbose >= 4)
       printf("=====> Finalizing read '%s' <=====\n", w->seqs[i].name);
 
-    if (w->opt->flag & MEM_F_ALN_REG) { /* output mem_alnreg_t directly */
-      mem_reg2ovlp(w->opt, w->bns, &w->seqs[i], &w->regs[i]);
-    } else {			/* output sam */
-      mem_mark_primary_se(w->opt, &w->regs[i], w->n_processed + i);
-      mem_alnreg_resetFLAG(&w->regs[i]);
-      mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i]);
-    }
+    /* if (w->opt->flag & MEM_F_ALN_REG) { [> output mem_alnreg_t directly <] */
+    /*   mem_reg2ovlp(w->opt, w->bns, &w->seqs[i], &w->regs[i]); */
+    /* } else {			[> output sam <] */
+    mem_mark_primary_se(w->opt, &w->regs[i], w->n_processed + i);
+    mem_alnreg_resetFLAG(&w->regs[i]);
+    mem_reg2sam_se(w->opt, w->bns, w->pac, &w->seqs[i], &w->regs[i]);
 
     mem_alnreg_freeSAM(&w->regs[i]);
     free(w->regs[i].a);
@@ -263,8 +262,26 @@ static void bis_worker2(void *data, int i, int tid) {
     if (!(w->opt->flag & MEM_F_NO_RESCUE)) 
       mem_alnreg_matesw(w->opt, w->bns, w->pac, w->pes, &w->seqs[i<<1], &w->regs[i<<1]);
 
+  if (bwa_verbose >= 5) {
+    printf("Before primary-marking1\n");
+    mem_print_regions(w->bns, &w->regs[i<<1|0]);
+  }
     mem_mark_primary_se(w->opt, &w->regs[i<<1|0], i<<1|0);
+  if (bwa_verbose >= 5) {
+    printf("After primary-marking1\n");
+    mem_print_regions(w->bns, &w->regs[i<<1|0]);
+  }
+
+  if (bwa_verbose >= 5) {
+    printf("Before primary-marking2\n");
+    mem_print_regions(w->bns, &w->regs[i<<1|1]);
+  }
     mem_mark_primary_se(w->opt, &w->regs[i<<1|1], i<<1|1);
+  if (bwa_verbose >= 5) {
+    printf("After primary-marking2\n");
+    mem_print_regions(w->bns, &w->regs[i<<1|1]);
+  }
+
     mem_alnreg_resetFLAG(&w->regs[i<<1|0]);
     mem_alnreg_resetFLAG(&w->regs[i<<1|1]);
     mem_reg2sam_pe(w->opt, w->bns, w->pac, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1], w->pes);

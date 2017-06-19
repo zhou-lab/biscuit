@@ -26,6 +26,9 @@ typedef struct {
   mem_pestat_t *pes0;
   int64_t n_processed;
   int copy_comment, actual_chunk_size;
+  // for debug
+  char *_seq1, *_seq2;
+  int __processed;
   bwaidx_t *idx;
 } ktp_aux_t;
 
@@ -40,20 +43,26 @@ static void *process(void *shared, int step, void *_data) {
   ktp_data_t *data = (ktp_data_t*)_data;
   int i;
   if (step == 0) {
-    ktp_data_t *ret;
     int64_t size = 0;
-    ret = calloc(1, sizeof(ktp_data_t));
-    ret->seqs = bis_bseq_read(aux->actual_chunk_size, &ret->n_seqs, aux->ks, aux->ks2);
-    if (ret->seqs == 0) {
-      free(ret);
-      return 0;
-    }
-
-    if (!aux->copy_comment)
-      for (i = 0; i < ret->n_seqs; ++i) {
-        free(ret->seqs[i].comment);
-        ret->seqs[i].comment = 0;
+    ktp_data_t *ret = calloc(1, sizeof(ktp_data_t));
+    if (aux->_seq1) {  // prompt supplied input
+      if (aux->__processed) return 0;
+      ret->seqs = bis_create_bseq1(aux->_seq1, aux->_seq2, &ret->n_seqs);
+      if (aux->_seq2)  aux->opt->flag |= MEM_F_PE;
+      aux->__processed = 1;
+    } else { // read from file
+      ret->seqs = bis_bseq_read(aux->actual_chunk_size, &ret->n_seqs, aux->ks, aux->ks2);
+      if (ret->seqs == 0) {
+        free(ret);
+        return 0;
       }
+
+      if (!aux->copy_comment)
+        for (i = 0; i < ret->n_seqs; ++i) {
+          free(ret->seqs[i].comment);
+          ret->seqs[i].comment = 0;
+        }
+    }
 
     for (i = 0; i < ret->n_seqs; ++i) {
       ret->seqs[i].sam = 0;
@@ -183,13 +192,15 @@ int main_align(int argc, char *argv[]) {
   //memset(pes, 0, 4 * sizeof(mem_pestat_t));
   //for (i = 0; i < 4; ++i) pes[i].failed = 1;
 
+
   aux.pes0 = NULL;
   aux.opt = opt = mem_opt_init();
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
   memset(&opt0, 0, sizeof(mem_opt_t));
-  while ((c = getopt(argc, argv, "1epaFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
+  while ((c = getopt(argc, argv, "1:2:epaFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
     if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
-    else if (c == '1') no_mt_io = 1;
+    else if (c == '1') aux._seq1 = strdup(optarg);
+    else if (c == '2') aux._seq2 = strdup(optarg);
     else if (c == 'x') mode = optarg;
     else if (c == 'b') opt->parent = atoi(optarg);   /* targeting parent or daughter */
     else if (c == 'f') opt->bsstrand = atoi(optarg); /* targeting BSW or BSC */
@@ -293,7 +304,7 @@ int main_align(int argc, char *argv[]) {
   }
 
   if (opt->n_threads < 1) opt->n_threads = 1;
-  if (optind + 1 >= argc || optind + 3 < argc) {
+  if ((optind + 1 >= argc || optind + 3 < argc) && !aux._seq1) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Usage: biscuit align [options] <idxbase> <in1.fq> [in2.fq]\n\n");
     fprintf(stderr, "Algorithm options:\n\n");
@@ -405,29 +416,31 @@ int main_align(int argc, char *argv[]) {
     for (i = 0; i < aux.idx->bns->n_seqs; ++i)
       aux.idx->bns->anns[i].is_alt = 0;
 
-  /* setup fastq input */
-  ko = kopen(argv[optind + 1], &fd);
-  if (ko == 0) {
-    if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
-    return 1;
-  }
-  fp = gzdopen(fd, "r");
-  aux.ks = kseq_init(fp);
-  if (optind + 2 < argc) {
-    if (opt->flag&MEM_F_PE) {
-      if (bwa_verbose >= 2)
-        fprintf(stderr, "[W::%s] when '-p' is in use, the second query file is ignored.\n", __func__);
-    } else {
-      ko2 = kopen(argv[optind + 2], &fd2);
-      if (ko2 == 0) {
-        if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
-        return 1;
-      }
-      fp2 = gzdopen(fd2, "r");
-      aux.ks2 = kseq_init(fp2);
-      opt->flag |= MEM_F_PE;
+  if  (!aux._seq1) {
+    /* setup fastq input */
+    ko = kopen(argv[optind + 1], &fd);
+    if (ko == 0) {
+      if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
+      return 1;
     }
-  }
+    fp = gzdopen(fd, "r");
+    aux.ks = kseq_init(fp);
+    if (optind + 2 < argc) {
+      if (opt->flag&MEM_F_PE) {
+        if (bwa_verbose >= 2)
+          fprintf(stderr, "[W::%s] when '-p' is in use, the second query file is ignored.\n", __func__);
+      } else {
+        ko2 = kopen(argv[optind + 2], &fd2);
+        if (ko2 == 0) {
+          if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
+          return 1;
+        }
+        fp2 = gzdopen(fd2, "r");
+        aux.ks2 = kseq_init(fp2);
+        opt->flag |= MEM_F_PE;
+      }
+    }
+  } else {fp = fp2 = NULL; ko = ko2 = NULL;}
 
   /* print header */
   if (!(opt->flag & MEM_F_ALN_REG))
@@ -438,11 +451,11 @@ int main_align(int argc, char *argv[]) {
   free(opt);
   bwa_idx_destroy(aux.idx);
   kseq_destroy(aux.ks);
-  err_gzclose(fp); kclose(ko);
+  if (fp) { err_gzclose(fp); kclose(ko); }
   free(aux.pes0);
   if (aux.ks2) {
     kseq_destroy(aux.ks2);
-    err_gzclose(fp2); kclose(ko2);
+    if (fp2) { err_gzclose(fp2); kclose(ko2); }
   }
   return 0;
 }

@@ -94,6 +94,7 @@ static inline int is_proper_pair(const bntseq_t *bns, const mem_alnreg_t *r1, co
 /*   } */
 /* } */
 
+
 // Merge aligned regions, aka mem_merge_reg1
 void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, mem_alnreg_v *regs);
 
@@ -107,6 +108,19 @@ static inline void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
   unsigned k;
   for (k = 0; k<regs->n; ++k)
     regs->a[k].flag = 0;
+}
+
+static inline void mem_print_region1(const bntseq_t *bns, const mem_alnreg_t *reg) {
+  int _is_rev;
+  int64_t rpos = bns_depos(bns, reg->rb < bns->l_pac ? reg->rb : reg->re-1, &_is_rev);
+  int pos = rpos - bns->anns[reg->rid].offset;
+  printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec: %d\n", reg->score, reg->qb, reg->qe, (long)reg->rb, (long)reg->re, bns->anns[reg->rid].name, pos, reg->secondary);
+}
+
+static inline void mem_print_regions(const bntseq_t *bns, mem_alnreg_v *regs) {
+  unsigned i;
+  for (i = 0; i < regs->n; ++i)
+    mem_print_region1(bns, &regs->a[i]);
 }
 
 mem_pestat_t mem_pestat(const mem_opt_t *opt, const bntseq_t *bns, int n, const mem_alnreg_v *regs_pairs);

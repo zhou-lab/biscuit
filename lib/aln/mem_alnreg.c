@@ -211,10 +211,7 @@ void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
 
   if (bwa_verbose >= 4) {
     err_printf("* %ld regions remain after merging duplicated regions\n", regs->n);
-    for (i = 0; i < regs->n; ++i) {
-      mem_alnreg_t *p = &regs->a[i];
-      printf("** %d, [%d,%d) <=> [%ld,%ld)\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re);
-    }
+    mem_print_regions(bns, regs);
   }
 
   /* region is on ALT chromosomes */
@@ -224,6 +221,7 @@ void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
       p->is_alt = 1;
   }
 }
+
 
 
 /*********************************
@@ -304,6 +302,13 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
   int_v z = {0,0,0};
   mem_mark_primary_se_core(opt, (int) regs->n, regs, &z);
 
+  if (bwa_verbose >= 5) {
+    for (i=0; i<regs->n; ++i) {
+      mem_alnreg_t *p = regs->a + i;
+      printf("in-marking (round1): %ld - %d\n", p->rb, p->secondary);
+    }
+  }
+
   /* set alt_sc - the score of primary mapping if it's on
    * an alternative chromosome */
   for (i = 0; (unsigned) i < regs->n; ++i) {
@@ -354,6 +359,13 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
       regs->a[i].secondary_all = regs->a[i].secondary;
   }
 
+
+  if (bwa_verbose >= 5) {
+    for (i=0; i<regs->n; ++i) {
+      mem_alnreg_t *p = regs->a + i;
+      printf("in-marking (round2): %ld - %d\n", p->rb, p->secondary);
+    }
+  }
   free(z.a);
   return;
 }
@@ -382,22 +394,22 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   }
 
   int read_is_rev = reg->rb >= l_pac;
-  int mate_is_rev = !read_is_rev;
+  //int mate_is_rev = !read_is_rev;
   /* int is_larger = mate_is_rev; // whether the mate has larger coordinate */
 
-  /* make the mate read sequence the direction of the primary read */
+  /* make the mate read sequence opposite to the direction of the primary read */
   uint8_t *mate_seq, *rev = 0;
-  if (mate_is_rev) {
-    rev = malloc(l_ms); // this is the reverse complement of ms
-    for (i = 0; i < l_ms; ++i) rev[l_ms - 1 - i] = ms[i] < 4? 3 - ms[i] : 4;
-    mate_seq = rev;
-  } else mate_seq = (uint8_t*) ms;
+  //if (!mate_is_rev) {
+  rev = malloc(l_ms); // this is the reverse complement of ms
+  for (i = 0; i < l_ms; ++i) rev[l_ms - 1 - i] = ms[i] < 4? 3 - ms[i] : 4;
+  mate_seq = rev;
+  //} else mate_seq = (uint8_t*) ms;
 
   /* determine reference boundary */
   int64_t rb = max(0, reg->rb + pes.low - l_ms);
   int64_t re = min(l_pac<<1, reg->rb + pes.high);
 
-  /* ref is in the direction of the primary read */
+  /* ref is in the primary read's direction */
   uint8_t *ref = 0; int rid;
   if (rb < re) ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
 
@@ -414,6 +426,11 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   int xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
   kswr_t aln = ksw_align2(l_ms, mate_seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
 
+    /* if (bwa_verbose >= 5) { */
+    /*   printf("[%s] TryAdding matesw-ed region %ld-%ld. %d,%d\n", __func__, rb, re, l_ms, read_is_rev); */
+    /*   mem_print_region1(bns, reg); */
+    /*   printf("score %d\n", aln.score); */
+    /* } */
   /* make mate mem_alnreg_t b */
   if (aln.score >= opt->min_seed_len && aln.qb >= 0) { // something goes wrong if aln.qb < 0
 
@@ -422,15 +439,26 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
     b.is_alt = reg->is_alt;
 
     // mate strand is the opposite of read
-    b.qb = read_is_rev ? aln.qb : l_ms - (aln.qe + 1);
-    b.qe = read_is_rev ? aln.qe + 1 : l_ms - aln.qb; 
-    b.rb = read_is_rev ? (rb + aln.tb) : (l_pac<<1) - (rb + aln.te + 1);
-    b.re = read_is_rev ? (rb + aln.te + 1) : (l_pac<<1) - (rb + aln.tb);
+    /* b.qb = read_is_rev ? l_ms - (aln.qe + 1) : aln.qb; */
+    /* b.qe = read_is_rev ? l_ms - aln.qb : aln.qe + 1;  */
+    /* b.rb = read_is_rev ? (l_pac<<1) - (rb + aln.te + 1) : (rb + aln.tb); */
+    /* b.re = read_is_rev ? (l_pac<<1) - (rb + aln.tb) : (rb + aln.te + 1); */
+    b.qb = l_ms - (aln.qe + 1);
+    b.qe = l_ms - aln.qb;
+    b.rb = (l_pac<<1) - (rb + aln.te + 1);
+    b.re = (l_pac<<1) - (rb + aln.tb);
     b.score = aln.score;
     b.csub = aln.score2;
     b.secondary = -1;
     b.seedcov = min(b.re-b.rb, b.qe-b.qb) >> 1;
     b.bss = reg->bss;
+
+    if (bwa_verbose >= 5) {
+      printf("[%s] Adding matesw-ed region:\n", __func__);
+      mem_print_region1(bns, &b);
+      printf("[%s] for:\n", __func__);
+      mem_print_region1(bns, reg);
+    }
 
     // printf("*** %d, [%lld,%lld], %d:%d, (%lld,%lld), (%lld,%lld) == (%lld,%lld)\n", aln.score, rb, re, is_rev, is_larger, reg->rb, a->re, ma->a[0].rb, ma->a[0].re, b.rb, b.re);
 

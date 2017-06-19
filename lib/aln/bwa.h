@@ -31,9 +31,13 @@ typedef struct {
 extern int bwa_verbose;
 extern char bwa_rg_id[256];
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+  void bseq1_code_nt4(bseq1_t *s);
+  bseq1_t *bis_create_bseq1(char *seq1, char *seq2, int *n);
 
   bseq1_t *bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_);
   bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_);

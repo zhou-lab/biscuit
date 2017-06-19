@@ -96,9 +96,9 @@ void bseq_classify(int n, bseq1_t *seqs, int m[2], bseq1_t *sep[2])
   for (i = 1, has_last = 1; i < n; ++i) {
     if (has_last) {
       if (strcmp(seqs[i].name, seqs[i-1].name) == 0) {
-	kv_push(bseq1_t, a[1], seqs[i-1]);
-	kv_push(bseq1_t, a[1], seqs[i]);
-	has_last = 0;
+        kv_push(bseq1_t, a[1], seqs[i-1]);
+        kv_push(bseq1_t, a[1], seqs[i]);
+        has_last = 0;
       } else kv_push(bseq1_t, a[0], seqs[i-1]);
     } else has_last = 1;
   }
@@ -326,7 +326,7 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
       cigar = (uint32_t*)str.s;
       op  = cigar[k]&0xf, len = cigar[k]>>4;
       if (op == 0) { // match
-	for (i = 0; i < len; ++i) {
+        for (i = 0; i < len; ++i) {
 
           /* to allow assymmetric CT and GA */
           unsigned char _q = query[x+i];
@@ -345,23 +345,23 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
             ++n_mm; u = 0;
           }
 
-	  /* if (query[x + i] != rseq[y + i]) { */
-	  /* 	kputw(u, &str); */
-	  /* 	kputc(int2base[rseq[y+i]], &str); */
-	  /* 	++n_mm; u = 0; */
-	  /* } else ++u; */
-	}
-	x += len; y += len;
+          /* if (query[x + i] != rseq[y + i]) { */
+          /* 	kputw(u, &str); */
+          /* 	kputc(int2base[rseq[y+i]], &str); */
+          /* 	++n_mm; u = 0; */
+          /* } else ++u; */
+        }
+        x += len; y += len;
       } else if (op == 2) { // deletion
-	if (k > 0 && k < *n_cigar - 1) { // don't do the following if D is the first or the last CIGAR
-	  kputw(u, &str); kputc('^', &str);
-	  for (i = 0; i < len; ++i)
-	    kputc(int2base[rseq[y+i]], &str);
-	  u = 0; n_gap += len;
-	}
-	y += len;
+        if (k > 0 && k < *n_cigar - 1) { // don't do the following if D is the first or the last CIGAR
+          kputw(u, &str); kputc('^', &str);
+          for (i = 0; i < len; ++i)
+            kputc(int2base[rseq[y+i]], &str);
+          u = 0; n_gap += len;
+        }
+        y += len;
       } else if (op == 1) {	// insertion does not contribute to MD
-	x += len, n_gap += len;
+        x += len, n_gap += len;
       }
     }
     kputw(u, &str); kputc(0, &str);
@@ -694,7 +694,31 @@ char *bwa_insert_header(const char *s, char *hdr) {
   return hdr;
 }
 
-static inline void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
+void bseq1_code_nt4(bseq1_t *s) {
+  int i;
+  for (i=0; i<s->l_seq; ++i)
+    s->seq[i] = nst_nt4_table[(int)s->seq[i]];
+}
+
+// create one seq
+bseq1_t *bis_create_bseq1(char *seq1, char *seq2, int *n) {
+  bseq1_t *s2 = calloc(seq2 ? 2 : 1, sizeof(bseq1_t));
+  s2[0].name = strdup("inputread");
+  s2[0].seq = (unsigned char*) seq1;
+  s2[0].l_seq = strlen(seq1);
+  bseq1_code_nt4(&s2[0]);
+  *n = 1;
+  if (seq2) {
+    s2[1].name = strdup("inputread");
+    s2[1].seq = (unsigned char*) seq2;
+    s2[1].l_seq = strlen(seq2);
+    bseq1_code_nt4(&s2[1]);
+    ++(*n);
+  }
+  return s2;
+}
+
+static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
 { // TODO: it would be better to allocate one chunk of memory, but probably it does not matter in practice
   s->name = strdup(ks->name.s);
   s->comment = ks->comment.l? strdup(ks->comment.s) : 0;
@@ -707,14 +731,11 @@ static inline void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
   s->bisseq[0] = 0;
   s->bisseq[1] = 0;
 
-  int i;
-  for (i=0; i<s->l_seq; ++i) {
-    s->seq[i] = nst_nt4_table[(int)s->seq[i]];
-  }
+  bseq1_code_nt4(s);
 }
 
-bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_)
-{
+bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_) {
+
   kseq_t *ks = (kseq_t*)ks1_, *ks2 = (kseq_t*)ks2_;
   int size = 0, m, n;
   bseq1_t *seqs;
