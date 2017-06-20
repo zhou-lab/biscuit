@@ -159,22 +159,27 @@ int mem_chain_weight(const mem_chain_t *c) {
   return w < 1<<30? w : (1<<30)-1;
 }
 
-void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn) {
-  uint32_t i; int j;
-  for (i = 0; i < chn->n; ++i) {
-    mem_chain_t *p = &chn->a[i];
-    printf("* Found CHAIN(%d): n=%d; weight=%d", i, p->n, mem_chain_weight(p));
-    for (j = 0; j < p->n; ++j) {
-      bwtint_t pos;
-      int is_rev;
-      pos = bns_depos(bns, p->seeds[j].rbeg, &is_rev);
-      if (is_rev) pos -= p->seeds[j].len - 1;
-      printf("\t%d;%d;%d,%ld(%s:%c%ld)",
-             p->seeds[j].score, p->seeds[j].len, p->seeds[j].qbeg,
-             (long)p->seeds[j].rbeg, bns->anns[p->rid].name,
-             "+-"[is_rev], (long)(pos - bns->anns[p->rid].offset) + 1);
-    }
-    putchar('\n');
+static void mem_print_chain1(const bntseq_t *bns, const mem_chain_t *c) {
+  printf("** CHAIN: n=%d, weight=%d", c->n, mem_chain_weight(c));
+  int j;
+   for (j = 0; j < c->n; ++j) {
+    bwtint_t pos;
+    int is_rev;
+    pos = bns_depos(bns, c->seeds[j].rbeg, &is_rev);
+    if (is_rev) pos -= c->seeds[j].len - 1;
+    printf("\t%d;%d;%d,%ld(%s:%c%ld)",
+           c->seeds[j].score, c->seeds[j].len, c->seeds[j].qbeg,
+           (long)c->seeds[j].rbeg, bns->anns[c->rid].name,
+           "+-"[is_rev], (long)(pos - bns->anns[c->rid].offset) + 1);
+  }
+  putchar('\n');
+}
+
+void mem_print_chains(const bntseq_t *bns, mem_chain_v *chns) {
+  uint32_t i;
+  for (i = 0; i < chns->n; ++i) {
+    mem_chain_t *c = &chns->a[i];
+    mem_print_chain1(bns, c);
   }
 }
 
@@ -238,9 +243,9 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   int64_t l_pac = bns->l_pac;
   bwtintv_cache_t *_intv_cache;
 
-  mem_chain_v chain;
-  kv_init(chain);
-  if (bseq->l_seq < opt->min_seed_len) return chain; // if the query is shorter than the seed length, no match
+  mem_chain_v chains;
+  kv_init(chains);
+  if (bseq->l_seq < opt->min_seed_len) return chains; // if the query is shorter than the seed length, no match
 
   /* B-tree of mem_chain_t */
   kbtree_t(chn) *tree;
@@ -322,18 +327,22 @@ mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
   if (intv_cache == 0) bwtintv_cache_destroy(_intv_cache);
 
   /* kbtree_t(chn) *tree to mem_chain_v *chain */
-  kv_resize(mem_chain_t, chain, kb_size(tree));
+  kv_resize(mem_chain_t, chains, kb_size(tree));
 
   /* traverse tree and build mem_chain_v *chain */
-#define traverse_func(p_) (chain.a[chain.n++] = *(p_))
+#define traverse_func(p_) (chains.a[chains.n++] = *(p_))
   __kb_traverse(mem_chain_t, tree, traverse_func);
 #undef traverse_func
 
-  for (i = 0; i < chain.n; ++i) chain.a[i].frac_rep = (float)l_rep / bseq->l_seq;
-  if (bwa_verbose >= 4) printf("[%s] fraction of repetitive seeds: %.3f\n", __func__, (float)l_rep / bseq->l_seq);
+  for (i = 0; i < chains.n; ++i) chains.a[i].frac_rep = (float)l_rep / bseq->l_seq;
+  if (bwa_verbose >= 4) {
+    printf("[%s] Found %zu chains; Fraction of repetitive seeds: %.3f\n", __func__, chains.n, (float)l_rep / bseq->l_seq);
+    mem_print_chains(bns, &chains);
+  }
 
   kb_destroy(chn, tree);
-  return chain;
+
+  return chains;
 }
 
 /*******************
@@ -478,7 +487,8 @@ void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint
   
   int l_query = s->l_seq; uint8_t *query = s->seq;
   double min_l = opt->min_chain_weight ? MEM_HSP_COEF * opt->min_chain_weight : MEM_MINSC_COEF * log(l_query);
-  if (min_l > MEM_SEEDSW_COEF * l_query) return; // don't run the following for short reads
+  if (min_l > MEM_SEEDSW_COEF * l_query) 
+    goto END_CHAIN_FLT; // don't run the following for short reads
   
   int min_HSP_score = (int)(opt->a * min_l + .499);
   unsigned u;
@@ -494,6 +504,12 @@ void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint
       }
     }
     c->n = k;
+  }
+
+ END_CHAIN_FLT:
+  if (bwa_verbose >= 4) {
+    printf("[%s] %zu chains remained.\n", __func__, chns->n);
+    mem_print_chains(bns, chns);
   }
 }
 
@@ -672,6 +688,11 @@ static void right_extend_seed_set_align_end(
  * @return mem_alnreg_v *av / reg, (the newly formed chain is pushed to av)
  */
 void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *regs, uint8_t parent) {
+
+  if (bwa_verbose >= 4) {
+    err_printf("[%s] ---> Convert following chain to region <---\n", __func__);
+    mem_print_chain1(bns, c);
+  }
 
   if (c->n == 0) return;
 

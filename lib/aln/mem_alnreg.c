@@ -284,7 +284,7 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
   if (regs->n == 0) return;
 
-  if (bwa_verbose >= 5) {
+  if (bwa_verbose >= 4) {
     printf("[%s] Before marking\n", __func__);
     mem_print_regions(NULL, regs);
   }
@@ -307,7 +307,7 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
   int_v z = {0,0,0};
   mem_mark_primary_se_core(opt, (int) regs->n, regs, &z);
 
-  if (bwa_verbose >= 5) {
+  if (bwa_verbose >= 4) {
     printf("[%s] 1st round marking\n", __func__); 
     mem_print_regions(NULL, regs);
   }
@@ -363,7 +363,7 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
   }
 
 
-  if (bwa_verbose >= 5) {
+  if (bwa_verbose >= 4) {
     printf("[%s] 2nd round marking\n", __func__);
     mem_print_regions(NULL, regs);
   }
@@ -425,8 +425,8 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   int xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
   kswr_t aln = ksw_align2(l_ms, mate_seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
 
-  if (bwa_verbose >= 6) {
-    printf("===== [%s] Try adding matesw-ed region %ld-%ld. score:%d\n", __func__, rb, re, aln.score);
+  if (bwa_verbose >= 4) {
+    printf("[%s] Try adding matesw-ed region %ld-%ld. score:%d\n", __func__, rb, re, aln.score);
     mem_print_region1(bns, reg);
   }
   /* make mate mem_alnreg_t b */
@@ -451,7 +451,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
     b.seedcov = min(b.re-b.rb, b.qe-b.qb) >> 1;
     b.bss = reg->bss;
 
-    if (bwa_verbose >= 6) {
+    if (bwa_verbose >= 4) {
       printf("[%s] Add matesw-ed region:\n", __func__);
       mem_print_region1(bns, &b);
       printf("[%s] for original alignment:\n", __func__);

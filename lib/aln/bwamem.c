@@ -143,6 +143,10 @@ void bseq_bsconvert(bseq1_t *s, uint8_t parent) {
  * @param bseq - read sequence
  * @return mem_alnreg_v* regs */
 static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs, uint8_t parent) {
+
+  if (bwa_verbose >= 4) 
+    printf("[%s] === Seeding %s against (parent: %u)", __func__, bseq->name, parent);
+
   int l_seq = bseq->l_seq;
   bseq_bsconvert(bseq, parent); // set bseq->bisseq
 
@@ -156,15 +160,10 @@ static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq
   mem_chain_flt(opt, &chn);
   /* filter seeds in the chain by seed score */
   mem_flt_chained_seeds(opt, bns, pac, bseq, &chn, parent);
-  if (bwa_verbose >= 4) {
-    printf("[%s] %zu chains remained.\n", __func__, chn.n);
-    mem_print_chain(bns, &chn);
-  }
 
   uint32_t i;
   for (i = 0; i < chn.n; ++i) {
     mem_chain_t *p = &chn.a[i];
-    if (bwa_verbose >= 4) err_printf("[%s] * ---> Processing chain(%d) <---\n", __func__, i);
     /* add mem_chain_t *p to mem_alnreg_v *regs */
     mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, parent);
     free(chn.a[i].seeds);
@@ -205,7 +204,7 @@ static void bis_worker1(void *data, int i, int tid)
 
   if (!(opt->flag&MEM_F_PE)) {	// SE
 
-    if (bwa_verbose >= 4) printf("=====> [%s] Processing read '%s' <=====\n", __func__, w->seqs[i].name);
+    if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s' <=====\n", __func__, w->seqs[i].name);
 
     regs = &w->regs[i]; kv_init(*regs);
     if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
@@ -219,7 +218,7 @@ static void bis_worker1(void *data, int i, int tid)
     // sanity check the read names
     check_paired_read_names(w->seqs[i<<1|0].name, w->seqs[i<<1|1].name);
 
-    if (bwa_verbose >= 4) printf("=====> [%s] Processing read '%s'/1 <=====\n", __func__, w->seqs[i<<1|0].name);
+    if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/1 <=====\n", __func__, w->seqs[i<<1|0].name);
     regs = &w->regs[i<<1|0];
     kv_init(*regs);
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
@@ -227,7 +226,7 @@ static void bis_worker1(void *data, int i, int tid)
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
-    if (bwa_verbose >= 4) printf("=====> [%s] Processing read '%s'/2 <=====\n", __func__, w->seqs[i<<1|1].name);
+    if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/2 <=====\n", __func__, w->seqs[i<<1|1].name);
     regs = &w->regs[i<<1|1];
     kv_init(*regs);
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
@@ -246,7 +245,7 @@ static void bis_worker2(void *data, int i, int tid) {
   worker_t *w = (worker_t*)data;
   if (!(w->opt->flag&MEM_F_PE)) { // SE
     if (bwa_verbose >= 4)
-      printf("=====> [%s] Finalizing SE read '%s' <=====\n", __func__, w->seqs[i].name);
+      printf("\n=====> [%s] Finalizing SE read '%s' <=====\n", __func__, w->seqs[i].name);
 
     mem_mark_primary_se(w->opt, &w->regs[i], w->n_processed + i);
     mem_alnreg_resetFLAG(&w->regs[i]);
@@ -256,7 +255,7 @@ static void bis_worker2(void *data, int i, int tid) {
     free(w->regs[i].a);
   } else {			// PE
     if (bwa_verbose >= 4)
-      printf("=====> [%s] Finalizing PE read '%s' <=====\n", __func__, w->seqs[i<<1|0].name);
+      printf("\n=====> [%s] Finalizing PE read '%s' <=====\n", __func__, w->seqs[i<<1|0].name);
 
     if (!(w->opt->flag & MEM_F_NO_RESCUE)) 
       mem_alnreg_matesw(w->opt, w->bns, w->pac, w->pes, &w->seqs[i<<1], &w->regs[i<<1]);

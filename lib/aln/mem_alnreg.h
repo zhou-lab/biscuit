@@ -123,7 +123,7 @@ static inline void mem_print_region1(const bntseq_t *bns, const mem_alnreg_t *re
 
 static inline void mem_print_regions(const bntseq_t *bns, mem_alnreg_v *regs) {
   unsigned i;
-  printf("%ld regions.\n", regs->n);
+  printf("** %ld regions.\n", regs->n);
   for (i = 0; i < regs->n; ++i)
     mem_print_region1(bns, &regs->a[i]);
 }

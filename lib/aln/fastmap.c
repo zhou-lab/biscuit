@@ -167,9 +167,12 @@ static void infer_alt_chromosomes(bntseq_t *bns) {
   if (n < 20) return; // should take care of human and mouse
   
   for (i=0; i<bns->n_seqs; ++i) {
-    if (strncmp(bns->anns[i].name, "chrUn", 5)==0) bns->anns[i].is_alt = 1;
-    if (strstr(bns->anns[i].name, "_random")) bns->anns[i].is_alt = 1;
-    if (strstr(bns->anns[i].name, "_hap")) bns->anns[i].is_alt = 1;
+    if (strncmp(bns->anns[i].name, "chrUn", 5)==0 || 
+        strstr(bns->anns[i].name, "_random") || 
+        strstr(bns->anns[i].name, "_hap")) {
+      bns->anns[i].is_alt = 1; 
+      fprintf(stderr, "[M:%s] Set %s as ALT.\n", __func__, bns->anns[i].name);
+    }
   }
 }
 

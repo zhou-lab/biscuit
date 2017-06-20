@@ -52,6 +52,11 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
   int w = max(_w1, _w2);
   if (w > opt->w) w = min(w, reg->w);
 
+  if (bwa_verbose >= 4) {
+    printf("[%s] Generate cigar for\n", __func__);
+    mem_print_region1(bns, reg);
+  }
+
   // incrementally double bandwidth
   uint32_t *cigar = 0; int n_cigar;
   int score; int last_sc = -(1<<30);
@@ -62,7 +67,7 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
     // regenerate cigar related info with new bandwidth
     cigar = bis_bwa_gen_cigar2(reg->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, reg->qe - reg->qb, (uint8_t*) &query[reg->qb], reg->rb, reg->re, &score, &n_cigar, &reg->NM, &reg->ZC, &reg->ZR, reg->parent);
 
-    if (bwa_verbose >= 4) printf("* Final alignment: w=%d, global_sc=%d, local_sc=%d\n", w, score, reg->truesc);
+    if (bwa_verbose >= 4) printf("[%s] w=%d, global_sc=%d, local_sc=%d\n", __func__, w, score, reg->truesc);
 
     if (score == last_sc) break;
     if (w == opt->w << 2) break;
@@ -483,11 +488,10 @@ void mem_reg2sam_pe_nopairing(const mem_opt_t *opt, const bntseq_t *bns, const u
 #define raw_mapq(diff, a) ((int)(6.02 * (diff) / (a) + .499))
 void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, uint64_t id, bseq1_t s[2], mem_alnreg_v regs_pair[2], mem_pestat_t pes) {
 
-  if (bwa_verbose >= 5) {
-    printf("[%s] Began pairing format:\n", __func__);
-    printf("[%s] Read 1:\n", __func__);
+  if (bwa_verbose >= 4) {
+    printf("[%s] Read 1 in pairing:\n", __func__);
     mem_print_regions(bns, &regs_pair[0]);
-    printf("[%s] Read 2:\n", __func__);
+    printf("[%s] Read 2 in pairing:\n", __func__);
     mem_print_regions(bns, &regs_pair[1]);
     printf("\n");
   }
