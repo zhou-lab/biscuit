@@ -176,7 +176,12 @@ int mem_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
 	b.secondary = -1;
 	b.seedcov = (b.re - b.rb < b.qe - b.qb? b.re - b.rb : b.qe - b.qb) >> 1;
         b.bss = a->bss;
-        // printf("*** %d, [%lld,%lld], %d:%d, (%lld,%lld), (%lld,%lld) == (%lld,%lld)\n", aln.score, rb, re, is_rev, is_larger, a->rb, a->re, ma->a[0].rb, ma->a[0].re, b.rb, b.re);
+        if (bwa_verbose >= 5) {
+      int _is_rev;
+      int posa = bns_depos(bns, a->rb < bns->l_pac ? a->rb : a->re-1, &_is_rev) - bns->anns[a->rid].offset;
+      int posb = bns_depos(bns, b.rb < bns->l_pac ? b.rb : b.re-1, &_is_rev) - bns->anns[b.rid].offset;
+         printf("*** adding %d,%d, [%lld,%lld], %d:%d, (%lld,%lld), (%lld,%lld) == (%lld,%lld) %s-%d-%d\n", l_ms,aln.score, rb, re, is_rev, is_larger, a->rb, a->re, ma->a[0].rb, ma->a[0].re, b.rb, b.re, bns->anns[b.rid].name, posa, posb);
+        }
 
 	kv_push(mem_alnreg_t, *ma, b); /* make room for a new element */
 	/* move b s.t. ma is sorted */
@@ -297,6 +302,28 @@ int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
   memset(h, 0, sizeof(mem_aln_t) * 2);
   memset(g, 0, sizeof(mem_aln_t) * 2);
   n_aa[0] = n_aa[1] = 0;
+
+
+  if (bwa_verbose >= 5) {
+    printf("\n=======Read1 before matesw======\n");
+    for (i=0; i<a[0].n; ++i) {
+      mem_alnreg_t *p = &a[0].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d)\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos);
+    }
+    printf("========Read2 before matesw=======\n");
+    for (i=0; i<a[1].n; ++i) {
+      mem_alnreg_t *p = &a[1].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d)\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos);
+    }
+    printf("\n\n");
+  }
+
   if (!(opt->flag & MEM_F_NO_RESCUE)) { // then perform SW for the best alignment
     mem_alnreg_v b[2];
     kv_init(b[0]); kv_init(b[1]);
@@ -309,10 +336,70 @@ int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
 	n += mem_matesw(opt, bns, pac, pes, &b[i].a[j], s[!i].l_seq, (uint8_t*)s[!i].seq, &a[!i]);
     free(b[0].a); free(b[1].a);
   }
+
+
+  if (bwa_verbose >= 5) {
+    printf("\n=======Read1 before marking======\n");
+    for (i=0; i<a[0].n; ++i) {
+      mem_alnreg_t *p = &a[0].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec:%d\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos, p->secondary);
+    }
+    printf("========Read2 before marking=======\n");
+    for (i=0; i<a[1].n; ++i) {
+      mem_alnreg_t *p = &a[1].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec:%d\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos, p->secondary);
+    }
+    printf("\n\n");
+  }
   n_pri[0] = mem_mark_primary_se(opt, a[0].n, a[0].a, id<<1|0);
   n_pri[1] = mem_mark_primary_se(opt, a[1].n, a[1].a, id<<1|1);
 
+  if (bwa_verbose >= 5) {
+    printf("\n=======Read1 after marking======\n");
+    for (i=0; i<a[0].n; ++i) {
+      mem_alnreg_t *p = &a[0].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec:%d\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos, p->secondary);
+    }
+    printf("========Read2 after marking=======\n");
+    for (i=0; i<a[1].n; ++i) {
+      mem_alnreg_t *p = &a[1].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec:%d\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos, p->secondary);
+    }
+    printf("\n\n");
+  }
   if (opt->flag&MEM_F_NOPAIRING) goto no_pairing;
+
+  if (bwa_verbose >= 5) {
+    printf("\n=======Read1======\n");
+    for (i=0; i<a[0].n; ++i) {
+      mem_alnreg_t *p = &a[0].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec:%d\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos, p->secondary);
+    }
+    printf("========Read2=======\n");
+    for (i=0; i<a[1].n; ++i) {
+      mem_alnreg_t *p = &a[1].a[i];
+      int _is_rev;
+      int64_t rpos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev);
+      int pos = rpos - bns->anns[p->rid].offset;
+      printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec:%d\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos, p->secondary);
+    }
+    printf("\n\n");
+  }
 
   /* pairing mate reads */
   if (n_pri[0] && n_pri[1] && (o = mem_pair(opt, bns, pac, pes, s, a, id, &subo, &n_sub, z, n_pri)) > 0) {
@@ -321,8 +408,14 @@ int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
     char **XA[2];
     // check if an end has multiple hits even after mate-SW
     for (i = 0; i < 2; ++i) {
-      for (j = 1; j < n_pri[i]; ++j)
+      for (j = 1; j < n_pri[i]; ++j) {
+        mem_alnreg_t *p = &a[i].a[j];
+        // printf("final: %d - %u - %d - %d (%d)\n", i, j, a[i].a[j].secondary, a[i].a[j].score, n_pri[i]);
+        int _is_rev;
+      int pos = bns_depos(bns, p->rb < bns->l_pac ? p->rb : p->re-1, &_is_rev) - bns->anns[p->rid].offset;
+      // printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d)\n", p->score, p->qb, p->qe, (long)p->rb, (long)p->re, bns->anns[p->rid].name, pos);
         if (a[i].a[j].secondary < 0 && a[i].a[j].score >= opt->T) break;
+      }
       is_multi[i] = j < n_pri[i]? 1 : 0;
     }
     if (is_multi[0] || is_multi[1]) goto no_pairing; // TODO: in rare cases, the true hit may be long but with low score

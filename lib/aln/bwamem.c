@@ -631,6 +631,13 @@ int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id
   ks_introsort(mem_ars_hash, n, a);
   mem_mark_primary_se_core(opt, n, a, &z);
 
+  if (bwa_verbose > 4) {
+    for (i=0; i<n; ++i) {
+      mem_alnreg_t *p = a+i;
+      printf("in-marking(round1): %ld, %d\n", p->rb, p->secondary);
+    }
+  }
+
   /* set alt_sc for secondary */
   for (i = 0; i < n; ++i) {
     mem_alnreg_t *p = &a[i];
@@ -656,6 +663,13 @@ int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id
     for (i = 0; i < n; ++i)
       a[i].secondary_all = a[i].secondary;
   }
+  if (bwa_verbose > 4) {
+    for (i=0; i<n; ++i) {
+      mem_alnreg_t *p = a+i;
+      printf("in-marking(round2): %ld, %d\n", p->rb, p->secondary);
+    }
+  }
+
   free(z.a);
   return n_pri;
 }
