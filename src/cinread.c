@@ -76,9 +76,10 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 	const bam1_core_t *c = &b->core;
 
   if (c->flag & BAM_FUNMAP) return 0; // skip unmapped
+  /* if (c->flag & BAM_FSECONDARY) return 0; // skip secondary */
 
   // TODO: this requires "-" input be input with "samtools view -h", drop this
-  fetch_refcache(d->rs, hdr->target_name[c->tid], c->pos-10, bam_endpos(b)+10);
+  fetch_refcache(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
   uint32_t rpos=c->pos+1, qpos=0;
 	int i, k; unsigned j;
 	char rb, qb;
@@ -86,6 +87,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
   uint8_t bsstrand = get_bsstrand(d->rs, b, 0);
   char fivenuc[5];
   int is_tgt = 0;
+  int l_qseq = c->l_qseq;
 	for (i=0; i<c->n_cigar; ++i) {
 		uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
 		uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
@@ -134,7 +136,9 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
           case TP_CHRM: fputs(hdr->target_name[c->tid], conf->out); break;
           case TP_CRPOS: fprintf(conf->out, "%u", rpos+j); break;
           case TP_CQPOS: {
-            fprintf(conf->out, "%u", (c->flag&BAM_FREAD2)?(c->l_qseq-qpos-j):(qpos+j));
+            // note when there is hard clipping, l_qseq might be < qpos+j
+            // see following for compensation
+            fprintf(conf->out, "%u", (c->flag&BAM_FREVERSE)?(l_qseq-qpos-j):(qpos+j));
             break;
           }
           case TP_CRBASE: fputc(rb, conf->out); break;
@@ -162,8 +166,11 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 			rpos += oplen;
 			break;
 		case BAM_CSOFT_CLIP:
+      qpos += oplen;
+      break;
     case BAM_CHARD_CLIP:
 			qpos += oplen;
+      l_qseq += oplen; // c->l_qseq excludes hard clipping, add back here.
 			break;
 		default:
 			fprintf(stderr, "Unknown cigar, %u\n", op);

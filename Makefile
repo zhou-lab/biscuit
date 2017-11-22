@@ -72,7 +72,7 @@ $(LSGSL):
 BISCUITSRCS := $(wildcard src/*.c)
 BISCUITLIBS := $(BISCUITSRCS:.c=.o)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/cinread.o src/bamfilter.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/cinread.o src/bsconv.o src/bamfilter.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 
@@ -121,6 +121,9 @@ src/bsstrand.o: src/bsstrand.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
 
 src/cinread.o: src/cinread.c
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
+
+src/bsconv.o: src/bsconv.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
 
 src/bamfilter.o: src/bamfilter.c

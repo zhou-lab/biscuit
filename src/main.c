@@ -53,6 +53,7 @@ int main_asm(int argc, char *argv[]);
 int main_tview(int argc, char *argv[]);
 int main_bsstrand(int argc, char *argv[]);
 int main_cinread(int argc, char *argv[]);
+int main_bsconv(int argc, char *argv[]);
 
 static int usage()
 {
@@ -72,6 +73,7 @@ static int usage()
   fprintf(stderr, "         asm           test allele specific methylation\n");
   fprintf(stderr, "         bsstrand      validate and correct bisulfite conversion strand label\n");
   fprintf(stderr, "         cinread       print cytosine-read pair in long form\n");
+  fprintf(stderr, "         bsconversion  summarize retention and conversion of reads\n");
   fprintf(stderr, "\n");
 
   return 1;
@@ -98,6 +100,7 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "tview") == 0) ret = main_tview(argc-1, argv+1);
   else if (strcmp(argv[1], "bsstrand") == 0) ret = main_bsstrand(argc-1, argv+1);
   else if (strcmp(argv[1], "cinread") == 0) ret = main_cinread(argc-1, argv+1);
+  else if (strcmp(argv[1], "bsconversion") == 0) ret = main_bsconv(argc-1, argv+1);
   else {
     fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
     return 1;
