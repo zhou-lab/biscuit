@@ -66,14 +66,14 @@ static int usage()
   fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "         tview         text alignment viewer with bisulfite coloring\n");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
-  fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and average methylation levels.\n");
-  fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
+  fprintf(stderr, "         pileup        pileup cytosine and mutations\n");
   fprintf(stderr, "         vcf2bed       convert VCF to bed graph\n");
-  fprintf(stderr, "         epiread       convert bam to epiread format\n");
-  fprintf(stderr, "         asm           test allele specific methylation\n");
   fprintf(stderr, "         bsstrand      validate and correct bisulfite conversion strand label\n");
+  fprintf(stderr, "         epiread       convert bam to epiread format\n");
   fprintf(stderr, "         cinread       print cytosine-read pair in long form\n");
-  fprintf(stderr, "         bsconversion  summarize retention and conversion of reads\n");
+  fprintf(stderr, "         bsconversion  summarize retention and conversion of each read\n");
+  fprintf(stderr, "         asm           test allele specific methylation\n");
+  fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "\n");
 
   return 1;
