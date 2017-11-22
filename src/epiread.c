@@ -123,10 +123,10 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
   kstring_t es; int first_snp = -1;
   es.s = 0; es.l = es.m = 0;
 
-  kstring_t ecg; int first_cg = -1; /* this is hcg in the nome-seq mode */
+  kstring_t ecg; int first_cg = -1; // this is hcg in the nome-seq mode
   ecg.s = 0; ecg.l = ecg.m = 0;
 
-  kstring_t egc; int first_gc = -1;
+  kstring_t egc; int first_gc = -1; // this is gch in the nome-seq mode
   egc.s = 0; egc.l = egc.m = 0;
 
   int i; uint32_t j;
@@ -144,13 +144,12 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
         rb = toupper(getbase_refcache(rs, rpos+j));
         qb = bscall(b, qpos+j);
 
+        // reference is G
         if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
-
           if (conf->is_nome) {  /* NOMe-seq */
-
             if (rpos+j+1 <= rs->end) { /* to prevent overflow */
-              char rb0 = toupper(getbase_refcache(rs, rpos+j-1));
-              char rb1 = toupper(getbase_refcache(rs, rpos+j+1));
+              char rb0 = toupper(getbase_refcache(rs, rpos+j-1)); // previous base
+              char rb1 = toupper(getbase_refcache(rs, rpos+j+1)); // next base
               if (rb0 == 'C' && rb1 != 'C') { /* HCG context */
                 /* Note: measure G in CpG context, record location of C */
                 if (first_cg < 0) first_cg = (int) rpos+j-1;
@@ -172,10 +171,8 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
                 }
               }
             }
-
           } else {              /* BS-seq */
-            
-            char rb0 = toupper(getbase_refcache(rs, rpos+j-1));
+            char rb0 = toupper(getbase_refcache(rs, rpos+j-1)); // previous base
             if (rb0 == 'C') {	/* CpG context */
               /* Note: measure G in CpG context, record location of C */
               if (first_cg < 0) first_cg = (int) rpos+j-1;
@@ -189,14 +186,13 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
             }
           }
         }
-        
+
+        // reference is C
         if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
-
           if (conf->is_nome) {  /* NOMe-seq */
-
             if (rpos+j+1 <= rs->end) { /* to prevent overflow */
-              char rb0 = toupper(getbase_refcache(rs, rpos+j-1));
-              char rb1 = toupper(getbase_refcache(rs, rpos+j+1));
+              char rb0 = toupper(getbase_refcache(rs, rpos+j-1)); // previous base
+              char rb1 = toupper(getbase_refcache(rs, rpos+j+1)); // next base
               if (rb0 != 'G' && rb1 == 'G') { /* HCG context */
                 /* measure C in CpG context */
                 if (first_cg < 0) first_cg = (int) rpos+j;
@@ -218,9 +214,8 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
                 }
               }
             }
-
           } else {              /* BS-seq */
-            char rb1 = toupper(getbase_refcache(rs, rpos+j+1));
+            char rb1 = toupper(getbase_refcache(rs, rpos+j+1)); // next base
             if (rb1 == 'G') {	/* CpG context */
               if (first_cg < 0) first_cg = (int) rpos+j;
               if (qb == 'T') {
@@ -309,13 +304,11 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
 }
 
 /* format one bam record to epi-read format
-   snp_beg: start location of snps
- */
+ * snp_beg: start location of snps */
 static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, uint32_t snp_beg, conf_t *conf) {
 
-  /* snp positions and characters */
-  int_v *snp_p = init_int_v(10);
-  char_v *snp_c = init_char_v(10);
+  int_v *snp_p = init_int_v(10);   // snp position
+  char_v *snp_c = init_char_v(10); // snp character
   int_v *cg_p=0, *hcg_p=0, *gch_p=0;
   char_v *cg_c=0, *hcg_c=0, *gch_c=0;
   if (conf->is_nome) {
@@ -538,7 +531,6 @@ static void *process_func(void *data) {
     int ret;
 
     while ((ret = sam_itr_next(in, iter, b))>0) {
-
       uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
 
       /* read-based filtering */
@@ -558,11 +550,10 @@ static void *process_func(void *data) {
       if (cnt_ret > conf->max_retention) continue;
 
       /* produce epiread */
-      if (conf->epiread_pair) {
+      if (conf->epiread_pair)
         format_epiread_pairwise(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
-      } else {
+      else
         format_epiread(&rec.s, b, rs, bsstrand, chrm, &w, snps, snp_beg, conf);
-      }
     }
 
     /* run through cytosines */
@@ -603,7 +594,6 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
   fprintf(stderr, "     -p        NO filtering of improper pair (!BAM_FPROPER_PAIR).\n");
-  fprintf(stderr, "     -S        bsrate maximum position [%d]\n", conf->bsrate_max_pos);
   fprintf(stderr, "     -n        maximum NM tag [%d].\n", conf->max_nm);
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
@@ -663,7 +653,6 @@ int main_epiread(int argc, char *argv[]) {
   memset(&conf, 0, sizeof(conf_t));
   conf.step = 100000;
   conf.n_threads = 3;
-  conf.bsrate_max_pos = 1000;
   conf.min_mapq = 40;
   conf.max_retention = 999999;
   conf.min_read_len = 10;
@@ -677,7 +666,7 @@ int main_epiread(int argc, char *argv[]) {
   conf.epiread_pair = 0;
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "i:B:o:r:g:q:s:S:t:l:n:m:NcuPpvh"))>=0) {
+  while ((c=getopt(argc, argv, "i:B:o:r:g:q:s:t:l:n:m:NcuPpvh"))>=0) {
     switch (c) {
     case 'i': infn = optarg; break;
     case 'B': snp_bed_fn = optarg; break;
@@ -686,7 +675,6 @@ int main_epiread(int argc, char *argv[]) {
     case 'g': reg = optarg; break;
     case 'q': conf.n_threads = atoi(optarg); break;
     case 's': conf.step = atoi(optarg); break;
-    case 'S': conf.bsrate_max_pos = atoi(optarg); break;
     case 't': conf.max_retention = atoi(optarg); break;
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'n': conf.max_nm = atoi(optarg); break;

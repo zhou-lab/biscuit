@@ -145,7 +145,7 @@ void bseq_bsconvert(bseq1_t *s, uint8_t parent) {
 static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs, uint8_t parent) {
 
   if (bwa_verbose >= 4) 
-    printf("[%s] === Seeding %s against (parent: %u)", __func__, bseq->name, parent);
+    printf("[%s] === Seeding %s against (parent: %u)\n", __func__, bseq->name, parent);
 
   int l_seq = bseq->l_seq;
   bseq_bsconvert(bseq, parent); // set bseq->bisseq
@@ -260,10 +260,10 @@ static void bis_worker2(void *data, int i, int tid) {
     if (!(w->opt->flag & MEM_F_NO_RESCUE)) 
       mem_alnreg_matesw(w->opt, w->bns, w->pac, w->pes, &w->seqs[i<<1], &w->regs[i<<1]);
 
-    if (bwa_verbose >= 4) printf("====== [%s] Primary-marking read 1\n", __func__);
+    if (bwa_verbose >= 4) printf("\n\n====== [%s] Primary-marking read 1\n", __func__);
     mem_mark_primary_se(w->opt, &w->regs[i<<1|0], i<<1|0);
 
-    if (bwa_verbose >= 4) printf("====== [%s] Primary-marking read 2\n", __func__);
+    if (bwa_verbose >= 4) printf("\n\n====== [%s] Primary-marking read 2\n", __func__);
     mem_mark_primary_se(w->opt, &w->regs[i<<1|1], i<<1|1);
 
     mem_alnreg_resetFLAG(&w->regs[i<<1|0]);

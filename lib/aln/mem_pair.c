@@ -203,12 +203,13 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
       for (u = proper_pairs.n - 1; u; --u) {
         i = proper_pairs.a[u].y >> 32;
         k = proper_pairs.a[u].y << 32 >> 32;
-        mem_alnreg_t *p1 = &regs_pair[0].a[v.a[i].y<<32>>34];
-        mem_alnreg_t *p2 = &regs_pair[1].a[v.a[k].y<<32>>34];
-        printf("[%s] Found proper pairing: ", __func__);
+        mem_alnreg_t *p1 = &regs_pair[v.a[i].y&1].a[v.a[i].y<<32>>34];
+        mem_alnreg_t *p2 = &regs_pair[v.a[k].y&1].a[v.a[k].y<<32>>34];
+        printf("[%s] Found proper pairing: read %u: ", __func__, (unsigned) (v.a[i].y&1)+1);
         mem_print_region1(bns, p1);
-        printf(" -- with: ");
+        printf(" -- with read %u: ", (unsigned) (v.a[k].y&1)+1);
         mem_print_region1(bns, p2);
+        printf("\n");
       }
     }
 

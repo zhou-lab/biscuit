@@ -41,7 +41,6 @@ typedef struct {
   int step;
   int n_threads;
   int min_cov;
-  int bsrate_max_pos;
   uint32_t min_base_qual;
   uint32_t max_retention;
   uint32_t min_read_len;
@@ -104,57 +103,17 @@ DEFINE_VECTOR(pileup_data_v, pileup_data_t)
 #define RECORD_QUEUE_END -2
 #define RECORD_SLOT_OBSOLETE -1
 
-typedef struct bsrate_t {
-  int m;
-  int *ct_unconv, *ct_conv, *ga_unconv, *ga_conv;
-  int *ct_unconv_m, *ct_conv_m, *ga_unconv_m, *ga_conv_m;
-} bsrate_t;
-
-static inline void bsrate_init(bsrate_t *b, int m) {
-  b->m = m;
-  b->ct_unconv = calloc(m, sizeof(int));
-  b->ct_conv = calloc(m, sizeof(int));
-  b->ga_unconv = calloc(m, sizeof(int));
-  b->ga_conv = calloc(m, sizeof(int));
-
-  /* conversion based on chrM */
-  b->ct_unconv_m = calloc(m, sizeof(int));
-  b->ct_conv_m = calloc(m, sizeof(int));
-  b->ga_unconv_m = calloc(m, sizeof(int));
-  b->ga_conv_m = calloc(m, sizeof(int));
-}
-
-static inline void free_bsrate(bsrate_t *b, int n_bams) {
-  int sid;
-  for (sid = 0; sid < n_bams; ++sid) {
-    free(b[sid].ct_unconv);
-    free(b[sid].ct_conv);
-    free(b[sid].ga_unconv);
-    free(b[sid].ga_conv);
-    free(b[sid].ct_unconv_m);
-    free(b[sid].ct_conv_m);
-    free(b[sid].ga_unconv_m);
-    free(b[sid].ga_conv_m);
-  }
-  free(b);
-}
-
 typedef struct {
   int64_t block_id;
-  kstring_t s;                  /* vcf record */
+  kstring_t s;                  // vcf record
 
   /* coverage */
   int tid;
-  int64_t l;
-  int64_t *n, *n_uniq;             /* length, base coverage, unique base coverage */
 
   /* methlevelaverages, [beta sum, cnt] */
   /* dim = NCONTXTS * n_bams */
-  double *betasum_context;       /* CG, CHG, CHH */
-  int64_t *cnt_context;
-  
-  /* bsrate */
-  bsrate_t *b;
+  double *betasum_context;      // CG, CHG, CHH
+  int64_t *cnt_context;         // number of c in each context
 } record_t;
 
 DEFINE_VECTOR(record_v, record_t)

@@ -169,7 +169,8 @@ static void infer_alt_chromosomes(bntseq_t *bns) {
   for (i=0; i<bns->n_seqs; ++i) {
     if (strncmp(bns->anns[i].name, "chrUn", 5)==0 || 
         strstr(bns->anns[i].name, "_random") || 
-        strstr(bns->anns[i].name, "_hap")) {
+        strstr(bns->anns[i].name, "_hap") ||
+        strstr(bns->anns[i].name, "_alt")) {
       bns->anns[i].is_alt = 1;
       if (bwa_verbose >= 4)
         fprintf(stderr, "[M:%s] Set %s as ALT.\n", __func__, bns->anns[i].name);
@@ -340,6 +341,7 @@ int main_align(int argc, char *argv[]) {
     fprintf(stderr, "\nInput/output options:\n\n");
     fprintf(stderr, "       -p            smart pairing (ignoring in2.fq)\n");
     fprintf(stderr, "       -R STR        read group header line such as '@RG\\tID:foo\\tSM:bar' [null]\n");
+    fprintf(stderr, "       -F            suppress SAM header output\n");
     fprintf(stderr, "       -H STR/FILE   insert STR to header if it starts with @; or insert lines in FILE [null]\n");
     fprintf(stderr, "       -j            treat ALT contigs as part of the primary assembly (i.e. ignore <idxbase>.alt file)\n");
     fprintf(stderr, "\n");

@@ -55,6 +55,7 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
   if (bwa_verbose >= 4) {
     printf("[%s] Generate cigar for\n", __func__);
     mem_print_region1(bns, reg);
+    putchar('\n');
   }
 
   // incrementally double bandwidth
@@ -278,10 +279,21 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
     kputc('\t', str);
     kputl(m.pos + 1, str); kputc('\t', str);
     if (p.rid == m.rid) {
-      int64_t p0 = p.pos + (p.is_rev? get_rlen(p.n_cigar, p.cigar) - 1 : 0);
-      int64_t p1 = m.pos + (m.is_rev? get_rlen(m.n_cigar, m.cigar) - 1 : 0);
-      if (m.n_cigar == 0 || p.n_cigar == 0) kputc('0', str);
-      else kputl(-(p0 - p1 + (p0 > p1? 1 : p0 < p1? -1 : 0)), str);
+
+      // the following calculation of insert size is different from BWA
+      int64_t p0 = -1, p1 = -1;
+      if (p.is_rev) p1 = p.pos + get_rlen(p.n_cigar, p.cigar) - 1;
+      else p0 = p.pos;
+      if (m.is_rev) p1 = m.pos + get_rlen(m.n_cigar, m.cigar) - 1;
+      else p0 = m.pos;
+      if (p.n_cigar > 0 && m.n_cigar > 0 && p0 >= 0 && p1 >= 0) kputl(p1-p0+1, str);
+      else kputc('0', str);
+
+      // the BWA way
+      // int64_t p0 = p.pos + (p.is_rev? get_rlen(p.n_cigar, p.cigar) - 1 : 0);
+      // int64_t p1 = m.pos + (m.is_rev? get_rlen(m.n_cigar, m.cigar) - 1 : 0);
+      // if (m.n_cigar == 0 || p.n_cigar == 0) kputc('0', str);
+      // else kputl(-(p0 - p1 + (p0 > p1? 1 : p0 < p1? -1 : 0)), str);
     } else kputc('0', str);
   } else kputsn("*\t0\t0", 5, str);
   kputc('\t', str);

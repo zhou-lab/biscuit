@@ -72,7 +72,7 @@ $(LSGSL):
 BISCUITSRCS := $(wildcard src/*.c)
 BISCUITLIBS := $(BISCUITSRCS:.c=.o)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/bamfilter.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/cinread.o src/bamfilter.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 
@@ -118,6 +118,9 @@ src/asm_pairwise.o: src/asm_pairwise.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LSGSL_DIR) $< -o $@
 
 src/bsstrand.o: src/bsstrand.c
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
+
+src/cinread.o: src/cinread.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
 
 src/bamfilter.o: src/bamfilter.c
@@ -218,7 +221,7 @@ test_align3: biscuit
 
 # paired-end read 1
 test_align4: biscuit
-	./biscuit align ~/references/hg19/biscuit/hg19.fa test/HumanBrainCpH/fastq_chr19/read_SRR1029055.86652754.1.fastq test/HumanBrainCpH/fastq_chr19/read_SRR1029055.86652754.2.fastq >test/HumanBrainCpH/1_dev
+	./biscuit align -F /home/wanding.zhou/references/hg19/biscuit/hg19.fa -1 AGTAGTAATAGAAATATTATTTAGTTAGTATAGTTTTGTTGGTATAATGTAGTTACGTTTTTAGTAAAATGATGGAAAATATAAATATTTAATTAGTTTT -2 CAAAAACACAAAATTTAAACATAATTAATTTTTCAACTTTTTTATAAATAAAAACTAATTAAATATTTATATTTTCCATCATTTTACTAAAAACGTAACT 2>/dev/null
 
 test_align5: biscuit
 	./biscuit align -F -t 5 ~/references/hg19/biscuit/hg19.fa test/HumanBrainCpH/fastq_chr19/read1.fastq test/HumanBrainCpH/fastq_chr19/read2.fastq >test/HumanBrainCpH/1_dev
