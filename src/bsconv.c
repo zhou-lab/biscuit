@@ -57,7 +57,7 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
   if (c->flag & BAM_FUNMAP) return 0; // skip unmapped
 
   // TODO: this requires "-" input be input with "samtools view -h", drop this
-  fetch_refcache(d->rs, hdr->target_name[c->tid], c->pos-10, bam_endpos(b)+10);
+  fetch_refcache(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
   uint32_t rpos=c->pos+1, qpos=0;
 	int i; unsigned j;
 	char rb, qb;

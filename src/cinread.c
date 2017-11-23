@@ -38,7 +38,7 @@ const char *tp_names[] = {"QNAME", "QPAIR", "BSSTRAND", "MAPQ",
                          "CRPOS",
                          "CQPOS",
                          "CRBASE",
-                         "CCONTEXT",
+                         "CCTXT",
                          "CQBASE",
                          "CRETENTION"};
 
@@ -47,7 +47,7 @@ typedef enum {TP_QNAME, TP_QPAIR, TP_BSSTRAND, TP_MAPQ,
               TP_CRPOS,         // cytosine position on reference
               TP_CQPOS,         // cytosine position on query
               TP_CRBASE,        // cytosine reference
-              TP_CCONTEXT,      // cytosine context, strand flipped
+              TP_CCTXT,         // cytosine context, strand flipped
               TP_CQBASE,        // base called on read
               TP_CRETENTION} __tp_name_t; // retention (R) or conversion (C)
 
@@ -60,6 +60,7 @@ typedef struct {
   __tp_name_t *tp_names;
   __tgt_name_t tgt;
   FILE *out;
+  int skip_secondary;
 } cinread_conf_t;
 
 typedef struct cinread_data_t {
@@ -76,7 +77,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 	const bam1_core_t *c = &b->core;
 
   if (c->flag & BAM_FUNMAP) return 0; // skip unmapped
-  /* if (c->flag & BAM_FSECONDARY) return 0; // skip secondary */
+  if (conf->skip_secondary && c->flag & BAM_FSECONDARY) return 0; // skip secondary
 
   // TODO: this requires "-" input be input with "samtools view -h", drop this
   fetch_refcache(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
@@ -142,7 +143,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
             break;
           }
           case TP_CRBASE: fputc(rb, conf->out); break;
-          case TP_CCONTEXT: {
+          case TP_CCTXT: {
             fprintf(conf->out, "%.5s", fivenuc);
             break;
           }
@@ -201,6 +202,7 @@ static void usage() {
     fputs(tp_names[i], stderr);
   } fputs("\n\n", stderr);
   fputs("               [QNAME,QPAIR,BSSTRAND,CRBASE,CQBASE]\n\n", stderr);
+  fprintf(stderr, "     -s        consider secondary mapping.\n");
 	fprintf(stderr, "     -o        output.\n");
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
@@ -210,16 +212,18 @@ int main_cinread(int argc, char *argv[]) {
 	int c;
 	char *reg = 0; // target region
   cinread_conf_t conf = {0};
+  conf.skip_secondary = 1;
   char *outfn = NULL;
 
   char *tgt_str = 0; char *tp_str = 0;
   if (argc < 2) { usage(); return 1; }
-  while ((c = getopt(argc, argv, "g:o:t:p:h")) >= 0) {
+  while ((c = getopt(argc, argv, "g:o:t:p:sh")) >= 0) {
     switch (c) {
 		case 'g': reg = optarg; break;
 		case 'o': outfn = optarg; break;
     case 't': tgt_str = optarg; break;
     case 'p': tp_str = optarg; break;
+    case 's': conf.skip_secondary = 0; break;
     case 'h': usage(); return 1;
     default:
       fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
