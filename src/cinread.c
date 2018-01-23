@@ -33,7 +33,7 @@
 #include "bamfilter.h"
 #include "pileup.h"
 
-const char *tp_names[] = {"QNAME", "QPAIR", "BSSTRAND", "MAPQ",
+const char *tp_names[] = {"QNAME", "QPAIR", "STRAND", "BSSTRAND", "MAPQ",
                          "CHRM",
                          "CRPOS",
                          "CQPOS",
@@ -42,7 +42,7 @@ const char *tp_names[] = {"QNAME", "QPAIR", "BSSTRAND", "MAPQ",
                          "CQBASE",
                          "CRETENTION"};
 
-typedef enum {TP_QNAME, TP_QPAIR, TP_BSSTRAND, TP_MAPQ,
+typedef enum {TP_QNAME, TP_QPAIR, TP_STRAND, TP_BSSTRAND, TP_MAPQ,
               TP_CHRM,          // chromosome
               TP_CRPOS,         // cytosine position on reference
               TP_CQPOS,         // cytosine position on query
@@ -80,7 +80,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
   if (conf->skip_secondary && c->flag & BAM_FSECONDARY) return 0; // skip secondary
 
   // TODO: this requires "-" input be input with "samtools view -h", drop this
-  fetch_refcache(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
+  refcache_fetch(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
   uint32_t rpos=c->pos+1, qpos=0;
 	int i, k; unsigned j;
 	char rb, qb;
@@ -95,7 +95,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 		switch(op) {
 		case BAM_CMATCH:
 			for(j=0; j<oplen; ++j) {
-				rb = toupper(getbase_refcache(d->rs, rpos+j));
+				rb = refcache_getbase_upcase(d->rs, rpos+j);
 
         // avoid looking at the wrong strand
         if (rb != 'C' && rb != 'G') continue;
@@ -132,6 +132,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
           switch(conf->tp_names[k]) {
           case TP_QNAME: fputs(bam_get_qname(b), conf->out); break;
           case TP_QPAIR: fputc((c->flag&BAM_FREAD2)?'2':'1', conf->out); break;
+          case TP_STRAND: fputc((c->flag&BAM_FREVERSE)?'-':'+', conf->out); break;
           case TP_BSSTRAND: fputc(bsstrand?'-':'+', conf->out); break;
           case TP_MAPQ: fprintf(conf->out, "%d", c->qual); break;
           case TP_CHRM: fputs(hdr->target_name[c->tid], conf->out); break;

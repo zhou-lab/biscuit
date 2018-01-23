@@ -275,7 +275,7 @@ uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
-        rb = toupper(getbase_refcache(rs, rpos+j));
+        rb = refcache_getbase_upcase(rs, rpos+j);
         qb = bscall(b, qpos+j);
         if (bam_get_qual(b)[qpos+j] < min_base_qual) continue;
         if (rb == 'C' && qb == 'T') nC2T++;
@@ -566,7 +566,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   kstring_t *s = &rec->s;
 
   uint32_t i;
-  char rb = toupper(getbase_refcache(rs, rpos));
+  char rb = refcache_getbase_upcase(rs, rpos);
 
   int *cnts = calloc(NSTATUS*n_bams, sizeof(int));
   int allcnts[NSTATUS]={0};
@@ -622,9 +622,8 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     if (gq[sid] < lowest_gq || !sid)
       lowest_gq = gq[sid];
     
-    if (methcallable[sid]) {
+    if (methcallable[sid])
       any_methcallable = 1;
-    }
   }
 
   /* determine somatic mutation status */
@@ -682,7 +681,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   /* INFO tags */
   cytosine_context_t ctt=CTXT_NA;
   ksprintf(s, "NS=%d", n_bams);
-  if (any_methcallable) {
+  if (rb == 'C' || rb == 'G') {
     char fivenuc[5];
     ctt = fivenuc_context(rs, rpos, rb, fivenuc);
     ksprintf(s, ";CX=%s", conf->is_nome?cytosine_context_nome[ctt]:cytosine_context[ctt]);
@@ -779,7 +778,7 @@ uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand) {
     switch(op) {
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
-        rb = toupper(getbase_refcache(rs, rpos+j));
+        rb = refcache_getbase_upcase(rs, rpos+j);
         qb = bscall(b, qpos+j);
         if (bsstrand) {
           if (rb == 'C' && qb == 'C') cnt++;
@@ -863,7 +862,7 @@ static void *process_func(void *_result) {
     char *chrm = bam_hdr->target_name[w.tid];
 
     /* prepare reference */
-    fetch_refcache(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
+    refcache_fetch(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
 
     /* loop over bams */
     for (sid=0; sid<res->n_bams; ++sid) {
@@ -903,7 +902,7 @@ static void *process_func(void *_result) {
             for (j=0; j<oplen; ++j) {
 
               if (rpos+j<w.beg || rpos+j>=w.end) continue; /* include begin but not end */
-              rb = toupper(getbase_refcache(rs, rpos+j));
+              rb = refcache_getbase_upcase(rs, rpos+j);
               qb = bscall(b, qpos+j);
 
               /* if read 2 in a proper pair, skip counting overlapped cytosines

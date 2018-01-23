@@ -141,15 +141,15 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
         
-        rb = toupper(getbase_refcache(rs, rpos+j));
+        rb = refcache_getbase_upcase(rs, rpos+j);
         qb = bscall(b, qpos+j);
 
         // reference is G
         if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
           if (conf->is_nome) {  /* NOMe-seq */
             if (rpos+j+1 <= rs->end) { /* to prevent overflow */
-              char rb0 = toupper(getbase_refcache(rs, rpos+j-1)); // previous base
-              char rb1 = toupper(getbase_refcache(rs, rpos+j+1)); // next base
+              char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
+              char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
               if (rb0 == 'C' && rb1 != 'C') { /* HCG context */
                 /* Note: measure G in CpG context, record location of C */
                 if (first_cg < 0) first_cg = (int) rpos+j-1;
@@ -172,7 +172,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
               }
             }
           } else {              /* BS-seq */
-            char rb0 = toupper(getbase_refcache(rs, rpos+j-1)); // previous base
+            char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
             if (rb0 == 'C') {	/* CpG context */
               /* Note: measure G in CpG context, record location of C */
               if (first_cg < 0) first_cg = (int) rpos+j-1;
@@ -191,8 +191,8 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
         if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
           if (conf->is_nome) {  /* NOMe-seq */
             if (rpos+j+1 <= rs->end) { /* to prevent overflow */
-              char rb0 = toupper(getbase_refcache(rs, rpos+j-1)); // previous base
-              char rb1 = toupper(getbase_refcache(rs, rpos+j+1)); // next base
+              char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
+              char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
               if (rb0 != 'G' && rb1 == 'G') { /* HCG context */
                 /* measure C in CpG context */
                 if (first_cg < 0) first_cg = (int) rpos+j;
@@ -215,7 +215,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
               }
             }
           } else {              /* BS-seq */
-            char rb1 = toupper(getbase_refcache(rs, rpos+j+1)); // next base
+            char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
             if (rb1 == 'G') {	/* CpG context */
               if (first_cg < 0) first_cg = (int) rpos+j;
               if (qb == 'T') {
@@ -333,7 +333,7 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refcache_t *rs, u
     case BAM_CMATCH:
       for (j=0; j<oplen; ++j) {
         
-        rb = toupper(getbase_refcache(rs, rpos+j));
+        rb = refcache_getbase_upcase(rs, rpos+j);
         qb = bscall(b, qpos+j);
 
         /* cytosine info */
@@ -342,8 +342,8 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refcache_t *rs, u
           if (conf->is_nome) {  /* NOMe-seq */
 
             if (rpos+j+1 <= rs->end) { /* to prevent overflow */
-              char rb0 = toupper(getbase_refcache(rs, rpos+j-1));
-              char rb1 = toupper(getbase_refcache(rs, rpos+j+1));
+              char rb0 = refcache_getbase(rs, rpos+j-1);
+              char rb1 = refcache_getbase(rs, rpos+j+1);
               if (rb0 == 'C' && rb1 != 'C') { /* HCG context */
                 /* Note: measure G in CpG context, record location of C */
                 push_int_v(hcg_p, (int) rpos+j-1);
@@ -368,7 +368,7 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refcache_t *rs, u
 
           } else {              /* BS-seq */
             
-            char rb0 = toupper(getbase_refcache(rs, rpos+j-1));
+            char rb0 = refcache_getbase(rs, rpos+j-1);
             if (rb0 == 'C') {	/* CpG context */
               /* Note: measure G in CpG context, record location of C */
               push_int_v(cg_p, (int) rpos+j-1);
@@ -388,8 +388,8 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refcache_t *rs, u
           if (conf->is_nome) {  /* NOMe-seq */
 
             if (rpos+j+1 <= rs->end) { /* to prevent overflow */
-              char rb0 = toupper(getbase_refcache(rs, rpos+j-1));
-              char rb1 = toupper(getbase_refcache(rs, rpos+j+1));
+              char rb0 = refcache_getbase(rs, rpos+j-1);
+              char rb1 = refcache_getbase(rs, rpos+j+1);
               if (rb0 != 'G' && rb1 == 'G') { /* HCG context */
                 /* measure C in CpG context */
                 push_int_v(hcg_p, (int) rpos+j);
@@ -413,7 +413,7 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refcache_t *rs, u
             }
 
           } else {              /* BS-seq */
-            char rb1 = toupper(getbase_refcache(rs, rpos+j+1));
+            char rb1 = refcache_getbase(rs, rpos+j+1);
             if (rb1 == 'G') {	/* CpG context */
               push_int_v(cg_p, (int) rpos+j-1);
               if (qb == 'T') {
@@ -525,7 +525,7 @@ static void *process_func(void *data) {
     
     rec.s.l = rec.s.m = 0; rec.s.s = 0; /* the epiread string */
 
-    fetch_refcache(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
+    refcache_fetch(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
     hts_itr_t *iter = sam_itr_queryi(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
     bam1_t *b = bam_init1();
     int ret;

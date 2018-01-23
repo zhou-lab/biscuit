@@ -94,7 +94,7 @@ int bsstrand_func(bam1_t *b, samFile *out, bam_hdr_t *header, void *data) {
 		return 0;
 	}
 	
-	fetch_refcache(d->rs, header->target_name[c->tid], c->pos, bam_endpos(b)+1);
+	refcache_fetch(d->rs, header->target_name[c->tid], c->pos, bam_endpos(b)+1);
 	uint32_t rpos=c->pos+1, qpos=0;
 	int i;
   int32_t nC2T = 0, nG2A = 0;
@@ -107,7 +107,7 @@ int bsstrand_func(bam1_t *b, samFile *out, bam_hdr_t *header, void *data) {
 		switch(op) {
 		case BAM_CMATCH:
 			for(j=0; j<oplen; ++j) {
-				rbase = toupper(getbase_refcache(d->rs, rpos+j));
+				rbase = toupper(refcache_getbase(d->rs, rpos+j));
 				qbase = bscall(b, qpos+j);
 				if (rbase == 'C' && qbase == 'T') nC2T += 1;
 				if (rbase == 'G' && qbase == 'A') nG2A += 1;

@@ -40,6 +40,7 @@ typedef struct {
   int max_cpc;
   int max_cpt;
   int show_filtered;
+  int print_in_tab;
 } bsconv_conf_t;
 
 typedef struct bsconv_data_t {
@@ -57,7 +58,7 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
   if (c->flag & BAM_FUNMAP) return 0; // skip unmapped
 
   // TODO: this requires "-" input be input with "samtools view -h", drop this
-  fetch_refcache(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
+  refcache_fetch(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
   uint32_t rpos=c->pos+1, qpos=0;
 	int i; unsigned j;
 	char rb, qb;
@@ -72,7 +73,7 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 		switch(op) {
 		case BAM_CMATCH:
 			for(j=0; j<oplen; ++j) {
-				rb = toupper(getbase_refcache(d->rs, rpos+j));
+				rb = refcache_getbase_upcase(d->rs, rpos+j);
 
         // avoid looking at the wrong strand
         if (rb != 'C' && rb != 'G') continue;
@@ -112,14 +113,6 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 		}
 	}
 
-  kstring_t s; s.m = s.l = 0; s.s = 0;
-  for (i=0; i<4; ++i) {
-    if (i) kputc(',', &s);
-    ksprintf(&s, "C%c_R%dC%d", nt256int8_to_nt256char_table[i], retn[i], conv[i]);
-  }
-  bam_aux_append(b, "ZN", 'Z', s.l+1, (uint8_t*) s.s);
-  free(s.s);
-
   int tofilter = 0;
   if (conf->max_cpa >= 0 && retn[nt256char_to_nt256int8_table['A']] > conf->max_cpa) tofilter = 1;
   if (conf->max_cpc >= 0 && retn[nt256char_to_nt256int8_table['C']] > conf->max_cpc) tofilter = 1;
@@ -130,7 +123,26 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
       retn[nt256char_to_nt256int8_table['T']] > conf->max_cph) tofilter = 1;
   if (conf->show_filtered) tofilter = !tofilter;
   if (tofilter) return 0;
+
+  // tab output
+  if (conf->print_in_tab) {
+    for (i=0; i<4; ++i) {
+      if (i) putchar('\t');
+      printf("%d\t%d", retn[i], conv[i]);
+    }
+    putchar('\n');
+    return 0;
+  }
   
+  // bam output
+  kstring_t s; s.m = s.l = 0; s.s = 0;
+  for (i=0; i<4; ++i) {
+    if (i) kputc(',', &s);
+    ksprintf(&s, "C%c_R%dC%d", nt256int8_to_nt256char_table[i], retn[i], conv[i]);
+  }
+  bam_aux_append(b, "ZN", 'Z', s.l+1, (uint8_t*) s.s);
+  free(s.s);
+
   if (out) {
     if (sam_write1(out, hdr, b) < 0)
       wzfatal("Cannot write bam.\n");
@@ -155,6 +167,7 @@ static void usage() {
   fprintf(stderr, "     -a        filter: maximum CpA retention [Inf]\n");
   fprintf(stderr, "     -c        filter: maximum CpC retention [Inf]\n");
   fprintf(stderr, "     -t        filter: maximum CpT retention [Inf]\n");
+  fprintf(stderr, "     -b        print in tab, CpA_R, CpA_C, CpC_R, CpC_C, CpG_R, CpG_C, CpT_R, CpT_C\n");
   fprintf(stderr, "     -v        show filtered instead of remained [False]\n");
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
@@ -165,15 +178,17 @@ int main_bsconv(int argc, char *argv[]) {
 	char *reg = 0; // target region
   bsconv_conf_t conf = {0};
   conf.max_cph = conf.max_cpa = conf.max_cpc = conf.max_cpt = -1;
+  conf.print_in_tab = 0;
 
   if (argc < 2) { usage(); return 1; }
-  while ((c = getopt(argc, argv, "g:m:a:c:t:vh")) >= 0) {
+  while ((c = getopt(argc, argv, "g:m:a:c:t:bvh")) >= 0) {
     switch (c) {
 		case 'g': reg = optarg; break;
     case 'm': conf.max_cph = atoi(optarg); break;
     case 'a': conf.max_cpa = atoi(optarg); break;
     case 'c': conf.max_cpc = atoi(optarg); break;
     case 't': conf.max_cpt = atoi(optarg); break;
+    case 'b': conf.print_in_tab = 1; break;
     case 'v': conf.show_filtered = 1; break;
     case 'h': usage(); return 1;
     default:
