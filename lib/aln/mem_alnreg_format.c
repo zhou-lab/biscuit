@@ -127,18 +127,24 @@ static void mem_alnreg_tagXA(const mem_opt_t *opt, const bntseq_t *bns, const ui
   // no need to set XA if all alignments are output as records
   if (!regs0 || (opt->flag & MEM_F_ALL)) return;
 
-  int cnt = 0, has_alt = 0; unsigned i;
+  int cnt_pri = 0, cnt_alt= 0; // number of primary-chr, and alt-chr secondaries
+  unsigned i;
   for (i=0; i<regs0->n; ++i) {
     int r = get_pri_idx(opt->XA_drop_ratio, regs0->a, i);
-    if (r >= 0 && regs0->a + r == p0) {
-      ++cnt;
-      if (regs0->a[i].is_alt) has_alt = 1;
+    if (r >= 0 && regs0->a + r == p0) { // i is the secondary to r/p0
+      if (regs0->a[i].is_alt) ++cnt_alt;
+      else ++cnt_pri;
     }
   }
   
-  // skip if the total number of alts is higher than opt->max_XA_hits_alt
-  // or if all primary number of alts is higher than opt->max_XA_hits
-  if (cnt > opt->max_XA_hits_alt || (!has_alt && cnt > opt->max_XA_hits)) return;
+  // if the number of primary-chr secondaries is higher than opt->max_XA_hits
+  // or if the number of alt-chr secondaries is higher than opt->max_XA_hits_alt
+  // suppress reporting secondary mapping and only output number of secondaries
+  if (cnt_pri > opt->max_XA_hits || cnt_alt > opt->max_XA_hits_alt) {
+    kputsn("\tXA:Z:", 6, sam_str);
+    kputw(cnt_pri, sam_str); kputc(',', sam_str); kputw(cnt_alt, sam_str);
+    return;
+  }
 
   kstring_t str = {0,0,0};
   int n;
@@ -370,7 +376,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
     for (i = tmp; i < str->l; ++i) // replace TAB in the comment to SPACE
       if (str->s[i] == '\t') str->s[i] = ' ';
   }
-  // YD: Bisulfite conversion strand label, per BWA-meth
+  // YD: Bisulfite conversion strand label, a la BWA-meth
   kputsn("\tYD:A:", 6, str);
   if (p.bss < 0) kputc('u', str);
   else kputc("fr"[p.bss], str);
@@ -384,6 +390,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
 
 typedef kvec_t(int) int_v;
 
+// select which mem_alnreg_v to output
 static int_v mem_alnreg_select_format(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *regs) {
 
   // set cigar, mapq etc.

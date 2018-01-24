@@ -229,6 +229,9 @@ void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
  * Two rounds of labeling were performed. 
  * The first round labels reg->secondary_all w.r.t. both primary and non-primary assembly regions.
  * The second round labels reg->secondary w.r.t. only primary assembly regions.
+ * The primary alignment is the one that is not secondary to any other primary.
+ * An alignment is the secondary to another alignment when there is significant overlap
+ * on query and the scores are similar.
  *********************************/
 
 // sort by 1) score; 2) is_alt; 3) hash;
@@ -241,7 +244,7 @@ KSORT_INIT(mem_ars_hash2, mem_alnreg_t, alnreg_hlt2)
 typedef kvec_t(int) int_v;
 
 // similar to the loop in mem_chain_flt()
-// n_mark - the actual regions to mark
+// n_mark - the actual regions to mark, it was first set to the entire set in the 1st round and then restricted to the first several regions in the 2nd round.
 static void mem_mark_primary_se_core(const mem_opt_t *opt, int n_mark, mem_alnreg_v *regs, int_v *z) {
 
   // A rough estimate of the minimum score difference between primary and secondary alignment
@@ -265,18 +268,18 @@ static void mem_mark_primary_se_core(const mem_opt_t *opt, int n_mark, mem_alnre
       if (e_min > b_max) { // have overlap
         int min_l = min(a->qe - a->qb, b->qe - b->qb);
         if (e_min - b_max >= min_l * opt->mask_level) { // significant overlap
-          // set a as the sub-alignment of b
-          if (b->sub == 0) 
-            b->sub = a->score;
-          if (b->score - a->score <= tmp && (b->is_alt || !a->is_alt))
-            ++b->sub_n;
+          // set a as the secondary sub-alignment of b
+          if (b->sub == 0) b->sub = a->score;
+          if (b->score - a->score <= tmp && (b->is_alt || !a->is_alt)) ++b->sub_n;
           break;
         }
       }
     }
 
-    if (k == z->n) kv_push(int, *z, i); // if a is not a subalignment, consider it as a primary alignment
-    else a->secondary = z->a[k]; // otherwise, the primary of a is z->a[k] (the k-th primary alignment)
+    // if a is not a subalignment, consider it as a primary alignment
+    // otherwise, the primary of a is z->a[k] (the k-th primary alignment)
+    if (k == z->n) kv_push(int, *z, i);
+    else a->secondary = z->a[k]; // in most cases, secondary to 1st hit, i.e. 0
   }
 }
 
@@ -294,10 +297,10 @@ void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
   for (i = regs->n_pri = 0; (unsigned) i < regs->n; ++i) {
     mem_alnreg_t *p = regs->a + i;
     p->sub = p->alt_sc = 0;
-    p->secondary = -1; // secondary to none.
+    p->secondary = -1; // secondary to none, means a primary
     p->secondary_all = -1;
     p->hash = hash_64(id+i);
-    if (!p->is_alt) ++regs->n_pri;
+    if (!p->is_alt) ++regs->n_pri; // each ALT has one primary hit
   }
 
   // high score region comes first

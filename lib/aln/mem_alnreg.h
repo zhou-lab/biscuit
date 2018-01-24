@@ -98,6 +98,7 @@ static inline int is_proper_pair(const bntseq_t *bns, const mem_alnreg_t *r1, co
 // Merge aligned regions, aka mem_merge_reg1
 void mem_merge_regions(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, mem_alnreg_v *regs);
 
+/* get true primary index */
 static inline int get_pri_idx(double XA_drop_ratio, const mem_alnreg_t *a, int i)  {
   int k = a[i].secondary_all;
   if (k >= 0 && a[i].score >= a[k].score * XA_drop_ratio) return k;

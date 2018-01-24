@@ -69,12 +69,13 @@ mem_opt_t *mem_opt_init() {
   o->max_ins = 10000;
   o->mask_level = 0.50;
   o->drop_ratio = 0.50;
+  // XA_drop_ratio: secondary hit should have score at least this fraction of the primary hit
   o->XA_drop_ratio = 0.80;
   o->split_factor = 1.5;
   o->chunk_size = 10000000;
   o->n_threads = 1;
-  o->max_XA_hits = 5;
-  o->max_XA_hits_alt = 200;
+  o->max_XA_hits = 5; /* max number of primary-chr secondary hits in XA */
+  o->max_XA_hits_alt = 20; /* max number of alt-chr secondary hits in XA */
   o->max_matesw = 50;
   o->mask_level_redun = 0.95;
   o->min_chain_weight = 0;

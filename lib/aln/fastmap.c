@@ -178,6 +178,65 @@ static void infer_alt_chromosomes(bntseq_t *bns) {
   }
 }
 
+int usage(mem_opt_t *opt) {
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Usage: biscuit align [options] <idxbase> <in1.fq> [in2.fq]\n\n");
+  fprintf(stderr, "Algorithm options:\n\n");
+  fprintf(stderr, "       -t INT        number of threads [%d]\n", opt->n_threads);
+  fprintf(stderr, "       -b INT        For PE, read1 to parent, read2 to daughter (0, default); read1 and read2 to both (1); For SE, parent (3); daughter (1); both (0, default); Def: parent (bisulfite treated strand), daughter (synthesized strand)\n");
+  fprintf(stderr, "       -f INT        1: BSW strand; 3: BSC strand; 0 (default): both; (libraries targeting either BSW or BSC are unseen so far!)\n");
+  fprintf(stderr, "       -k INT        minimum seed length [%d]\n", opt->min_seed_len);
+  fprintf(stderr, "       -w INT        band width for banded alignment [%d]\n", opt->w);
+  fprintf(stderr, "       -d INT        off-diagonal X-dropoff [%d]\n", opt->zdrop);
+  fprintf(stderr, "       -r FLOAT      look for internal seeds inside a seed longer than {-k} * FLOAT [%g]\n", opt->split_factor);
+  fprintf(stderr, "       -y INT        seed occurrence for the 3rd round seeding [%ld]\n", (long)opt->max_mem_intv);
+  //		fprintf(stderr, "       -s INT        look for internal seeds inside a seed with less than INT occ [%d]\n", opt->split_width);
+  fprintf(stderr, "       -c INT        skip seeds with more than INT occurrences [%d]\n", opt->max_occ);
+  fprintf(stderr, "       -D FLOAT      drop chains shorter than FLOAT fraction of the longest overlapping chain [%.2f]\n", opt->drop_ratio);
+  fprintf(stderr, "       -W INT        discard a chain if seeded bases shorter than INT [0]\n");
+  fprintf(stderr, "       -m INT        perform at most INT rounds of mate rescues for each read [%d]\n", opt->max_matesw);
+  fprintf(stderr, "       -S            skip mate rescue\n");
+  fprintf(stderr, "       -P            skip pairing; mate rescue performed unless -S also in use\n");
+  fprintf(stderr, "       -e            discard full-length exact matches\n");
+  fprintf(stderr, "\nScoring options:\n\n");
+  fprintf(stderr, "       -A INT        score for a sequence match, which scales options -TdBOELU unless overridden [%d]\n", opt->a);
+  fprintf(stderr, "       -B INT        penalty for a mismatch [%d]\n", opt->b);
+  fprintf(stderr, "       -O INT[,INT]  gap open penalties for deletions and insertions [%d,%d]\n", opt->o_del, opt->o_ins);
+  fprintf(stderr, "       -E INT[,INT]  gap extension penalty; a gap of size k cost '{-O} + {-E}*k' [%d,%d]\n", opt->e_del, opt->e_ins);
+  fprintf(stderr, "       -L INT[,INT]  penalty for 5'- and 3'-end clipping [%d,%d]\n", opt->pen_clip5, opt->pen_clip3);
+  fprintf(stderr, "       -U INT        penalty for an unpaired read pair [%d]\n\n", opt->pen_unpaired);
+  fprintf(stderr, "       -x STR        read type. Setting -x changes multiple parameters unless overriden [null]\n");
+  fprintf(stderr, "                     pacbio: -k17 -W40 -r10 -A1 -B1 -O1 -E1 -L0  (PacBio reads to ref)\n");
+  fprintf(stderr, "                     ont2d: -k14 -W20 -r10 -A1 -B1 -O1 -E1 -L0  (Oxford Nanopore 2D-reads to ref)\n");
+  fprintf(stderr, "                     intractg: -B9 -O16 -L5  (intra-species contigs to ref)\n");
+  //		fprintf(stderr, "                     pbread: -k13 -W40 -c1000 -r10 -A1 -B1 -O1 -E1 -N25 -FeaD.001\n");
+  fprintf(stderr, "\nInput/output options:\n\n");
+  fprintf(stderr, "       -p            smart pairing (ignoring in2.fq)\n");
+  fprintf(stderr, "       -R STR        read group header line such as '@RG\\tID:foo\\tSM:bar' [null]\n");
+  fprintf(stderr, "       -F            suppress SAM header output\n");
+  fprintf(stderr, "       -H STR/FILE   insert STR to header if it starts with @; or insert lines in FILE [null]\n");
+  fprintf(stderr, "       -j            treat ALT contigs as part of the primary assembly (i.e. ignore <idxbase>.alt file)\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "       -v INT        verbose level: 1=error, 2=warning, 3=message, 4+=debugging [%d]\n", bwa_verbose);
+  fprintf(stderr, "       -T INT        minimum score to output [%d]\n", opt->T);
+  /* if there are <INT hits with score >80%% of the max score, output all in XA */
+  /* max_XA_hits - maximum number of hits on primary chromosomes
+   * max_XA_hits_alt - maximum number of hits on alt chromosomes */
+  fprintf(stderr, "       -h INT[,INT]  maximum number of hits output in XA [%d,%d]\n", opt->max_XA_hits, opt->max_XA_hits_alt);
+  fprintf(stderr, "       -a            output all alignments for SE or unpaired PE\n");
+  fprintf(stderr, "       -C            append FASTA/FASTQ comment to SAM output\n");
+  fprintf(stderr, "       -V            output the reference FASTA header in the XR tag\n");
+  fprintf(stderr, "       -Y            use soft clipping for supplementary alignments\n");
+  fprintf(stderr, "       -M            mark shorter split hits as secondary\n\n");
+  fprintf(stderr, "       -I FLOAT[,FLOAT[,INT[,INT]]]\n");
+  fprintf(stderr, "                     specify the mean, standard deviation (10%% of the mean if absent), max\n");
+  fprintf(stderr, "                     (4 sigma from the mean if absent) and min of the insert size distribution.\n");
+  fprintf(stderr, "                     FR orientation only. [inferred]\n");
+  fprintf(stderr, "\n");
+  free(opt);
+  return 1;
+}
+
 /* the old main_mem */
 int main_align(int argc, char *argv[]) {
   mem_opt_t *opt, opt0;
@@ -215,7 +274,7 @@ int main_align(int argc, char *argv[]) {
     else if (c == 'P') opt->flag |= MEM_F_NOPAIRING;
     else if (c == 'a') opt->flag |= MEM_F_ALL;
     else if (c == 'p') opt->flag |= MEM_F_PE | MEM_F_SMARTPE;
-    else if (c == 'M') opt->flag |= MEM_F_NO_MULTI;
+    else if (c == 'M') opt->flag |= MEM_F_NO_MULTI; // mark shorter split as secondary
     else if (c == 'S') opt->flag |= MEM_F_NO_RESCUE;
     else if (c == 'e') opt->flag |= MEM_F_SELF_OVLP;
     else if (c == 'F') opt->flag |= MEM_F_ALN_REG;
@@ -263,7 +322,7 @@ int main_align(int argc, char *argv[]) {
         opt->pen_clip3 = strtol(p+1, &p, 10);
     } else if (c == 'R') {
       if ((rg_line = bwa_set_rg(optarg)) == 0) return 1; // FIXME: memory leak
-    } else if (c == 'H') {
+    } else if (c == 'H') { // header to be copied from the given file
       if (optarg[0] != '@') {
         FILE *fp;
         if ((fp = fopen(optarg, "r")) != 0) {
@@ -306,62 +365,10 @@ int main_align(int argc, char *argv[]) {
   }
 
   if (opt->n_threads < 1) opt->n_threads = 1;
-  if ((optind + 1 >= argc || optind + 3 < argc) && !aux._seq1) {
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Usage: biscuit align [options] <idxbase> <in1.fq> [in2.fq]\n\n");
-    fprintf(stderr, "Algorithm options:\n\n");
-    fprintf(stderr, "       -t INT        number of threads [%d]\n", opt->n_threads);
-    fprintf(stderr, "       -b INT        For PE, read1 to parent, read2 to daughter (0, default); read1 and read2 to both (1); For SE, parent (3); daughter (1); both (0, default); Def: parent (bisulfite treated strand), daughter (synthesized strand)\n");
-    fprintf(stderr, "       -f INT        1: BSW strand; 3: BSC strand; 0 (default): both; (libraries targeting either BSW or BSC are unseen so far!)\n");
-    fprintf(stderr, "       -k INT        minimum seed length [%d]\n", opt->min_seed_len);
-    fprintf(stderr, "       -w INT        band width for banded alignment [%d]\n", opt->w);
-    fprintf(stderr, "       -d INT        off-diagonal X-dropoff [%d]\n", opt->zdrop);
-    fprintf(stderr, "       -r FLOAT      look for internal seeds inside a seed longer than {-k} * FLOAT [%g]\n", opt->split_factor);
-    fprintf(stderr, "       -y INT        seed occurrence for the 3rd round seeding [%ld]\n", (long)opt->max_mem_intv);
-    //		fprintf(stderr, "       -s INT        look for internal seeds inside a seed with less than INT occ [%d]\n", opt->split_width);
-    fprintf(stderr, "       -c INT        skip seeds with more than INT occurrences [%d]\n", opt->max_occ);
-    fprintf(stderr, "       -D FLOAT      drop chains shorter than FLOAT fraction of the longest overlapping chain [%.2f]\n", opt->drop_ratio);
-    fprintf(stderr, "       -W INT        discard a chain if seeded bases shorter than INT [0]\n");
-    fprintf(stderr, "       -m INT        perform at most INT rounds of mate rescues for each read [%d]\n", opt->max_matesw);
-    fprintf(stderr, "       -S            skip mate rescue\n");
-    fprintf(stderr, "       -P            skip pairing; mate rescue performed unless -S also in use\n");
-    fprintf(stderr, "       -e            discard full-length exact matches\n");
-    fprintf(stderr, "\nScoring options:\n\n");
-    fprintf(stderr, "       -A INT        score for a sequence match, which scales options -TdBOELU unless overridden [%d]\n", opt->a);
-    fprintf(stderr, "       -B INT        penalty for a mismatch [%d]\n", opt->b);
-    fprintf(stderr, "       -O INT[,INT]  gap open penalties for deletions and insertions [%d,%d]\n", opt->o_del, opt->o_ins);
-    fprintf(stderr, "       -E INT[,INT]  gap extension penalty; a gap of size k cost '{-O} + {-E}*k' [%d,%d]\n", opt->e_del, opt->e_ins);
-    fprintf(stderr, "       -L INT[,INT]  penalty for 5'- and 3'-end clipping [%d,%d]\n", opt->pen_clip5, opt->pen_clip3);
-    fprintf(stderr, "       -U INT        penalty for an unpaired read pair [%d]\n\n", opt->pen_unpaired);
-    fprintf(stderr, "       -x STR        read type. Setting -x changes multiple parameters unless overriden [null]\n");
-    fprintf(stderr, "                     pacbio: -k17 -W40 -r10 -A1 -B1 -O1 -E1 -L0  (PacBio reads to ref)\n");
-    fprintf(stderr, "                     ont2d: -k14 -W20 -r10 -A1 -B1 -O1 -E1 -L0  (Oxford Nanopore 2D-reads to ref)\n");
-    fprintf(stderr, "                     intractg: -B9 -O16 -L5  (intra-species contigs to ref)\n");
-    //		fprintf(stderr, "                     pbread: -k13 -W40 -c1000 -r10 -A1 -B1 -O1 -E1 -N25 -FeaD.001\n");
-    fprintf(stderr, "\nInput/output options:\n\n");
-    fprintf(stderr, "       -p            smart pairing (ignoring in2.fq)\n");
-    fprintf(stderr, "       -R STR        read group header line such as '@RG\\tID:foo\\tSM:bar' [null]\n");
-    fprintf(stderr, "       -F            suppress SAM header output\n");
-    fprintf(stderr, "       -H STR/FILE   insert STR to header if it starts with @; or insert lines in FILE [null]\n");
-    fprintf(stderr, "       -j            treat ALT contigs as part of the primary assembly (i.e. ignore <idxbase>.alt file)\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "       -v INT        verbose level: 1=error, 2=warning, 3=message, 4+=debugging [%d]\n", bwa_verbose);
-    fprintf(stderr, "       -T INT        minimum score to output [%d]\n", opt->T);
-    fprintf(stderr, "       -h INT[,INT]  if there are <INT hits with score >80%% of the max score, output all in XA [%d,%d]\n", opt->max_XA_hits, opt->max_XA_hits_alt);
-    fprintf(stderr, "       -a            output all alignments for SE or unpaired PE\n");
-    fprintf(stderr, "       -C            append FASTA/FASTQ comment to SAM output\n");
-    fprintf(stderr, "       -V            output the reference FASTA header in the XR tag\n");
-    fprintf(stderr, "       -Y            use soft clipping for supplementary alignments\n");
-    fprintf(stderr, "       -M            mark shorter split hits as secondary\n\n");
-    fprintf(stderr, "       -I FLOAT[,FLOAT[,INT[,INT]]]\n");
-    fprintf(stderr, "                     specify the mean, standard deviation (10%% of the mean if absent), max\n");
-    fprintf(stderr, "                     (4 sigma from the mean if absent) and min of the insert size distribution.\n");
-    fprintf(stderr, "                     FR orientation only. [inferred]\n");
-    fprintf(stderr, "\n");
-    free(opt);
-    return 1;
-  }
+  if ((optind + 1 >= argc || optind + 3 < argc) && !aux._seq1)
+    return usage(opt);
 
+  // different mode for different library prep
   if (mode) {
     if (strcmp(mode, "intractg") == 0) {
       if (!opt0.o_del) opt->o_del = 16;
@@ -406,6 +413,7 @@ int main_align(int argc, char *argv[]) {
   bwa_fill_scmat_ga(opt->a, opt->b, opt->gamat);
 
   /* load bwt index */
+  if (optind >= argc) return usage(opt);
   aux.idx = bwa_idx_load_from_shm(argv[optind]);
   if (aux.idx == 0) {
     if ((aux.idx = bwa_idx_load(argv[optind], BWA_IDX_ALL)) == 0) return 1; // FIXME: memory leak
