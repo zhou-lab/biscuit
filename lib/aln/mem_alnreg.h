@@ -35,7 +35,7 @@ typedef struct {
   uint32_t is_rev:1;
   uint32_t sam_set:1;
   unsigned mapq;
-  uint32_t ZC, ZR;
+  uint32_t ZC, ZR;  // count of conversion and retention
   uint32_t *cigar;    // needs be free-ed per align
   //mem_alnreg_t *mate; // point to mate read alignment in pairing
 } mem_alnreg_t;

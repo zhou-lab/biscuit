@@ -121,8 +121,8 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
   return;
 }
 
-/* Generate XA, put to str */
-static void mem_alnreg_tagXA(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_v *regs0, kstring_t *sam_str) {
+/* Generate XA, XB put to str. */
+static void mem_alnreg_tagXAXB(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_v *regs0, kstring_t *sam_str) {
 
   // no need to set XA if all alignments are output as records
   if (!regs0 || (opt->flag & MEM_F_ALL)) return;
@@ -140,48 +140,53 @@ static void mem_alnreg_tagXA(const mem_opt_t *opt, const bntseq_t *bns, const ui
   // if the number of primary-chr secondaries is higher than opt->max_XA_hits
   // or if the number of alt-chr secondaries is higher than opt->max_XA_hits_alt
   // suppress reporting secondary mapping and only output number of secondaries
-  if (cnt_pri > opt->max_XA_hits || cnt_alt > opt->max_XA_hits_alt) {
-    kputsn("\tXA:Z:", 6, sam_str);
-    kputw(cnt_pri, sam_str); kputc(',', sam_str); kputw(cnt_alt, sam_str);
-    return;
-  }
+  if (cnt_pri <= opt->max_XA_hits && cnt_alt <= opt->max_XA_hits_alt) {
 
-  kstring_t str = {0,0,0};
-  int n;
-  for (i=0, n=0; i<regs0->n; ++i) {
+    kstring_t str = {0,0,0};
+    int n;
+    for (i=0, n=0; i<regs0->n; ++i) {
 
-    mem_alnreg_t *q = regs0->a + i;
-    int r = get_pri_idx(opt->XA_drop_ratio, regs0->a, i);
-    if (r < 0 || regs0->a + r != p0) continue;
+      mem_alnreg_t *q = regs0->a + i;
+      int r = get_pri_idx(opt->XA_drop_ratio, regs0->a, i);
+      if (r < 0 || regs0->a + r != p0) continue;
 
-    // try set cigar if haven't yet
-    if (q->n_cigar == 0) {
-      mem_alnreg_setSAM(opt, bns, pac, s, q);
-      if (q->n_cigar == 0) continue;
-    }
+      // try set cigar if haven't yet
+      if (q->n_cigar == 0) {
+        mem_alnreg_setSAM(opt, bns, pac, s, q);
+        if (q->n_cigar == 0) continue;
+      }
     
-    if (n) kputc(';', &str);
-    kputs(bns->anns[q->rid].name, &str);
-    kputc(',', &str); 
-    kputc("+-"[q->is_rev], &str);
-    kputl(q->pos + 1, &str);
-    kputc(',', &str);
+      if (n) kputc(';', &str);
+      kputs(bns->anns[q->rid].name, &str);
+      kputc(',', &str); 
+      kputc("+-"[q->is_rev], &str);
+      kputl(q->pos + 1, &str);
+      kputc(',', &str);
 
-    int k;
-    for (k = 0; k < q->n_cigar; ++k) {
-      kputw(q->cigar[k]>>4, &str);
-      kputc("MIDSHN"[q->cigar[k]&0xf], &str);
+      int k;
+      for (k = 0; k < q->n_cigar; ++k) {
+        kputw(q->cigar[k]>>4, &str);
+        kputc("MIDSHN"[q->cigar[k]&0xf], &str);
+      }
+      kputc(',', &str);
+      kputw(q->NM, &str);
+      ++n;
     }
-    kputc(',', &str);
-    kputw(q->NM, &str);
-    ++n;
+
+    if (str.l) {
+      kputsn("\tXA:Z:", 6, sam_str); 
+      kputs(str.s, sam_str);
+    }
+    free(str.s);
   }
 
-  if (str.l) {
-    kputsn("\tXA:Z:", 6, sam_str); 
-    kputs(str.s, sam_str);
+  // XB: number of alternative alignments
+  if (cnt_pri > 0 || cnt_alt > 0) { // only when there is alternative(s)
+    kputsn("\tXB:Z:", 6, sam_str);
+    kputw(cnt_pri, sam_str);
+    kputc(',', sam_str);
+    kputw(cnt_alt, sam_str);
   }
-  free(str.s);
 }
 
 /* Generate SA-tag, put to str */
@@ -348,10 +353,11 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
 
   // TAGS
   if (p.n_cigar) {
-    kputsn("\tNM:i:", 6, str); kputw(p.NM, str);
+    kputsn("\tNM:i:", 6, str); kputw(p.NM, str); // true mismatches
+    // position of actual mismatches
     kputsn("\tMD:Z:", 6, str); kputs((char*)(p.cigar + p.n_cigar), str);
-    kputsn("\tZC:i:", 6, str); kputw(p.ZC, str);
-    kputsn("\tZR:i:", 6, str); kputw(p.ZR, str);
+    kputsn("\tZC:i:", 6, str); kputw(p.ZC, str); // count of conversion
+    kputsn("\tZR:i:", 6, str); kputw(p.ZR, str); // count of retention
   }
   // AS: best local SW score
   if (p.score >= 0) { kputsn("\tAS:i:", 6, str); kputw(p.score, str); }
@@ -363,8 +369,8 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
   if (regs0) mem_alnreg_tagSA(opt, bns, pac, s, p0, regs0, str);
   // PA: ratio of score / alt_score, higher the ratio, the more accurate the position
   if (is_primary && p.alt_sc > 0) ksprintf(str, "\tPA:f:%.3f", (double) p.score / p.alt_sc); // used to be lowercase pa, just to be consistent
-  // XA: alternative alignment
-  if (regs0) mem_alnreg_tagXA(opt, bns, pac, s, p0, regs0, str);
+  // XA and XB: alternative (secondary) alignment
+  if (regs0) mem_alnreg_tagXAXB(opt, bns, pac, s, p0, regs0, str);
   if (s->comment) { kputc('\t', str); kputs(s->comment, str); }
   // XR: reference/chromosome annotation
   if ((opt->flag&MEM_F_REF_HDR) && p.rid >= 0 && bns->anns[p.rid].anno != 0 && bns->anns[p.rid].anno[0] != 0) {
@@ -376,7 +382,7 @@ void mem_alnreg_formatSAM(const mem_opt_t *opt, const bntseq_t *bns, const uint8
     for (i = tmp; i < str->l; ++i) // replace TAB in the comment to SPACE
       if (str->s[i] == '\t') str->s[i] = ' ';
   }
-  // YD: Bisulfite conversion strand label, a la BWA-meth
+  // YD: Bisulfite conversion strand label, f for forward and r for reverse, a la BWA-meth
   kputsn("\tYD:A:", 6, str);
   if (p.bss < 0) kputc('u', str);
   else kputc("fr"[p.bss], str);

@@ -74,8 +74,8 @@ mem_opt_t *mem_opt_init() {
   o->split_factor = 1.5;
   o->chunk_size = 10000000;
   o->n_threads = 1;
-  o->max_XA_hits = 5; /* max number of primary-chr secondary hits in XA */
-  o->max_XA_hits_alt = 20; /* max number of alt-chr secondary hits in XA */
+  o->max_XA_hits = 5; // max number of primary-chr secondary hits in XA
+  o->max_XA_hits_alt = 5; // max number of alt-chr secondary hits in XA
   o->max_matesw = 50;
   o->mask_level_redun = 0.95;
   o->min_chain_weight = 0;
