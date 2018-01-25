@@ -111,14 +111,18 @@ static inline void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
     regs->a[k].flag = 0;
 }
 
-static inline void mem_print_region1(const bntseq_t *bns, const mem_alnreg_t *reg) {
+static inline int region_depos(const bntseq_t *bns, const mem_alnreg_t *reg) {
   int _is_rev;
+  int64_t rpos = bns_depos(bns, reg->rb < bns->l_pac ? reg->rb : reg->re-1, &_is_rev);
+  return rpos - bns->anns[reg->rid].offset;
+}
+
+static inline void mem_print_region1(const bntseq_t *bns, const mem_alnreg_t *reg) {
   if (bns) {
-    int64_t rpos = bns_depos(bns, reg->rb < bns->l_pac ? reg->rb : reg->re-1, &_is_rev);
-    int pos = rpos - bns->anns[reg->rid].offset;
-    printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, bns->anns[reg->rid].name, pos, reg->secondary);
+    int pos = region_depos(bns, reg);
+    printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec: %d, bss: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, bns->anns[reg->rid].name, pos, reg->secondary, reg->bss);
   } else {
-    printf("** %d, [%d,%d) <=> [%ld,%ld) sec: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, reg->secondary);
+    printf("** %d, [%d,%d) <=> [%ld,%ld) sec: %d, bss: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, reg->secondary, reg->bss);
   }
 }
 

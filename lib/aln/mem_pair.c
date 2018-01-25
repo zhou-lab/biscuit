@@ -24,6 +24,7 @@
  *
  */
 
+#include <inttypes.h>
 #include <math.h>
 #include "mem_alnreg.h"
 #include "utils.h"
@@ -152,10 +153,10 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
     for (i = 0; (unsigned) i < regs_pair[r].n_pri; ++i) {
       pair64_t key;
       mem_alnreg_t *p = &regs_pair[r].a[i];
-      key.x = p->rb < l_pac ? p->rb : (l_pac<<1) - 1 - p->rb; // forward position
+      /* key.x = p->rb < l_pac ? p->rb : (l_pac<<1) - 1 - p->rb; // forward position */
       /* key.x = (uint64_t)e->rid<<32 | (key.x - bns->anns[e->rid].offset); */
       /* current fix, bss is the highest bit which restrict dist, not the most efficient solution TODO */
-      key.x = (uint64_t)p->bss<<63 | (uint64_t)p->rid<<32 | (key.x - bns->anns[p->rid].offset);
+      key.x = (uint64_t)p->bss<<63 | (uint64_t)p->rid<<32 | region_depos(bns, p);
       key.y = (uint64_t)p->score << 32 | i << 2 | (p->rb >= l_pac)<<1 | r;
       kv_push(pair64_t, v, key);
     }
@@ -164,6 +165,15 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
   // sort by location and then ascending score
   ks_introsort_128(v.n, v.a);
 
+  if (bwa_verbose >= 8) {
+    printf("sort by location and ascending score:\n");
+    printf("There are %zu primary for read 1 and %zu for read 2.\n", regs_pair[0].n_pri, regs_pair[1].n_pri);
+    for (i = 0; (unsigned) i < v.n; ++i) {
+      printf("read %"PRIu64", %s:%"PRIu64" (str:%"PRIu64")\n", (v.a[i].y&1)+1, bns->anns[((uint64_t)v.a[i].x>>32)&0xffffU].name, v.a[i].x&0xffffffffU, v.a[i].y>>1&0x1);
+    }
+    printf("\n");
+  }
+  
   pair64_v proper_pairs;  // indices of proper pairs
   // x - merged score of the whole insert + id hash
   // y - mate index in v + read index in v
@@ -175,7 +185,9 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
     // v is sorted ascendingly in coordinates, going backward
     for (k = i-1; k >= 0; ++k) {
       if (v.a[i].x >> 32 != v.a[k].x >> 32) break;
-      if ((int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
+      /* if ((int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break; */
+      if ((v.a[i].x>>63 != v.a[k].x>>63) || // not the same bisulfite strand
+          (int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
 
       int64_t is;
       if (mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, &is) &&
