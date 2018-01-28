@@ -145,25 +145,26 @@ mem_pestat_t mem_pestat(const mem_opt_t *opt, const bntseq_t *bns, int n, const 
 void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes, mem_alnreg_v regs_pair[2], int id, int *score, int *sub, int *n_sub, int z[2]) {
 
   int64_t l_pac = bns->l_pac;
-  pair64_v v;
+  trio64_v v;
   kv_init(v);
 
   int i; int r; // read 1 or 2
   for (r = 0; r < 2; ++r) { // loop through read number
     for (i = 0; (unsigned) i < regs_pair[r].n_pri; ++i) {
-      pair64_t key;
+      trio64_t key;
       mem_alnreg_t *p = &regs_pair[r].a[i];
       /* key.x = p->rb < l_pac ? p->rb : (l_pac<<1) - 1 - p->rb; // forward position */
       /* key.x = (uint64_t)e->rid<<32 | (key.x - bns->anns[e->rid].offset); */
       /* current fix, bss is the highest bit which restrict dist, not the most efficient solution TODO */
-      key.x = (uint64_t)p->bss<<63 | (uint64_t)p->rid<<32 | region_depos(bns, p);
+      key.x = (uint64_t)p->bss<<63 | (uint64_t)p->rid<<32 | region_depos(bns, p, NULL);
       key.y = (uint64_t)p->score << 32 | i << 2 | (p->rb >= l_pac)<<1 | r;
-      kv_push(pair64_t, v, key);
+      key.z = (uint64_t)(p->qe - p->qb);
+      kv_push(trio64_t, v, key);
     }
   }
 
   // sort by location and then ascending score
-  ks_introsort_128(v.n, v.a);
+  ks_introsort_192(v.n, v.a);
 
   if (bwa_verbose >= 8) {
     printf("sort by location and ascending score:\n");
@@ -190,7 +191,14 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
           (int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
 
       int64_t is;
-      if (mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, &is) &&
+      if (bwa_verbose >= 8) {
+        mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, v.a[k].z, v.a[i].z, &is);
+        printf("%s, Hit %"PRIu64", paired with hit %"PRIu64"\n", bns->anns[((uint64_t)v.a[i].x>>32)&0xffffU].name, v.a[i].x&0xffffffffU, v.a[k].x&0xffffffffU);
+        printf("Insert size: %"PRId64" (must be in [%d,%d]\n", is, pes.low, pes.high);
+      }
+      
+
+      if (mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, v.a[k].z, v.a[i].z, &is) &&
           is >= pes.low && is <= pes.high) {
 
         /* score of the insert by merging score of the two 

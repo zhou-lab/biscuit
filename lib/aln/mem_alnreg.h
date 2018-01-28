@@ -47,12 +47,12 @@ typedef struct {
 } mem_alnreg_v;
 
 // note: pos1 == isrev1 ? end1 : beg1; pos2 == isrev2 ? end2 : beg2
-static inline int mem_infer_isize(int64_t pos1, int64_t pos2, int isrev1, int isrev2, int64_t *isize) {
+static inline int mem_infer_isize(int64_t pos1, int64_t pos2, int isrev1, int isrev2, int len1, int len2, int64_t *isize) {
   if (isrev1 && !isrev2) {
-    *isize = pos1 - pos2;
+    *isize = pos1 - pos2 + len1;
     return 1;
   } else if (isrev2 && !isrev1) {
-    *isize = pos2 - pos1;
+    *isize = pos2 - pos1 + len2;
     return 1;
   } else return 0;  
 }
@@ -64,7 +64,7 @@ static inline int mem_alnreg_isize(const bntseq_t *bns, const mem_alnreg_t *r1, 
   int isrev2 = r2->rb > bns->l_pac;
   int64_t pos1 = isrev1 ? (bns->l_pac<<1) - 1 - r1->rb : r1->rb;
   int64_t pos2 = isrev2 ? (bns->l_pac<<1) - 1 - r2->rb : r2->rb;
-  return mem_infer_isize(pos1, pos2, isrev1, isrev2, isize);
+  return mem_infer_isize(pos1, pos2, isrev1, isrev2, (int64_t) (r1->qe-r1->qb), (int64_t) (r2->qe-r2->qb), isize);
 }
 
 static inline int is_proper_pair(const bntseq_t *bns, const mem_alnreg_t *r1, const mem_alnreg_t *r2, mem_pestat_t pes) {
@@ -111,15 +111,16 @@ static inline void mem_alnreg_resetFLAG(mem_alnreg_v *regs) {
     regs->a[k].flag = 0;
 }
 
-static inline int region_depos(const bntseq_t *bns, const mem_alnreg_t *reg) {
-  int _is_rev;
-  int64_t rpos = bns_depos(bns, reg->rb < bns->l_pac ? reg->rb : reg->re-1, &_is_rev);
+static inline int region_depos(const bntseq_t *bns, const mem_alnreg_t *reg, int *_is_rev) {
+  int is_rev_tmp = 0;
+  if (_is_rev == NULL) _is_rev = &is_rev_tmp;
+  int64_t rpos = bns_depos(bns, reg->rb < bns->l_pac ? reg->rb : reg->re-1, _is_rev);
   return rpos - bns->anns[reg->rid].offset;
 }
 
 static inline void mem_print_region1(const bntseq_t *bns, const mem_alnreg_t *reg) {
   if (bns) {
-    int pos = region_depos(bns, reg);
+    int pos = region_depos(bns, reg, NULL);
     printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec: %d, bss: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, bns->anns[reg->rid].name, pos, reg->secondary, reg->bss);
   } else {
     printf("** %d, [%d,%d) <=> [%ld,%ld) sec: %d, bss: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, reg->secondary, reg->bss);

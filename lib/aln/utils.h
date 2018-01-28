@@ -55,6 +55,12 @@ typedef struct {
 typedef struct { size_t n, m; uint64_t *a; } uint64_v;
 typedef struct { size_t n, m; pair64_t *a; } pair64_v;
 
+typedef struct {
+  uint64_t x, y, z;
+} trio64_t;
+
+typedef struct { size_t n, m; trio64_t *a; } trio64_v;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -91,6 +97,7 @@ extern "C" {
   void ks_introsort_64s(size_t n, int64_t *a);
   void ks_introsort_64 (size_t n, uint64_t *a);
   void ks_introsort_128(size_t n, pair64_t *a);
+  void ks_introsort_192(size_t n, trio64_t *a);
 
 #ifdef __cplusplus
 }
