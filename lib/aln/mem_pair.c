@@ -184,7 +184,7 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
   int k;
   for (i = 0; (unsigned) i < v.n; ++i) {
     // v is sorted ascendingly in coordinates, going backward
-    for (k = i-1; k >= 0; ++k) {
+    for (k = i-1; k >= 0; --k) {
       if (v.a[i].x >> 32 != v.a[k].x >> 32) break;
       /* if ((int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break; */
       if ((v.a[i].x>>63 != v.a[k].x>>63) || // not the same bisulfite strand
@@ -193,11 +193,10 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
       int64_t is;
       if (bwa_verbose >= 8) {
         mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, v.a[k].z, v.a[i].z, &is);
-        printf("%s, Hit %"PRIu64", paired with hit %"PRIu64"\n", bns->anns[((uint64_t)v.a[i].x>>32)&0xffffU].name, v.a[i].x&0xffffffffU, v.a[k].x&0xffffffffU);
+        printf("%s, Hit %"PRIu64" (%"PRIu64"), paired with hit %"PRIu64" (%"PRIu64")\n", bns->anns[((uint64_t)v.a[i].x>>32)&0xffffU].name, v.a[i].x&0xffffffffU, (v.a[i].y>>1)&1, v.a[k].x&0xffffffffU, (v.a[i].y>>1)&1);
         printf("Insert size: %"PRId64" (must be in [%d,%d]\n", is, pes.low, pes.high);
       }
       
-
       if (mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, v.a[k].z, v.a[i].z, &is) &&
           is >= pes.low && is <= pes.high) {
 

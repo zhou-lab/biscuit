@@ -430,6 +430,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
 
   if (bwa_verbose >= 4) {
     printf("[%s] Try adding matesw-ed region %ld-%ld. score:%d\n", __func__, rb, re, aln.score);
+    printf("original: %ld - %ld (pes: [%d-%d])\n", reg->rb, reg->re, pes.low, pes.high);
     mem_print_region1(bns, reg);
     putchar('\n');
   }
@@ -456,12 +457,12 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
     b.bss = reg->bss;
 
     if (bwa_verbose >= 4) {
-      printf("[%s] Add matesw-ed region:\n", __func__);
+      printf("\n[%s] Add matesw-ed region:\n", __func__);
       mem_print_region1(bns, &b);
       putchar('\n');
       printf("[%s] for original alignment:\n", __func__);
       mem_print_region1(bns, reg);
-      putchar('\n');
+      putchar('\n'); putchar('\n');
     }
 
     // printf("*** %d, [%lld,%lld], %d:%d, (%lld,%lld), (%lld,%lld) == (%lld,%lld)\n", aln.score, rb, re, is_rev, is_larger, reg->rb, a->re, ma->a[0].rb, ma->a[0].re, b.rb, b.re);
