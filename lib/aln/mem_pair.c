@@ -190,7 +190,7 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
       if ((v.a[i].x>>63 != v.a[k].x>>63) || // not the same bisulfite strand
           (int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
 
-      int64_t is;
+      int64_t is=0;
       if (bwa_verbose >= 8) {
         mem_infer_isize(v.a[k].x, v.a[i].x, (v.a[k].y>>1)&1, (v.a[i].y>>1)&1, v.a[k].z, v.a[i].z, &is);
         printf("%s, Hit %"PRIu64" (%"PRIu64"), paired with hit %"PRIu64" (%"PRIu64")\n", bns->anns[((uint64_t)v.a[i].x>>32)&0xffffU].name, v.a[i].x&0xffffffffU, (v.a[i].y>>1)&1, v.a[k].x&0xffffffffU, (v.a[i].y>>1)&1);
