@@ -75,7 +75,7 @@ static int usage()
   fprintf(stderr, "         cinread       print cytosine-read pair in long form\n");
   fprintf(stderr, "         bsconv        summarize retention and conversion of each read, append in ZN tag\n");
   fprintf(stderr, "         asm           test allele specific methylation\n");
-  fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
+  // fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "\n");
 
   return 1;

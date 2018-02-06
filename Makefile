@@ -20,7 +20,6 @@ INCLUDE = include
 # 	@echo "$$CFLAGS" $(CFLAGS)
 
 PROG = biscuit
-# PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
 .PHONY : setdebug debug build
 
@@ -88,7 +87,7 @@ src/main.o: src/main.c
 
 LALND = lib/aln
 LALNOBJ=$(patsubst %.c,%.o,$(wildcard $(LALND)/*.c))
-# LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/fastmap.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o $(LALND)/ksw.o $(LALND)/mem_pair.o
+# LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/align.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o $(LALND)/ksw.o $(LALND)/mem_pair.o
 lib/aln/libaln.a: $(LALNOBJ)
 	ar -csru $@ $(LALNOBJ)
 $(LALND)/%.o: $(LALND)/%.c
@@ -168,69 +167,6 @@ release:
 cleanse : purge
 	rm -f **/*.o .travis.yml .gitmodules .gitignore
 	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
-
-####### archived #######
-# .PHONY: correct_bsstrand
-# correct_bsstrand : bin/correct_bsstrand
-# bin/correct_bsstrand: $(LSAM0119)
-# 	gcc $(CFLAGS) -o $@ -I$(INCLUDE) -I$(LSAM0119D) src/correct_bsstrand/correct_bsstrand.c $(LSAM0119) -lz -lpthread
-# clean_correct_bsstrand:
-# 	rm -f bin/correct_bsstrand
-
-# get trinuc spectrum
-# .PHONY: sample_trinuc
-# sample_trinuc : bin/sample_trinuc
-# bin/sample_trinuc: $(LSAM0119) src/sample_trinuc/sample_trinuc.c
-# 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/sample_trinuc/sample_trinuc.c -lpthread $(LSAM0119) $(LUTILS) -lz
-# clean_sample_trinuc:
-# 	rm -f bin/sample_trinuc
-
-# find hemi methylation
-# .PHONY: hemifinder
-# hemifinder : bin/hemifinder
-# bin/hemifinder: $(LSAM0119) $(LUTILS) src/hemifinder/hemifinder.c
-# 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/hemifinder/hemifinder.c $(LSAM0119) $(LUTILS) -lpthread  -lz
-# clean_hemifinder:
-# 	rm -f bin/hemifinder
-
-
-######## test ###### 
-
-test_bsstrand1: biscuit
-	./biscuit bsstrand ~/references/hg19/hg19.fa test/InfiniumEPIC/bam/typeI.bam
-
-test_bsstrand2: biscuit
-	./biscuit bsstrand -co -g chr21 ~/references/hg19/hg19.fa test2/TruSeq_IMR90/bam/biscuit.bam test2/TruSeq_IMR90/bam/biscuit_bsstranded.bam
-
-test_tview1: biscuit
-	./biscuit tview -g chr11:5312345 -m 1 test3/AmpliconSeq/bam/DRM2.bam ~/references/hg19/hg19.fa
-
-test_tview2: biscuit
-	./biscuit tview -n NS500653:105:HLJKJAFXX:1:11102:20185:16363 -g chr11:5312345 -m 1 test3/AmpliconSeq/bam/DRM2.bam ~/references/hg19/hg19.fa
-
-test_align1: biscuit
-	./biscuit align ~/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/probe.fastq
-
-# this tests auto-inference of alt-chroms, should output haps in XA and chr6 alignment in POS
-test_align2: biscuit
-	./biscuit align /home/wanding.zhou/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/probe_cg11945228_A.fastq
-
-# all infinium probes
-# master typeI -t 5 debug : Real time: 68.444 sec; CPU: 319.421 sec
-# develop2 typeI -t 5 debug : Real time: 69.772 sec; CPU: 321.330 sec
-# develop2 typeII -t 5 debug : Real time: 206.006 sec; CPU: 1002.591 sec
-# comparesam test/InfiniumEPIC/1_dev_typeI test/InfiniumEPIC/1_master_typeI >1
-# comparesam test/InfiniumEPIC/1_dev_typeII test/InfiniumEPIC/1_master_typeII >2
-test_align3: biscuit
-	./biscuit align -t 5 ~/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/typeI.fastq >test/InfiniumEPIC/1_dev_typeI
-	./biscuit align -t 5 ~/references/hg19/biscuit/hg19.fa test/InfiniumEPIC/fastq/typeII.fastq >test/InfiniumEPIC/1_dev_typeII
-
-# paired-end read 1
-test_align4: biscuit
-	./biscuit align -F /home/wanding.zhou/references/hg19/biscuit/hg19.fa -1 AGTAGTAATAGAAATATTATTTAGTTAGTATAGTTTTGTTGGTATAATGTAGTTACGTTTTTAGTAAAATGATGGAAAATATAAATATTTAATTAGTTTT -2 CAAAAACACAAAATTTAAACATAATTAATTTTTCAACTTTTTTATAAATAAAAACTAATTAAATATTTATATTTTCCATCATTTTACTAAAAACGTAACT 2>/dev/null
-
-test_align5: biscuit
-	./biscuit align -F -t 5 ~/references/hg19/biscuit/hg19.fa test/HumanBrainCpH/fastq_chr19/read1.fastq test/HumanBrainCpH/fastq_chr19/read2.fastq >test/HumanBrainCpH/1_dev
 
 
 

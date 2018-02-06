@@ -191,6 +191,7 @@ int usage(mem_opt_t *opt) {
   fprintf(stderr, "       -r FLOAT      look for internal seeds inside a seed longer than {-k} * FLOAT [%g]\n", opt->split_factor);
   fprintf(stderr, "       -y INT        seed occurrence for the 3rd round seeding [%ld]\n", (long)opt->max_mem_intv);
   //		fprintf(stderr, "       -s INT        look for internal seeds inside a seed with less than INT occ [%d]\n", opt->split_width);
+  fprintf(stderr, "       -i INT        turn off autoinference of ALT chromosomes.\n");
   fprintf(stderr, "       -c INT        skip seeds with more than INT occurrences [%d]\n", opt->max_occ);
   fprintf(stderr, "       -D FLOAT      drop chains shorter than FLOAT fraction of the longest overlapping chain [%.2f]\n", opt->drop_ratio);
   fprintf(stderr, "       -W INT        discard a chain if seeded bases shorter than INT [0]\n");
@@ -258,13 +259,15 @@ int main_align(int argc, char *argv[]) {
   aux.opt = opt = mem_opt_init();
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
   memset(&opt0, 0, sizeof(mem_opt_t));
-  while ((c = getopt(argc, argv, "1:2:epaFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
+  int auto_infer_alt_chrom = 1;
+  while ((c = getopt(argc, argv, "1:2:epaiFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:K:X:H:")) >= 0) {
     if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
     else if (c == '1') aux._seq1 = strdup(optarg);
     else if (c == '2') aux._seq2 = strdup(optarg);
     else if (c == 'x') mode = optarg;
     else if (c == 'b') opt->parent = atoi(optarg);   /* targeting parent or daughter */
     else if (c == 'f') opt->bsstrand = atoi(optarg); /* targeting BSW or BSC */
+    else if (c == 'i') auto_infer_alt_chrom = 0; // turn off auto-inference of alt-chromosomes
     else if (c == 'w') opt->w = atoi(optarg), opt0.w = 1;
     else if (c == 'A') opt->a = atoi(optarg), opt0.a = 1;
     else if (c == 'B') opt->b = atoi(optarg), opt0.b = 1;
@@ -421,7 +424,7 @@ int main_align(int argc, char *argv[]) {
     fprintf(stderr, "[M::%s] load the bwa index from shared memory\n", __func__);
 
   // infer alternative chromosomes from name
-  infer_alt_chromosomes(aux.idx->bns);
+  if (auto_infer_alt_chrom) infer_alt_chromosomes(aux.idx->bns);
   
   if (ignore_alt)
     for (i = 0; i < aux.idx->bns->n_seqs; ++i)
