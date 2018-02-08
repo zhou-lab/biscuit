@@ -28,7 +28,7 @@
 /* typedef enum {BSS_RETENTION, BSS_CONVERSION, BSS_OTHER} bsstate_t; */
 /* typedef enum {MCT, MCG, MCA, MGT, MGC, MGA} mutation_t; */
 /* const char alts[] = "TGATCA"; */
-const char nt256int8_to_mutcode[6] = "ACGTYR";
+const char nt256int8_to_mutcode[6] = "ACGTYR"; // Y is [CT] and R is [GT]
 /* different representation of context when nome */
 
 const char *cytosine_context[] = {"CG","CHG","CHH","CG","CHG","CHH","CN"};
@@ -651,14 +651,16 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   /* ALT
      if BSW shows G->A or BSC shows C->T, then a SNP, 
      no methylation information is inferred */
+  uint32_t supp[6];
+  int fst = 1;
   if (cm1 >= 0) {
-    uint32_t supp[6];
     for (i=0; i<6; ++i) supp[i] = (allcnts[i]<<4) | i;
     qsort(supp, 6, sizeof(uint32_t), compare_supp);
-    int fst = 1;
+    fst = 1;
     for (i=0; i<6; ++i) {
       if ((supp[i]>>4) > 0) {
         char m = nt256int8_to_mutcode[supp[i]&0xf];
+        if (m == 'Y' || m == 'R') m = 'N';
         if (m != rb) {
           if (!fst) kputc(',', s);
           kputc(m, s);
@@ -691,9 +693,24 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     ksprintf(s, ";SS=%d", ss);
     ksprintf(s, ";SC=%d", (int) squal);
   }
+  if (cm1 >= 0) {
+    kputs(";AB=", s);
+    fst = 1;
+    for (i=0; i<6; ++i) {
+      if ((supp[i]>>4) > 0) {
+        char m = nt256int8_to_mutcode[supp[i]&0xf];
+        if (m != rb) {
+          if (!fst) kputc(',', s);
+          kputc(m, s);
+          fst = 0;
+        }
+      }
+    }
+  }
+  
 
   /* FORMAT */
-  kputs("\tDP:GT:GP:GQ", s);
+  kputs("\tGT:GL1:GQ:DP", s);
   if (any_variant) kputs(":SP", s);
   if (any_methcallable) kputs(":CV:BT", s);
 
@@ -701,21 +718,20 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   double beta;
   for (sid=0; sid<n_bams; ++sid) {
     int *cnts1 = cnts + NSTATUS*sid;
-
-    /* DP */
     int dp=0;
-    if (dv) {
-      for(i=0; i<dv->size; ++i)	if (ref_pileup_data_v(dv, i)->sid == sid) ++dp;
-      ksprintf(s, "\t%d", dp);
-    } else kputs("\t0", s);
+    if (dv) for(i=0; i<dv->size; ++i)	if (ref_pileup_data_v(dv, i)->sid == sid) ++dp;
 
-    /* GT, GP, GQ */
+    /* GT, GL, GQ */
     if (gq[sid]>0 && dp) {
-      ksprintf(s, ":%s:%1.0f,%1.0f,%1.0f:%1.0f", gt[sid], 
-               min(1000, -gl0[sid]), min(1000, -gl1[sid]), min(1000, -gl2[sid]), gq[sid]);
+      ksprintf(s, "\t%s:%1.0f,%1.0f,%1.0f:%1.0f", gt[sid], 
+               max(-1000, gl0[sid]), max(-1000, gl1[sid]), max(-1000, gl2[sid]), gq[sid]);
     } else {
-      ksprintf(s, ":./.:.:.");
+      ksprintf(s, "\t./.:.:.");
     }
+    
+    /* DP */
+    if (dp) ksprintf(s, ":%d", dp);
+    else kputs(":0", s);
 
     /* SP */
     if (any_variant) {
@@ -1035,6 +1051,7 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
   kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
   kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
   kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
+  kputs("##INFO=<ID=AB,Number=A,Type=String,Description=\"When true alt-allele is ambiguous, ALT field will be N and true alt-allele is stored here, following IUPAC code convention.\">\n", &header);
 
   if (conf->somatic) {
     kputs("##INFO=<ID=SS,Number=1,Type=String,Description=\"Somatic status 0) WILDTYPE; 1) GERMLINE; 2) SOMATIC; 3) LOH; 4) POST_TRX_MOD; 5) UNKNOWN;\">\n", &header);
@@ -1043,12 +1060,12 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
   }
   
   kputs("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Raw read depth\">\n", &header);
-  kputs("##FORMAT=<ID=SP,Number=R,Type=String,Description=\"Allele support (before bisulfite conversion, with filtering)\">\n", &header);
+  kputs("##FORMAT=<ID=SP,Number=.,Type=String,Description=\"Allele support (before bisulfite conversion, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=CV,Number=1,Type=Integer,Description=\"Effective (strand-specific) coverage on cytosine\">\n", &header);
   kputs("##FORMAT=<ID=BT,Number=1,Type=Float,Description=\"Cytosine methylation fraction (aka beta value, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype from normal\">\n", &header);
-  kputs("##FORMAT=<ID=GP,Number=G,Type=Integer,Description=\"Genotype likelihoods\">\n", &header);
-  kputs("##FORMAT=<ID=GQ,Number=1,Type=Float,Description=\"Genotype quality (phred-scaled)\">\n", &header);
+  kputs("##FORMAT=<ID=GL1,Number=3,Type=Float,Description=\"Genotype likelihoods for the first alternative allele\">\n", &header);
+  kputs("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality (phred-scaled)\">\n", &header);
 
   if (conf->verbose) {
     kputs("##FORMAT=<ID=RN,Number=1,Type=Integer,Description=\"Retention count (with filtering)\">\n", &header);
