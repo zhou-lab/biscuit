@@ -204,34 +204,34 @@ static void BWTIncSetBuildSizeAndTextAddr(BWTInc *bwtInc)
 }
 
 // for ceilLog2()
-unsigned int leadingZero(const unsigned int input)
-{
-	unsigned int l;
-	const static unsigned int leadingZero8bit[256] = {8,7,6,6,5,5,5,5,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
-											 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-											 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-											 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-											 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-											 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-											 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-											 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+unsigned int leadingZero(const unsigned int input) {
+  unsigned int l;
+  const unsigned int leadingZero8bit[256] = {
+    8,7,6,6,5,5,5,5,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-	if (input & 0xFFFF0000) {
-		if (input & 0xFF000000) {
-			l = leadingZero8bit[input >> 24];
-		} else {
-			l = 8 + leadingZero8bit[input >> 16];
-		}
-	} else {
-		if (input & 0x0000FF00) {
-			l = 16 + leadingZero8bit[input >> 8];
-		} else {
-			l = 24 + leadingZero8bit[input];
-		}
-	}
-	return l;
-
+  if (input & 0xFFFF0000) {
+    if (input & 0xFF000000) {
+      l = leadingZero8bit[input >> 24];
+    } else {
+      l = 8 + leadingZero8bit[input >> 16];
+    }
+  } else {
+    if (input & 0x0000FF00) {
+      l = 16 + leadingZero8bit[input >> 8];
+    } else {
+      l = 24 + leadingZero8bit[input];
+    }
+  }
+  return l;
 }
+
 // for BitPerBytePackedChar()
 static unsigned int ceilLog2(const unsigned int input)
 {
@@ -868,63 +868,60 @@ static void BWTIncSortKey(bgint_t* __restrict key, bgint_t* __restrict seq, cons
 }
 
 
-static void BWTIncBuildRelativeRank(bgint_t* __restrict sortedRank, bgint_t* __restrict seq,
-									bgint_t* __restrict relativeRank, const bgint_t numItem,
-									bgint_t oldInverseSa0, const bgint_t *cumulativeCount)
-{
-	bgint_t i, c;
-	bgint_t s, r;
-	bgint_t lastRank, lastIndex;
-	bgint_t oldInverseSa0RelativeRank = 0;
-	bgint_t freq;
+static void BWTIncBuildRelativeRank(bgint_t* __restrict sortedRank, bgint_t* __restrict seq, bgint_t* __restrict relativeRank, const bgint_t numItem, bgint_t oldInverseSa0, const bgint_t *cumulativeCount) {
+  bgint_t i, c;
+  bgint_t s, r;
+  bgint_t lastRank, lastIndex;
+  // bgint_t oldInverseSa0RelativeRank = 0;
+  bgint_t freq;
 
-	lastIndex = numItem;
-	lastRank = sortedRank[numItem];
-	if (lastRank > oldInverseSa0) {
-		sortedRank[numItem]--;	// to prepare for merging; $ is not encoded in bwt
-	}
-	s = seq[numItem];
-	relativeRank[s] = numItem;
-	if (lastRank == oldInverseSa0) {
-		oldInverseSa0RelativeRank = numItem;
-		oldInverseSa0++;	// so that this segment of code is not run again
-		lastRank++;			// so that oldInverseSa0 become a sorted group with 1 item
-	}
+  lastIndex = numItem;
+  lastRank = sortedRank[numItem];
+  if (lastRank > oldInverseSa0) {
+    sortedRank[numItem]--;	// to prepare for merging; $ is not encoded in bwt
+  }
+  s = seq[numItem];
+  relativeRank[s] = numItem;
+  if (lastRank == oldInverseSa0) {
+    //oldInverseSa0RelativeRank = numItem;
+    oldInverseSa0++;	// so that this segment of code is not run again
+    lastRank++;			// so that oldInverseSa0 become a sorted group with 1 item
+  }
 
-	c = ALPHABET_SIZE - 1;
-	freq = cumulativeCount[c];
+  c = ALPHABET_SIZE - 1;
+  freq = cumulativeCount[c];
 
-	for (i=numItem; i--;) {	// from numItem - 1 to 0
-		r = sortedRank[i];
-		if (r > oldInverseSa0)
-			sortedRank[i]--;	// to prepare for merging; $ is not encoded in bwt
-		s = seq[i];
-		if (i < freq) {
-			if (lastIndex >= freq)
-				lastRank++;	// to trigger the group across alphabet boundary to be split
-			c--;
-			freq = cumulativeCount[c];
-		}
-		if (r == lastRank) {
-			relativeRank[s] = lastIndex;
-		} else {
-			if (i == lastIndex - 1) {
-				if (lastIndex < numItem && (sbgint_t)seq[lastIndex + 1] < 0) {
-					seq[lastIndex] = seq[lastIndex + 1] - 1;
-				} else {
-					seq[lastIndex] = (bgint_t)-1;
-				}
-			}
-			lastIndex = i;
-			lastRank = r;
-			relativeRank[s] = i;
-			if (r == oldInverseSa0) {
-				oldInverseSa0RelativeRank = i;
-				oldInverseSa0++;	// so that this segment of code is not run again
-				lastRank++;			// so that oldInverseSa0 become a sorted group with 1 item
-			}
-		}
-	}
+  for (i=numItem; i--;) {	// from numItem - 1 to 0
+    r = sortedRank[i];
+    if (r > oldInverseSa0)
+      sortedRank[i]--;	// to prepare for merging; $ is not encoded in bwt
+    s = seq[i];
+    if (i < freq) {
+      if (lastIndex >= freq)
+        lastRank++;	// to trigger the group across alphabet boundary to be split
+      c--;
+      freq = cumulativeCount[c];
+    }
+    if (r == lastRank) {
+      relativeRank[s] = lastIndex;
+    } else {
+      if (i == lastIndex - 1) {
+        if (lastIndex < numItem && (sbgint_t)seq[lastIndex + 1] < 0) {
+          seq[lastIndex] = seq[lastIndex + 1] - 1;
+        } else {
+          seq[lastIndex] = (bgint_t)-1;
+        }
+      }
+      lastIndex = i;
+      lastRank = r;
+      relativeRank[s] = i;
+      if (r == oldInverseSa0) {
+        //oldInverseSa0RelativeRank = i;
+        oldInverseSa0++;	// so that this segment of code is not run again
+        lastRank++;			// so that oldInverseSa0 become a sorted group with 1 item
+      }
+    }
+  }
 
 }
 
@@ -946,117 +943,115 @@ static void BWTIncBuildBwt(unsigned int* insertBwt, const bgint_t *relativeRank,
 	}
 }
 
-static void BWTIncMergeBwt(const bgint_t *sortedRank, const unsigned int* oldBwt, const unsigned int *insertBwt,
-						   unsigned int* __restrict mergedBwt, const bgint_t numOldBwt, const bgint_t numInsertBwt)
-{
-	unsigned int bitsInWordMinusBitPerChar;
-	bgint_t leftShift, rightShift;
-	bgint_t o;
-	bgint_t oIndex, iIndex, mIndex;
-	bgint_t mWord, mChar, oWord, oChar;
-	bgint_t numInsert;
+static void BWTIncMergeBwt(const bgint_t *sortedRank, const unsigned int* oldBwt, const unsigned int *insertBwt, unsigned int* __restrict mergedBwt, const bgint_t numOldBwt, const bgint_t numInsertBwt) {
+  // unsigned int bitsInWordMinusBitPerChar;
+  bgint_t leftShift, rightShift;
+  bgint_t o;
+  bgint_t oIndex, iIndex, mIndex;
+  bgint_t mWord, mChar, oWord, oChar;
+  bgint_t numInsert;
 
-	bitsInWordMinusBitPerChar = BITS_IN_WORD - BIT_PER_CHAR;
+  //bitsInWordMinusBitPerChar = BITS_IN_WORD - BIT_PER_CHAR;
 
-	oIndex = 0;
-	iIndex = 0;
-	mIndex = 0;
+  oIndex = 0;
+  iIndex = 0;
+  mIndex = 0;
 
-	mWord = 0;
-	mChar = 0;
+  mWord = 0;
+  mChar = 0;
 
-	mergedBwt[0] = 0;	// this can be cleared as merged Bwt slightly shift to the left in each iteration
+  mergedBwt[0] = 0;	// this can be cleared as merged Bwt slightly shift to the left in each iteration
 
-	while (oIndex < numOldBwt) {
+  while (oIndex < numOldBwt) {
 
-		// copy from insertBwt
-		while (iIndex <= numInsertBwt && sortedRank[iIndex] <= oIndex) {
-			if (sortedRank[iIndex] != 0) {	// special value to indicate that this is for new inverseSa0
-				mergedBwt[mWord] |= insertBwt[iIndex] << (BITS_IN_WORD - (mChar + 1) * BIT_PER_CHAR);
-				mIndex++;
-				mChar++;
-				if (mChar == CHAR_PER_WORD) {
-					mChar = 0;
-					mWord++;
-					mergedBwt[mWord] = 0;	// no need to worry about crossing mergedBwt boundary
-				}
-			}
-			iIndex++;
-		}
+    // copy from insertBwt
+    while (iIndex <= numInsertBwt && sortedRank[iIndex] <= oIndex) {
+      if (sortedRank[iIndex] != 0) {	// special value to indicate that this is for new inverseSa0
+        mergedBwt[mWord] |= insertBwt[iIndex] << (BITS_IN_WORD - (mChar + 1) * BIT_PER_CHAR);
+        mIndex++;
+        mChar++;
+        if (mChar == CHAR_PER_WORD) {
+          mChar = 0;
+          mWord++;
+          mergedBwt[mWord] = 0;	// no need to worry about crossing mergedBwt boundary
+        }
+      }
+      iIndex++;
+    }
 
-		// Copy from oldBwt to mergedBwt
-		if (iIndex <= numInsertBwt) {
-			o = sortedRank[iIndex];
-		} else {
-			o = numOldBwt;
-		}
-		numInsert = o - oIndex;
+    // Copy from oldBwt to mergedBwt
+    if (iIndex <= numInsertBwt) {
+      o = sortedRank[iIndex];
+    } else {
+      o = numOldBwt;
+    }
+    numInsert = o - oIndex;
 
-		oWord = oIndex / CHAR_PER_WORD;
-		oChar = oIndex - oWord * CHAR_PER_WORD;
-		if (oChar > mChar) {
-			leftShift = (oChar - mChar) * BIT_PER_CHAR;
-			rightShift = (CHAR_PER_WORD + mChar - oChar) * BIT_PER_CHAR;
-			mergedBwt[mWord] = mergedBwt[mWord]
-								| (oldBwt[oWord] << (oChar * BIT_PER_CHAR) >> (mChar * BIT_PER_CHAR))
-								| (oldBwt[oWord+1] >> rightShift);
-			oIndex += min(numInsert, CHAR_PER_WORD - mChar);
-			while (o > oIndex) {
-				oWord++;
-				mWord++;
-				mergedBwt[mWord] = (oldBwt[oWord] << leftShift) | (oldBwt[oWord+1] >> rightShift);
-				oIndex += CHAR_PER_WORD;
-			}
-		} else if (oChar < mChar) {
-			rightShift = (mChar - oChar) * BIT_PER_CHAR;
-			leftShift = (CHAR_PER_WORD + oChar - mChar) * BIT_PER_CHAR;
-			mergedBwt[mWord] = mergedBwt[mWord] 
-								| (oldBwt[oWord] << (oChar * BIT_PER_CHAR) >> (mChar * BIT_PER_CHAR));
-			oIndex += min(numInsert, CHAR_PER_WORD - mChar);
-			while (o > oIndex) {
-				oWord++;
-				mWord++;
-				mergedBwt[mWord] = (oldBwt[oWord-1] << leftShift) | (oldBwt[oWord] >> rightShift);
-				oIndex += CHAR_PER_WORD;
-			}
-		} else { // oChar == mChar
-			mergedBwt[mWord] = mergedBwt[mWord] | truncateLeft(oldBwt[oWord], mChar * BIT_PER_CHAR);
-			oIndex += min(numInsert, CHAR_PER_WORD - mChar);
-			while (o > oIndex) {
-				oWord++;
-				mWord++;
-				mergedBwt[mWord] = oldBwt[oWord];
-				oIndex += CHAR_PER_WORD;
-			}
-		}
-		oIndex = o;
-		mIndex += numInsert;
+    oWord = oIndex / CHAR_PER_WORD;
+    oChar = oIndex - oWord * CHAR_PER_WORD;
+    if (oChar > mChar) {
+      leftShift = (oChar - mChar) * BIT_PER_CHAR;
+      rightShift = (CHAR_PER_WORD + mChar - oChar) * BIT_PER_CHAR;
+      mergedBwt[mWord] = mergedBwt[mWord]
+        | (oldBwt[oWord] << (oChar * BIT_PER_CHAR) >> (mChar * BIT_PER_CHAR))
+        | (oldBwt[oWord+1] >> rightShift);
+      oIndex += min(numInsert, CHAR_PER_WORD - mChar);
+      while (o > oIndex) {
+        oWord++;
+        mWord++;
+        mergedBwt[mWord] = (oldBwt[oWord] << leftShift) | (oldBwt[oWord+1] >> rightShift);
+        oIndex += CHAR_PER_WORD;
+      }
+    } else if (oChar < mChar) {
+      rightShift = (mChar - oChar) * BIT_PER_CHAR;
+      leftShift = (CHAR_PER_WORD + oChar - mChar) * BIT_PER_CHAR;
+      mergedBwt[mWord] = mergedBwt[mWord] 
+        | (oldBwt[oWord] << (oChar * BIT_PER_CHAR) >> (mChar * BIT_PER_CHAR));
+      oIndex += min(numInsert, CHAR_PER_WORD - mChar);
+      while (o > oIndex) {
+        oWord++;
+        mWord++;
+        mergedBwt[mWord] = (oldBwt[oWord-1] << leftShift) | (oldBwt[oWord] >> rightShift);
+        oIndex += CHAR_PER_WORD;
+      }
+    } else { // oChar == mChar
+      mergedBwt[mWord] = mergedBwt[mWord] | truncateLeft(oldBwt[oWord], mChar * BIT_PER_CHAR);
+      oIndex += min(numInsert, CHAR_PER_WORD - mChar);
+      while (o > oIndex) {
+        oWord++;
+        mWord++;
+        mergedBwt[mWord] = oldBwt[oWord];
+        oIndex += CHAR_PER_WORD;
+      }
+    }
+    oIndex = o;
+    mIndex += numInsert;
 
-		// Clear the trailing garbage in mergedBwt
-		mWord = mIndex / CHAR_PER_WORD;
-		mChar = mIndex - mWord * CHAR_PER_WORD;
-		if (mChar == 0) {
-			mergedBwt[mWord] = 0;
-		} else {
-			mergedBwt[mWord] = truncateRight(mergedBwt[mWord], (BITS_IN_WORD - mChar * BIT_PER_CHAR));
-		}
+    // Clear the trailing garbage in mergedBwt
+    mWord = mIndex / CHAR_PER_WORD;
+    mChar = mIndex - mWord * CHAR_PER_WORD;
+    if (mChar == 0) {
+      mergedBwt[mWord] = 0;
+    } else {
+      mergedBwt[mWord] = truncateRight(mergedBwt[mWord], (BITS_IN_WORD - mChar * BIT_PER_CHAR));
+    }
 
-	}
+  }
 
-	// copy from insertBwt
-	while (iIndex <= numInsertBwt) {
-		if (sortedRank[iIndex] != 0) {
-			mergedBwt[mWord] |= insertBwt[iIndex] << (BITS_IN_WORD - (mChar + 1) * BIT_PER_CHAR);
-			mIndex++;
-			mChar++;
-			if (mChar == CHAR_PER_WORD) {
-				mChar = 0;
-				mWord++;
-				mergedBwt[mWord] = 0;	// no need to worry about crossing mergedBwt boundary
-			}
-		}
-		iIndex++;
-	}
+  // copy from insertBwt
+  while (iIndex <= numInsertBwt) {
+    if (sortedRank[iIndex] != 0) {
+      mergedBwt[mWord] |= insertBwt[iIndex] << (BITS_IN_WORD - (mChar + 1) * BIT_PER_CHAR);
+      mIndex++;
+      mChar++;
+      if (mChar == CHAR_PER_WORD) {
+        mChar = 0;
+        mWord++;
+        mergedBwt[mWord] = 0;	// no need to worry about crossing mergedBwt boundary
+      }
+    }
+    iIndex++;
+  }
 }
 
 void BWTClearTrailingBwtCode(BWT *bwt)
@@ -1433,112 +1428,111 @@ static void BWTIncConstruct(BWTInc *bwtInc, const bgint_t numChar)
 
 }
 
-BWTInc *BWTIncConstructFromPacked(const char *inputFileName, bgint_t initialMaxBuildSize, bgint_t incMaxBuildSize)
-{
+BWTInc *BWTIncConstructFromPacked(const char *inputFileName, bgint_t initialMaxBuildSize, bgint_t incMaxBuildSize) {
 
-	FILE *packedFile;
-	bgint_t packedFileLen;
-	bgint_t totalTextLength;
-	bgint_t textToLoad, textSizeInByte;
-	bgint_t processedTextLength;
-	unsigned char lastByteLength;
+  FILE *packedFile;
+  sbgint_t packedFileLen;
+  bgint_t totalTextLength;
+  bgint_t textToLoad, textSizeInByte;
+  bgint_t processedTextLength;
+  unsigned char lastByteLength;
 
-	BWTInc *bwtInc;
+  BWTInc *bwtInc;
 
-	packedFile = (FILE*)fopen(inputFileName, "rb");
+  packedFile = (FILE*)fopen(inputFileName, "rb");
 
-	if (packedFile == NULL) {
-		fprintf(stderr, "BWTIncConstructFromPacked() : Cannot open %s : %s\n",
-				inputFileName, strerror(errno));
-		exit(1);
-	}
+  if (packedFile == NULL) {
+    fprintf(stderr, "BWTIncConstructFromPacked() : Cannot open %s : %s\n",
+            inputFileName, strerror(errno));
+    exit(1);
+  }
 
-	if (fseek(packedFile, -1, SEEK_END) != 0) {
-		fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
-				inputFileName, strerror(errno));
-		exit(1);
-	}
-	packedFileLen = ftell(packedFile);
-	if (packedFileLen == -1) {
-		fprintf(stderr, "BWTIncConstructFromPacked() : Can't ftell on %s : %s\n",
-				inputFileName, strerror(errno));
-		exit(1);
-	}
-	if (fread(&lastByteLength, sizeof(unsigned char), 1, packedFile) != 1) {
-		fprintf(stderr,
-				"BWTIncConstructFromPacked() : Can't read from %s : %s\n",
-				inputFileName,
-				ferror(packedFile)? strerror(errno) : "Unexpected end of file");
-		exit(1);
-	}
-	totalTextLength = TextLengthFromBytePacked(packedFileLen, BIT_PER_CHAR, lastByteLength);
+  if (fseek(packedFile, -1, SEEK_END) != 0) {
+    fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
+            inputFileName, strerror(errno));
+    exit(1);
+  }
+  packedFileLen = ftell(packedFile);
+  if (packedFileLen == -1) {
+    fprintf(stderr, "BWTIncConstructFromPacked() : Can't ftell on %s : %s\n",
+            inputFileName, strerror(errno));
+    exit(1);
+  }
+  if (fread(&lastByteLength, sizeof(unsigned char), 1, packedFile) != 1) {
+    fprintf(stderr,
+            "BWTIncConstructFromPacked() : Can't read from %s : %s\n",
+            inputFileName,
+            ferror(packedFile)? strerror(errno) : "Unexpected end of file");
+    exit(1);
+  }
+  totalTextLength = TextLengthFromBytePacked((bgint_t) packedFileLen, BIT_PER_CHAR, lastByteLength);
 
-	bwtInc = BWTIncCreate(totalTextLength, initialMaxBuildSize, incMaxBuildSize);
+  bwtInc = BWTIncCreate(totalTextLength, initialMaxBuildSize, incMaxBuildSize);
 
-	BWTIncSetBuildSizeAndTextAddr(bwtInc);
+  BWTIncSetBuildSizeAndTextAddr(bwtInc);
 
-	if (bwtInc->buildSize > totalTextLength) {
-		textToLoad = totalTextLength;
-	} else {
-		textToLoad = totalTextLength - ((totalTextLength - bwtInc->buildSize + CHAR_PER_WORD - 1) / CHAR_PER_WORD * CHAR_PER_WORD);
-	}
-	textSizeInByte = textToLoad / CHAR_PER_BYTE;	// excluded the odd byte
+  if (bwtInc->buildSize > totalTextLength) {
+    textToLoad = totalTextLength;
+  } else {
+    textToLoad = totalTextLength - ((totalTextLength - bwtInc->buildSize + CHAR_PER_WORD - 1) / CHAR_PER_WORD * CHAR_PER_WORD);
+  }
+  textSizeInByte = textToLoad / CHAR_PER_BYTE;	// excluded the odd byte
 
-	if (fseek(packedFile, -((long)textSizeInByte + 2), SEEK_CUR) != 0) {
-		fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
-				inputFileName, strerror(errno));
-		exit(1);
-	}
-	if (fread(bwtInc->textBuffer, sizeof(unsigned char), textSizeInByte + 1, packedFile) != textSizeInByte + 1) {
-		fprintf(stderr,
-				"BWTIncConstructFromPacked() : Can't read from %s : %s\n",
-				inputFileName,
-				ferror(packedFile)? strerror(errno) : "Unexpected end of file");
-		exit(1);
-	}
-	if (fseek(packedFile, -((long)textSizeInByte + 1), SEEK_CUR) != 0) {
-		fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
-				inputFileName, strerror(errno));
-		exit(1);
-	}
+  if (fseek(packedFile, -((long)textSizeInByte + 2), SEEK_CUR) != 0) {
+    fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
+            inputFileName, strerror(errno));
+    exit(1);
+  }
+  if (fread(bwtInc->textBuffer, sizeof(unsigned char), textSizeInByte + 1, packedFile) != textSizeInByte + 1) {
+    fprintf(stderr,
+            "BWTIncConstructFromPacked() : Can't read from %s : %s\n",
+            inputFileName,
+            ferror(packedFile)? strerror(errno) : "Unexpected end of file");
+    exit(1);
+  }
+  if (fseek(packedFile, -((long)textSizeInByte + 1), SEEK_CUR) != 0) {
+    fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
+            inputFileName, strerror(errno));
+    exit(1);
+  }
 
-	ConvertBytePackedToWordPacked(bwtInc->textBuffer, bwtInc->packedText, ALPHABET_SIZE, textToLoad);
-	BWTIncConstruct(bwtInc, textToLoad);
+  ConvertBytePackedToWordPacked(bwtInc->textBuffer, bwtInc->packedText, ALPHABET_SIZE, textToLoad);
+  BWTIncConstruct(bwtInc, textToLoad);
 
-	processedTextLength = textToLoad;
+  processedTextLength = textToLoad;
 
-	while (processedTextLength < totalTextLength) {
-		textToLoad = bwtInc->buildSize / CHAR_PER_WORD * CHAR_PER_WORD;
-		if (textToLoad > totalTextLength - processedTextLength) {
-			textToLoad = totalTextLength - processedTextLength;
-		}
-		textSizeInByte = textToLoad / CHAR_PER_BYTE;
-		if (fseek(packedFile, -((long)textSizeInByte), SEEK_CUR) != 0) {
-			fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
-					inputFileName, strerror(errno));
-			exit(1);
-		}
-		if (fread(bwtInc->textBuffer, sizeof(unsigned char), textSizeInByte, packedFile) != textSizeInByte) {
-			fprintf(stderr,
-				"BWTIncConstructFromPacked() : Can't read from %s : %s\n",
-				inputFileName,
-				ferror(packedFile)? strerror(errno) : "Unexpected end of file");
-			exit(1);
-		}
-		if (fseek(packedFile, -((long)textSizeInByte), SEEK_CUR) != 0) {
-			fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
-					inputFileName, strerror(errno));
-			exit(1);
-		}
-		ConvertBytePackedToWordPacked(bwtInc->textBuffer, bwtInc->packedText, ALPHABET_SIZE, textToLoad);
-		BWTIncConstruct(bwtInc, textToLoad);
-		processedTextLength += textToLoad;
-		if (bwtInc->numberOfIterationDone % 10 == 0) {
-			fprintf(stderr, "[BWTIncConstructFromPacked] %lu iterations done. %lu characters processed.\n",
-					(long)bwtInc->numberOfIterationDone, (long)processedTextLength);
-		}
-	}
-	return bwtInc;
+  while (processedTextLength < totalTextLength) {
+    textToLoad = bwtInc->buildSize / CHAR_PER_WORD * CHAR_PER_WORD;
+    if (textToLoad > totalTextLength - processedTextLength) {
+      textToLoad = totalTextLength - processedTextLength;
+    }
+    textSizeInByte = textToLoad / CHAR_PER_BYTE;
+    if (fseek(packedFile, -((long)textSizeInByte), SEEK_CUR) != 0) {
+      fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
+              inputFileName, strerror(errno));
+      exit(1);
+    }
+    if (fread(bwtInc->textBuffer, sizeof(unsigned char), textSizeInByte, packedFile) != textSizeInByte) {
+      fprintf(stderr,
+              "BWTIncConstructFromPacked() : Can't read from %s : %s\n",
+              inputFileName,
+              ferror(packedFile)? strerror(errno) : "Unexpected end of file");
+      exit(1);
+    }
+    if (fseek(packedFile, -((long)textSizeInByte), SEEK_CUR) != 0) {
+      fprintf(stderr, "BWTIncConstructFromPacked() : Can't seek on %s : %s\n",
+              inputFileName, strerror(errno));
+      exit(1);
+    }
+    ConvertBytePackedToWordPacked(bwtInc->textBuffer, bwtInc->packedText, ALPHABET_SIZE, textToLoad);
+    BWTIncConstruct(bwtInc, textToLoad);
+    processedTextLength += textToLoad;
+    if (bwtInc->numberOfIterationDone % 10 == 0) {
+      fprintf(stderr, "[BWTIncConstructFromPacked] %lu iterations done. %lu characters processed.\n",
+              (long)bwtInc->numberOfIterationDone, (long)processedTextLength);
+    }
+  }
+  return bwtInc;
 }
 
 void BWTFree(BWT *bwt)
@@ -1566,8 +1560,8 @@ static bgint_t BWTFileSizeInWord(const bgint_t numChar)
 	return (numChar + CHAR_PER_WORD - 1) / CHAR_PER_WORD;
 }
 
-void BWTSaveBwtCodeAndOcc(const BWT *bwt, const char *bwtFileName, const char *occValueFileName)
-{
+void BWTSaveBwtCodeAndOcc(const BWT *bwt, const char *bwtFileName) {
+  //, const char *occValueFileName)
 	FILE *bwtFile;
 /*	FILE *occValueFile; */
 	bgint_t bwtLength;
@@ -1603,7 +1597,7 @@ void bwt_bwtgen2(const char *fn_pac, const char *fn_bwt, int block_size)
 	BWTInc *bwtInc;
 	bwtInc = BWTIncConstructFromPacked(fn_pac, block_size, block_size);
 	printf("[bwt_gen] Finished constructing BWT in %u iterations.\n", bwtInc->numberOfIterationDone);
-	BWTSaveBwtCodeAndOcc(bwtInc->bwt, fn_bwt, 0);
+	BWTSaveBwtCodeAndOcc(bwtInc->bwt, fn_bwt);
 	BWTIncFree(bwtInc);
 }
 

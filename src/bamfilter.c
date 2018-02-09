@@ -29,23 +29,23 @@
 #include "wzmisc.h"
 
 int bam_filter(char *ifn, char *ofn, char *reg, void *data, bam_filter_f func) {
-	int ret = 0;
-	samFile *in = sam_open(ifn, "rb");
+  int ret = 0;
+  samFile *in = sam_open(ifn, "rb");
   bam_hdr_t *header = sam_hdr_read(in);
-	samFile *out = 0;
-	if (ofn) {
+  samFile *out = 0;
+  if (ofn) {
     out = sam_open(ofn, "wb");
     if (!out) wzfatal("Cannot write bam %s.\n", ofn);
     if (sam_hdr_write(out, header) < 0) wzfatal("Cannot write bam header.\n");
   }
 
-	if (reg) {
+  if (reg) {
 
-		hts_idx_t *idx = sam_index_load(in, ifn);
-		if (idx == 0)
-			wzfatal("[%s:%d] Random alignment retrieval only works for indexed BAM files.\n", __func__, __LINE__);
+    hts_idx_t *idx = sam_index_load(in, ifn);
+    if (idx == 0)
+      wzfatal("[%s:%d] Random alignment retrieval only works for indexed BAM files.\n", __func__, __LINE__);
 
-		int tid, beg, end;
+    int tid=0, beg, end;
     char *_reg = strdup(reg); /* a temporary string to modify */
     char *name_lim = (char *) hts_parse_reg(_reg, &beg, &end);
     if (name_lim) {
@@ -55,34 +55,34 @@ int bam_filter(char *ifn, char *ofn, char *reg, void *data, bam_filter_f func) {
       *name_lim = name_terminator;
     }
     free(_reg);
-		if (tid < 0)
-			wzfatal("[%s:%d] Region \"%s\" specifies an unknown reference name. \n", __func__, __LINE__, reg);
+    if (tid < 0)
+      wzfatal("[%s:%d] Region \"%s\" specifies an unknown reference name. \n", __func__, __LINE__, reg);
 
-		bam1_t *b = bam_init1();
-		hts_itr_t *iter = sam_itr_queryi(idx, tid, beg, end);
-		while ((ret = sam_itr_next(in, iter, b)) >= 0)
+    bam1_t *b = bam_init1();
+    hts_itr_t *iter = sam_itr_queryi(idx, tid, beg, end);
+    while ((ret = sam_itr_next(in, iter, b)) >= 0)
       func(b, out, header, data);
-		hts_itr_destroy(iter);
-		bam_destroy1(b);
-		hts_idx_destroy(idx);
+    hts_itr_destroy(iter);
+    bam_destroy1(b);
+    hts_idx_destroy(idx);
 
-	} else {
+  } else {
 
-		bam1_t *b = bam_init1();
-		while ((ret = sam_read1(in, header, b)) >= 0)
+    bam1_t *b = bam_init1();
+    while ((ret = sam_read1(in, header, b)) >= 0)
       func(b, out, header, data);
-		bam_destroy1(b);
+    bam_destroy1(b);
 
-	}
+  }
 
-	if (out) sam_close(out);
-	sam_close(in);
+  if (out) sam_close(out);
+  sam_close(in);
   bam_hdr_destroy(header);
-			
-	if (ret != -1) 				/* truncated is -2 */
-		wzfatal("[%s:%d] Alignment retrieval failed due to truncated file\n", __func__, __LINE__);
 
-	return ret;
+  if (ret != -1) 				/* truncated is -2 */
+    wzfatal("[%s:%d] Alignment retrieval failed due to truncated file\n", __func__, __LINE__);
+
+  return ret;
 }
 
 

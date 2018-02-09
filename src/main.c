@@ -52,6 +52,9 @@ int main_epiread(int argc, char *argv[]);
 int main_asm(int argc, char *argv[]);
 int main_tview(int argc, char *argv[]);
 int main_bsstrand(int argc, char *argv[]);
+int main_cinread(int argc, char *argv[]);
+int main_bsconv(int argc, char *argv[]);
+int main_mergecg(int argc, char *argv[]);
 
 static int usage()
 {
@@ -64,12 +67,15 @@ static int usage()
   fprintf(stderr, "         align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "         tview         text alignment viewer with bisulfite coloring\n");
   fprintf(stderr, "         markdup       mark duplicates on the same bisulfite strand\n");
-  fprintf(stderr, "         pileup        pileup cytosine and mutations, estimate bisulfite conversion rate and average methylation levels.\n");
-  fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
+  fprintf(stderr, "         pileup        pileup cytosine and mutations\n");
   fprintf(stderr, "         vcf2bed       convert VCF to bed graph\n");
-  fprintf(stderr, "         epiread       convert bam to epiread format\n");
-  fprintf(stderr, "         asm           test allele specific methylation\n");
+  fprintf(stderr, "         mergecg       merge C and G in CpG context.\n");
   fprintf(stderr, "         bsstrand      validate and correct bisulfite conversion strand label\n");
+  fprintf(stderr, "         epiread       convert bam to epiread format\n");
+  fprintf(stderr, "         cinread       print cytosine-read pair in long form\n");
+  fprintf(stderr, "         bsconv        summarize retention and conversion of each read, append in ZN tag\n");
+  fprintf(stderr, "         asm           test allele specific methylation\n");
+  // fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "\n");
 
   return 1;
@@ -95,6 +101,9 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "asm") == 0) ret = main_asm(argc-1, argv+1);
   else if (strcmp(argv[1], "tview") == 0) ret = main_tview(argc-1, argv+1);
   else if (strcmp(argv[1], "bsstrand") == 0) ret = main_bsstrand(argc-1, argv+1);
+  else if (strcmp(argv[1], "cinread") == 0) ret = main_cinread(argc-1, argv+1);
+  else if (strcmp(argv[1], "mergecg") == 0) ret = main_mergecg(argc-1, argv+1);
+  else if (strcmp(argv[1], "bsconv") == 0) ret = main_bsconv(argc-1, argv+1);
   else {
     fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
     return 1;

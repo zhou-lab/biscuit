@@ -26,6 +26,7 @@
 #define _WZ_REFSEQ_H_
 
 #include "faidx.h"
+#include "wzmisc.h"
 
 #define bscall(b, pos) seq_nt16_str[bam_seqi(bam_get_seq(b), pos)]
 
@@ -47,96 +48,104 @@ typedef struct {
 } refcache_t;
 
 static inline refcache_t* init_refcache(char *ref_fn, uint32_t flank1, uint32_t flank2) {
-  refcache_t *rs = calloc(1, sizeof(refcache_t));
-  rs->fai = fai_load(ref_fn);
-  if (!rs->fai) {
+  refcache_t *rc = calloc(1, sizeof(refcache_t));
+  rc->fai = fai_load(ref_fn);
+  if (!rc->fai) {
     fprintf(stderr, "[%s:%d] Cannot load reference %s\n", __func__, __LINE__, ref_fn);
     fflush(stderr);
     exit(1);
   }
-  rs->flank1 = flank1;
-  rs->flank2 = flank2;
-  return rs;
+  rc->flank1 = flank1;
+  rc->flank2 = flank2;
+  return rc;
 }
 
-/* if [beg, end] is within [rs->beg, rs->end], do nothing
+static inline void __refcache_fetch(refcache_t *rc) {
+  if (rc->seq) free(rc->seq);
+  int l;
+  rc->seq = faidx_fetch_seq(rc->fai, rc->chrm, rc->beg-1, rc->end-1, &l);
+  if ((unsigned) l != rc->end-rc->beg+1)
+    wzfatal("Error, cannot retrieve reference: %s:%u-%u.", rc->chrm, rc->beg, rc->end);
+}
+
+/* if [beg, end] is within [rc->beg, rc->end], do nothing
  * else fetch sequence from [beg - flank1, end + flank2]
  * beg and end are 1-based */
-static inline void fetch_refcache(refcache_t *rs, char *chrm, uint32_t beg, uint32_t end) {
+static inline void refcache_fetch(refcache_t *rc, char *chrm, uint32_t beg, uint32_t end) {
 
-  if (rs->chrm != 0
-      && strcmp(chrm, rs->chrm) == 0
-      && rs->beg <= beg
-      && rs->end >= end) return;
-  else {
+  if (rc->chrm != 0
+      && strcmp(chrm, rc->chrm) == 0
+      && rc->beg <= beg
+      && rc->end >= end) return;
 
-    /* get sequence length */
-    rs->seqlen = faidx_seq_len(rs->fai, chrm);
-    if (rs->seqlen < 0) {
-      fprintf(stderr, "[%s:%d] Error, cannot retrieve reference %s:%u-%u.\n",
-              __func__, __LINE__, chrm, rs->beg, rs->end);
-      exit(1);
-    }
-
-    /* beg and end */
-    if (rs->flank1 > beg + 1) rs->beg = 1;
-    else rs->beg = beg - rs->flank1;
-    if (end + rs->flank2 > (unsigned) rs->seqlen) rs->end = rs->seqlen;
-    else rs->end = end + rs->flank2;
-
-    rs->chrm = realloc(rs->chrm, strlen(chrm)+1);
-    strcpy(rs->chrm, chrm);
-    if (rs->seq) free(rs->seq);
-    int l;
-    rs->seq = faidx_fetch_seq(rs->fai, rs->chrm, rs->beg-1, rs->end-1, &l);
-    if ((unsigned) l != rs->end-rs->beg+1){
-      fprintf(stderr, "[%s:%d] Error, cannot retrieve reference %s:%u-%u.\n",
-              __func__, __LINE__, chrm, rs->beg, rs->end);
-      exit(1);
-    }
-  }
-}
-
-static inline void free_refcache(refcache_t *rs) {
-
-  if (rs->seq) free(rs->seq);
-  if (rs->chrm) free(rs->chrm);
-  fai_destroy(rs->fai);
-  free(rs);
-
-}
-
-/* see if the rpos is in range of rs */
-static inline int in_range_refcache(refcache_t *rs, uint32_t rpos) {
-  if (rpos < rs->beg || rpos > rs->end) return 0;
-  else return 1;
-}
-
-/* rpos is 1-based */
-static inline char getbase_refcache(refcache_t *rs, uint32_t rpos) {
-  if (rpos<rs->beg || rpos>rs->end) {
-    fprintf(stderr, "[%s:%d] Error retrieving base %u outside range %s:%u-%u.\n",
-            __func__, __LINE__, rpos, rs->chrm, rs->beg, rs->end);
+  /* get sequence length */
+  rc->seqlen = faidx_seq_len(rc->fai, chrm);
+  if (rc->seqlen < 0) {
+    fprintf(stderr, "[%s:%d] Error, cannot retrieve reference %s:%u-%u.\n",
+        __func__, __LINE__, chrm, rc->beg, rc->end);
     exit(1);
   }
-  return rs->seq[rpos-rs->beg];
+
+  /* beg and end */
+  if (rc->flank1 > beg + 1) rc->beg = 1;
+  else rc->beg = beg - rc->flank1;
+  if (end + rc->flank2 > (unsigned) rc->seqlen) rc->end = rc->seqlen;
+  else rc->end = end + rc->flank2;
+
+  rc->chrm = realloc(rc->chrm, strlen(chrm)+1); strcpy(rc->chrm, chrm);
+  __refcache_fetch(rc);
 }
 
+// fetch the whole chromosome
+static inline void refcache_fetch_chrm(refcache_t *rc, char *chrm) {
+  rc->seqlen = faidx_seq_len(rc->fai, chrm);
+  if  (rc->seqlen < 0) wzfatal("Error, cannot retrieve chromosome: %s", chrm);
+  if (rc->beg == 1 && rc->end == (unsigned) rc->seqlen && strcmp(chrm, rc->chrm) == 0) return;
+
+  rc->beg = 1; rc->end = rc->seqlen;
+  rc->chrm = realloc(rc->chrm, strlen(chrm)+1); strcpy(rc->chrm, chrm);
+  __refcache_fetch(rc);
+}
+
+static inline void free_refcache(refcache_t *rc) {
+
+  if (rc->seq) free(rc->seq);
+  if (rc->chrm) free(rc->chrm);
+  fai_destroy(rc->fai);
+  free(rc);
+
+}
+
+// [> see if the rpos is in range of rc <]
+// static inline int in_range_refcache(refcache_t *rc, uint32_t rpos) {
+//   if (rpos < rc->beg || rpos > rc->end) return 0;
+//   else return 1;
+// }
+
 /* rpos is 1-based */
-static inline char *subseq_refcache(refcache_t *rs, uint32_t rpos) {
-  return rs->seq+rpos-rs->beg;
+static inline char refcache_getbase(refcache_t *rc, uint32_t pos) {
+  if (pos<rc->beg || pos>rc->end)
+    wzfatal("Error retrieving base %u outside range %s:%u-%u.\n", pos, rc->chrm, rc->beg, rc->end);
+  return rc->seq[pos-rc->beg];
+}
+
+#define refcache_getbase_upcase(rc, pos) toupper(refcache_getbase(rc, pos))
+
+/* rpos is 1-based */
+static inline char *subseq_refcache(refcache_t *rc, uint32_t rpos) {
+  return rc->seq+rpos-rc->beg;
 }
 
 /* get uppercased subsequence, checking range */
-static inline void subseq_refcache2(refcache_t *rs, uint32_t rpos, char *seq, int len) {
-  if (rpos < rs->beg || rpos+len-1 > rs->end) {
+static inline void subseq_refcache2(refcache_t *rc, uint32_t rpos, char *seq, int len) {
+  if (rpos < rc->beg || rpos+len-1 > rc->end) {
     fprintf(stderr, "[%s:%d] Error retrieving range %u-%u outside range %s:%u-%u.\n",
-            __func__, __LINE__, rpos, rpos+len, rs->chrm, rs->beg, rs->end);
+            __func__, __LINE__, rpos, rpos+len, rc->chrm, rc->beg, rc->end);
     exit(1);
   }
   int i;
   for (i=0; i<len; ++i)
-    seq[i] = toupper(rs->seq[rpos-rs->beg+i]);
+    seq[i] = toupper(rc->seq[rpos-rc->beg+i]);
 }
 
 #endif /* _WZ_REFSEQ_H_ */

@@ -20,7 +20,6 @@ INCLUDE = include
 # 	@echo "$$CFLAGS" $(CFLAGS)
 
 PROG = biscuit
-# PROG = bin/hemifinder bin/correct_bsstrand bin/get_unmapped bin/sample_trinuc
 
 .PHONY : setdebug debug build
 
@@ -72,7 +71,7 @@ $(LSGSL):
 BISCUITSRCS := $(wildcard src/*.c)
 BISCUITLIBS := $(BISCUITSRCS:.c=.o)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/bamfilter.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
+LIBS=lib/aln/libaln.a src/pileup.o src/markdup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/cinread.o src/mergecg.o src/bsconv.o src/bamfilter.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 
@@ -87,7 +86,8 @@ src/main.o: src/main.c
 	gcc -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LKLIB_DIR)
 
 LALND = lib/aln
-LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/fastmap.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o $(LALND)/ksw.o
+LALNOBJ=$(patsubst %.c,%.o,$(wildcard $(LALND)/*.c))
+# LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/align.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o $(LALND)/ksw.o $(LALND)/mem_pair.o
 lib/aln/libaln.a: $(LALNOBJ)
 	ar -csru $@ $(LALNOBJ)
 $(LALND)/%.o: $(LALND)/%.c
@@ -117,6 +117,15 @@ src/asm_pairwise.o: src/asm_pairwise.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LSGSL_DIR) $< -o $@
 
 src/bsstrand.o: src/bsstrand.c
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
+
+src/cinread.o: src/cinread.c
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
+
+src/bsconv.o: src/bsconv.c
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
+
+src/mergecg.o: src/mergecg.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
 
 src/bamfilter.o: src/bamfilter.c
@@ -159,41 +168,6 @@ cleanse : purge
 	rm -f **/*.o .travis.yml .gitmodules .gitignore
 	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
 
-####### archived #######
-# .PHONY: correct_bsstrand
-# correct_bsstrand : bin/correct_bsstrand
-# bin/correct_bsstrand: $(LSAM0119)
-# 	gcc $(CFLAGS) -o $@ -I$(INCLUDE) -I$(LSAM0119D) src/correct_bsstrand/correct_bsstrand.c $(LSAM0119) -lz -lpthread
-# clean_correct_bsstrand:
-# 	rm -f bin/correct_bsstrand
-
-# get trinuc spectrum
-# .PHONY: sample_trinuc
-# sample_trinuc : bin/sample_trinuc
-# bin/sample_trinuc: $(LSAM0119) src/sample_trinuc/sample_trinuc.c
-# 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/sample_trinuc/sample_trinuc.c -lpthread $(LSAM0119) $(LUTILS) -lz
-# clean_sample_trinuc:
-# 	rm -f bin/sample_trinuc
-
-# find hemi methylation
-# .PHONY: hemifinder
-# hemifinder : bin/hemifinder
-# bin/hemifinder: $(LSAM0119) $(LUTILS) src/hemifinder/hemifinder.c
-# 	gcc $(CFLAGS) -o $@ -I$(LSAM0119D) -I$(INCLUDE) src/hemifinder/hemifinder.c $(LSAM0119) $(LUTILS) -lpthread  -lz
-# clean_hemifinder:
-# 	rm -f bin/hemifinder
 
 
-######## test ###### 
 
-test_bsstrand1: biscuit
-	./biscuit bsstrand ~/references/hg19/hg19.fa test/InfiniumEPIC/bam/typeI.bam
-
-test_bsstrand2: biscuit
-	./biscuit bsstrand -co -g chr21 ~/references/hg19/hg19.fa test2/TruSeq_IMR90/bam/biscuit.bam test2/TruSeq_IMR90/bam/biscuit_bsstranded.bam
-
-test_tview1: biscuit
-	./biscuit tview -g chr11:5312345 -m 1 test3/AmpliconSeq/bam/DRM2.bam ~/references/hg19/hg19.fa
-
-test_tview2: biscuit
-	./biscuit tview -n NS500653:105:HLJKJAFXX:1:11102:20185:16363 -g chr11:5312345 -m 1 test3/AmpliconSeq/bam/DRM2.bam ~/references/hg19/hg19.fa

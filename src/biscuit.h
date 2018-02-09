@@ -1,7 +1,4 @@
 #ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "0.2.2.20170522"
-
-
-
+#define PACKAGE_VERSION "0.3.2.20180209"
 
 #endif

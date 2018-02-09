@@ -369,10 +369,10 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
   while (sam_read1(in, hdr, b)>=0) {
     cnt++;
     /* fprintf(stderr, "mtid: %d isize: %d\n", b->core.mtid, b->core.isize); */
-    if (!conf->quiet && (cnt & 0xFFF)==0) {
-      fprintf(stderr, "\r[%s] parsed %u reads.", __func__, cnt);
-      fflush(stderr);
-    }
+    /* if (!conf->quiet && (cnt & 0xFFF)==0) { */
+    /*   fprintf(stderr, "\r[%s] parsed %u reads.", __func__, cnt); */
+    /*   fflush(stderr); */
+    /* } */
 
     bam1_core_t *c = &b->core;
     c->flag &= ~BAM_FDUP;       /* remove existing duplication info */
@@ -495,7 +495,7 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
   resolve_dup(igm, out, rmp, imp, hdr, conf);
   flush_dangling_reads(rim, rmp, imp, out, hdr, conf);
 
-  fprintf(stderr, "\r[%s] parsed %u reads\n", __func__, cnt);
+  fprintf(stderr, "[%s] parsed %u reads\n", __func__, cnt);
   fprintf(stderr, "[%s] marked %d duplicates from %d paired-end reads (%.3g%%)\n", __func__, conf->dup_cnt_pe, conf->cnt_pe, (double) (conf->dup_cnt_pe) / conf->cnt_pe * 100);
   fprintf(stderr, "[%s] marked %d duplicates from %d single-end reads (%.3g%%)\n", __func__, conf->dup_cnt_se, conf->cnt_se, (double) (conf->dup_cnt_se) / conf->cnt_se * 100);
   fprintf(stderr, "[%s] identified %d dangling paired-end reads (%.3g%%)\n", __func__, conf->cnt_dangle, (double) conf->cnt_dangle / cnt * 100);
