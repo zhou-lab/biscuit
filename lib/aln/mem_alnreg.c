@@ -23,6 +23,7 @@
  *
  */
 
+#include <inttypes.h>
 #include <limits.h>
 #include "mem_alnreg.h"
 #include "wzmisc.h"
@@ -412,7 +413,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   int64_t re = min(l_pac<<1, reg->rb + pes.high);
 
   /* ref is in the primary read's direction */
-  uint8_t *ref = 0; int rid;
+  uint8_t *ref = 0; int rid = -1;
   if (rb < re) ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
 
   /* no funny things happening */
@@ -429,7 +430,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
   kswr_t aln = ksw_align2(l_ms, mate_seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
 
   if (bwa_verbose >= 4) {
-    printf("[%s] Try adding matesw-ed region %ld-%ld. score:%d\n", __func__, rb, re, aln.score);
+    printf("[%s] Try adding matesw-ed region %"PRId64"-%"PRId64". score:%d\n", __func__, rb, re, aln.score);
     printf("original: %ld - %ld (pes: [%d-%d])\n", reg->rb, reg->re, pes.low, pes.high);
     mem_print_region1(bns, reg);
     putchar('\n');
