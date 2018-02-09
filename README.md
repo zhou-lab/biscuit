@@ -4,7 +4,7 @@ BISulfite-seq CUI Toolkit (BISCUIT) is a utility suite for analyzing sodium bisu
 
 # Download and Install
 
-Source code or precompiled binaries for the latest release can be found [here](https://github.com/zwdzwd/biscuit/releases/latest).
+Source code and precompiled binaries for the latest release can be found [here](https://github.com/zwdzwd/biscuit/releases/latest).
 
 ## Compile
 
@@ -63,7 +63,7 @@ $ biscuit markdup input.bam output.bam
 
 Like samtools, BISCUIT extract DNA methylation as well as genetic information. The following shows how to produce a tabix-indexed VCF file.
 ```bash
-$ biscuit pileup -r GRCh38.fa -i input.bam -o output.vcf -q 20
+$ biscuit pileup GRCh38.fa input.bam -o output.vcf -q 20
 $ bgzip output.vcf
 $ tabix -p vcf output.vcf.gz
 ```

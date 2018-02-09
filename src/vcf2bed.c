@@ -193,15 +193,18 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
 
       /* parse out all alleles */
       char **alleles; int n_alleles;
-      line_get_fields(rec->alt, ",", &alleles, &n_alleles);
-      
+      // use the AB tag for alt
+      char *AB = get_vcf_record_info("AB", rec->info);
+      line_get_fields(AB, ",", &alleles, &n_alleles);
+      free(AB);
+            
       alleles = realloc(alleles, (++n_alleles)*sizeof(char*));
       memmove(alleles + 1, alleles, (n_alleles-1)*sizeof(char*));
       alleles[0] = strdup(rec->ref);
 
       /* parse out allele support in each sample */
-      int *allele_sp = calloc(n_alleles*n_fmt_sp, sizeof(int));
       int j;
+      int *allele_sp = calloc(n_alleles*n_fmt_sp, sizeof(int));
       for (j=0; j<n_fmt_sp; ++j) {
         int n_allele_sppairs; char **allele_sppairs;
         line_get_fields(fmt_sp[j], ",", &allele_sppairs, &n_allele_sppairs);
@@ -215,9 +218,8 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
               break;
           if (ai < n_alleles)
             allele_sp[j*n_alleles+ai] = atoi(ae);
-          else {
+          else
             wzfatal("Allele %s not found in %s\n", allele_sppairs[k], vcf->line);
-          }
         }
         free_char_array(allele_sppairs, n_allele_sppairs);
       }

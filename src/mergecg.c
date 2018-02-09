@@ -75,6 +75,7 @@ void parse_data_meth(bed1_t *b, char **fields, int nfields) {
 static int usage() {
 
   fprintf(stderr, "\n");
+  fprintf(stderr, "Merge C annd G beta values in CpG dinucleotide context\n");
   fprintf(stderr, "Usage: biscuit mergecg <ref.fa> <in.bed>\n");
   fprintf(stderr, "Input options:\n\n");
   fprintf(stderr, "     REF       fai-indexed fasta\n");

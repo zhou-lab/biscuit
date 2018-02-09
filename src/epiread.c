@@ -574,8 +574,9 @@ static void *process_func(void *data) {
 
 static int usage(conf_t *conf) {
   fprintf(stderr, "\n");
+  fprintf(stderr, "Convert BAM to epiread output.\n");
   fprintf(stderr, "Usage: epiread [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
-  fprintf(stderr, "Input options:\n\n");
+  fprintf(stderr, "Options:\n\n");
   fprintf(stderr, "     -i        input bam.\n");
   fprintf(stderr, "     -B        bed input for SNP display in epiread output [no SNP]\n");
   fprintf(stderr, "     -r        reference in fasta.\n");
@@ -587,7 +588,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -P        pairwise mode [off]\n");
   fprintf(stderr, "     -N        NOMe-seq mode [off]\n");
   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
-  fprintf(stderr, "\nPileup filtering:\n\n");
+  fprintf(stderr, "\nFiltering:\n\n");
   fprintf(stderr, "     -m        minimum mapping quality [%u].\n", conf->min_mapq);
   fprintf(stderr, "     -t        max cytosine retention in a read [%u].\n", conf->max_retention);
   fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
