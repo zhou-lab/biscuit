@@ -431,7 +431,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
 
   if (bwa_verbose >= 4) {
     printf("[%s] Try adding matesw-ed region %"PRId64"-%"PRId64". score:%d\n", __func__, rb, re, aln.score);
-    printf("original: %ld - %ld (pes: [%d-%d])\n", reg->rb, reg->re, pes.low, pes.high);
+    printf("original: %"PRId64" - %"PRId64" (pes: [%d-%d])\n", reg->rb, reg->re, pes.low, pes.high);
     mem_print_region1(bns, reg);
     putchar('\n');
   }
