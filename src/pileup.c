@@ -567,6 +567,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
 
   uint32_t i;
   char rb = refcache_getbase_upcase(rs, rpos);
+  if (rb == 'N') return;
 
   int *cnts = calloc(NSTATUS*n_bams, sizeof(int));
   int allcnts[NSTATUS]={0};

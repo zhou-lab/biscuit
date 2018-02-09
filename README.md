@@ -36,6 +36,7 @@ $ samtools index output.bam
 $ samtools flagstat output.bam >output.bam.flagstat
 ```
 
+See [here](https://github.com/zwdzwd/biscuit/wiki/Measure-cytosine-retention-and-SNP) for more information.
 
 
 ## Visualize alignment
