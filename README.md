@@ -81,6 +81,8 @@ $ biscuit vcf2bed -k 10 -t cg input.vcf.gz
   * `c` - all cytosines
   * `hcg` - HCG for NOMe-seq
   * `gch` - GCH for NOMe-seq
+  
+`-e` output sequence contexts.
 
 ## EPI-reads and allele-specific methylation
 

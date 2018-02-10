@@ -34,7 +34,6 @@
 typedef struct conf_t {
   char target[5];
   int mincov;
-  int showcov;
   int showctxt;
 } conf_t;
 
@@ -169,7 +168,7 @@ static void vcf2bed_ctxt(vcf_file_t *vcf, conf_t *conf, const char *cx) {
       if (bd->betas[i] < 0) fputs("\t.", stdout);
       else fprintf(stdout, "\t%1.3f", bd->betas[i]);
       // coverage
-      if (conf->showcov) fprintf(stdout, "\t%d", bd->covs[i]);
+      fprintf(stdout, "\t%d", bd->covs[i]);
     }
     putchar('\n');
   }
@@ -263,15 +262,14 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -t STRING extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf->target);
   fprintf(stderr, "     -k INT    minimum coverage [%d]\n", conf->mincov);
   fprintf(stderr, "     -s STRING sample, (takes \"FIRST\", \"LAST\", \"ALL\", or specific sample names separated by \",\")[FIRST]\n");
-  fprintf(stderr, "     -c        show coverage, as extra columns\n");
-  fprintf(stderr, "     -e        show context (reference base, context group, 2-base and 5-base context) before beta value and coverage column\n");
+  fprintf(stderr, "     -e        show context (reference base, context group {CG,CHG,CHH}, 2-base {CA,CC,CG,CT} and 5-base context) before beta value and coverage column\n");
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
   return 1;
 }
 
 int main_vcf2bed(int argc, char *argv[]) { 
-  conf_t conf = {.mincov=3, .showcov=0, .showctxt=0};
+  conf_t conf = {.mincov=3, .showctxt=0};
   strcpy(conf.target, "cg");
   char *target_samples = NULL;
 
@@ -285,7 +283,6 @@ int main_vcf2bed(int argc, char *argv[]) {
       break;
     }
     case 's': target_samples = strdup(optarg); break;
-    case 'c': conf.showcov = 1; break;
     case 'e': conf.showctxt = 1; break;
     case 'h': return usage(&conf); break;
     default: usage(&conf); wzfatal("Unrecognized option: %c.\n",c); break;
