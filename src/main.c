@@ -71,9 +71,9 @@ static int usage()
   fprintf(stderr, "         vcf2bed       convert VCF to bed graph\n");
   fprintf(stderr, "         mergecg       merge C and G in CpG context.\n");
   fprintf(stderr, "         bsstrand      validate and correct bisulfite conversion strand label\n");
+  fprintf(stderr, "         bsconv        summarize retention and conversion of each read, append in ZN tag\n");
   fprintf(stderr, "         epiread       convert bam to epiread format\n");
   fprintf(stderr, "         cinread       print cytosine-read pair in long form\n");
-  fprintf(stderr, "         bsconv        summarize retention and conversion of each read, append in ZN tag\n");
   fprintf(stderr, "         asm           test allele specific methylation\n");
   // fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "\n");
