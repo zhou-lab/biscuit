@@ -109,7 +109,13 @@ Sometimes, the bisulfite conversion labels in a given alignment are inaccurate, 
 $ biscuit bsstrand GRCh37.fa input.bam 
 ```
 
-`-y` append count of `C>T`(YC tag) and `G>A`(YG tag) in the output bam.
+The inferred `YD` tag gives the following
+- f: foward/Waston strand
+- r: reverse/Crick strand
+- c: conflicting strand information
+- u: unintelligible strand source (unknown)
+
+`YD` is inferred based on the count of `C>T`s (`nCT`) and `G>A`s (`nGA`) in each read according to the following rule: If both `nCT` and `nGA` are zero, `YD=u`. `s = min(nG2A,nC2T)/max(nG2A,nC2T)`. if `nC2T > nG2A && (nG2A == 0 || s <= 0.5)`, then `YD=f`. if `nC2T < nG2A && (nC2T == 0 || s <= 0.5)`, then `YD = r`. All other scenarios gives `YD=c`. `-y` append `nCT`(YC tag) and `nGA`(YG tag) in the output bam.
 
 # Acknowledgements
 
