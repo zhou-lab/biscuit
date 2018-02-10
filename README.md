@@ -106,8 +106,22 @@ biscuit asm out.epiread >out.asm
 
 Sometimes, the bisulfite conversion labels in a given alignment are inaccurate, conflicting or ambiguous. The `bsstrand` command summarizes these labels given the number of C>T, G>A substitutions. It can correct inaccurate labels as an option.
 ```bash
-$ biscuit bsstrand GRCh37.fa input.bam 
+$ biscuit bsstrand -g "chr1:1000000-1050000" GRCh37.fa input.bam 
 ```
+gives something like
+```
+Mapped reads: 16688
+Unmapped reads: 29
+Corrected reads: 0 (0.00%)
+
+Confusion counts:
+orig\infer     BSW (f)      BSC (r)      Conflict (c) Unknown (u)
+     BSW (f):   8426         42           4            12
+     BSC (r):   15           8167         3            19
+Conflict (c):   0            0            0            0
+ Unknown (u):   0            0            0            0
+```
+
 
 The inferred `YD` tag gives the following
 - f: foward/Waston strand
@@ -115,7 +129,7 @@ The inferred `YD` tag gives the following
 - c: conflicting strand information
 - u: unintelligible strand source (unknown)
 
-`YD` is inferred based on the count of `C>T` (`nCT`) and `G>A` (`nGA`) observations in each read according to the following rule: If both `nCT` and `nGA` are zero, `YD = u`. `s = min(nG2A,nC2T)/max(nG2A, nC2T)`. if `nC2T > nG2A && (nG2A == 0 || s <= 0.5)`, then `YD = f`. if `nC2T < nG2A && (nC2T == 0 || s <= 0.5)`, then `YD = r`. All other scenarios gives `YD = c`. `-y` append `nCT`(YC tag) and `nGA`(YG tag) in the output bam.
+`YD` is inferred based on the count of `C>T` (`nCT`) and `G>A` (`nGA`) observations in each read according to the following rule: If both `nCT` and `nGA` are zero, `YD = u`. `s = min(nG2A,nC2T)/max(nG2A,nC2T)`. if `nC2T > nG2A && (nG2A == 0 || s <= 0.5)`, then `YD = f`. if `nC2T < nG2A && (nC2T == 0 || s <= 0.5)`, then `YD = r`. All other scenarios gives `YD = c`. `-y` append `nCT`(YC tag) and `nGA`(YG tag) in the output bam.
 
 # Acknowledgements
 
