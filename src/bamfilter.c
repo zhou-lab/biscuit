@@ -51,7 +51,7 @@ int bam_filter(char *ifn, char *ofn, char *reg, void *data, bam_filter_f func) {
     if (name_lim) {
       char name_terminator = *name_lim;
       *name_lim = '\0';
-      tid = bam_name2id(header, reg);
+      tid = bam_name2id(header, _reg);
       *name_lim = name_terminator;
     }
     free(_reg);

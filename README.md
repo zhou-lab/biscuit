@@ -104,10 +104,12 @@ biscuit asm out.epiread >out.asm
 
 ## Validate bisulfite conversion label
 
-Sometimes, the bisulfite conversion label in a given alignment is inaccurate, conflicting or ambiguous. The `bsstrand` command summarizes these labels given the number of C>T, G>A substitutions. It can correct inaccurate labels as an option.
+Sometimes, the bisulfite conversion labels in a given alignment are inaccurate, conflicting or ambiguous. The `bsstrand` command summarizes these labels given the number of C>T, G>A substitutions. It can correct inaccurate labels as an option.
 ```bash
 $ biscuit bsstrand GRCh37.fa input.bam 
 ```
+
+`-y` append count of `C>T`(YC tag) and `G>A`(YG tag) in the output bam.
 
 # Acknowledgements
 

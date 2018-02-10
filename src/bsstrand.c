@@ -189,8 +189,9 @@ static void usage() {
   fprintf(stderr, "\n");
   fprintf(stderr, "Usage: bsstrand [options] ref.fa in.bam [out.bam]\n");
   fprintf(stderr, "Input options:\n");
+  fprintf(stderr, " OUTPUT        optional output bam, work with -y or -c\n");
 	fprintf(stderr, "     -g        region (optional, chrX:123-456 if missing, process the whole bam).\n");
-	fprintf(stderr, "     -o        output count of C>T (YC tag) and G>A (YG tag) in output bam.\n");
+	fprintf(stderr, "     -y        append count of C>T (YC tag) and G>A (YG tag) in output bam.\n");
   fprintf(stderr, "     -c        correct bsstrand in the output bam, YD tag will be replaced if existent and created if not.\n");
   fprintf(stderr, "     -h        this help.\n");
   fprintf(stderr, "\n");
@@ -206,10 +207,10 @@ int main_bsstrand(int argc, char *argv[]) {
   bsstrand_conf_t conf = {0};
 
   if (argc < 2) { usage(); return 1; }
-  while ((c = getopt(argc, argv, "g:coh")) >= 0) {
+  while ((c = getopt(argc, argv, "g:cyh")) >= 0) {
     switch (c) {
 		case 'g': reg = optarg; break;
-		case 'o': conf.output_count = 1; break;
+		case 'y': conf.output_count = 1; break;
     case 'c': conf.correct_bsstrand = 1; break;
     case 'h': usage(); return 1;
     default:
