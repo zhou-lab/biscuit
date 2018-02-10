@@ -72,7 +72,7 @@ static int usage()
   fprintf(stderr, "     markdup       mark duplicates on the same bisulfite strand\n");
   fprintf(stderr, "     bsstrand      validate/correct bisulfite conversion strand label (YD tag)\n");
   fprintf(stderr, "     bsconv        summarize/filter reads by bisulfite conversion (ZN tag)\n");
-  fprintf(stderr, "     cinread       print cytosine-read pair in the long form.\n");
+  fprintf(stderr, "     cinread       print cytosine-read pair in a long form.\n");
   fprintf(stderr, "\n  -- Base summary\n");
   fprintf(stderr, "     pileup        pileup cytosine and mutations.\n");
   fprintf(stderr, "     vcf2bed       convert VCF to bed graph.\n");
