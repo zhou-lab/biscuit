@@ -184,11 +184,15 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
   while (vcf_read_record(vcf, rec)) {
     vcf_record2bed1(b, rec, vcf);
 
+    bed_data_t *bd = (bed_data_t*) b->data;
     if (strcmp(rec->alt, ".") != 0) {
       char **fmt_gt; int n_fmt_gt;
       char **fmt_sp; int n_fmt_sp;
       get_vcf_record_fmt("GT", rec->fmt, vcf, &fmt_gt, &n_fmt_gt);
       get_vcf_record_fmt("SP", rec->fmt, vcf, &fmt_sp, &n_fmt_sp);
+
+      if (n_fmt_sp != bd->nsamples || n_fmt_gt != bd->nsamples)
+        wzfatal("Malformed VCF file (unmatched no. records) in %s\n", vcf->line);
 
       /* parse out all alleles */
       char **alleles; int n_alleles;
@@ -205,16 +209,19 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
       int j;
       int *allele_sp = calloc(n_alleles*n_fmt_sp, sizeof(int));
       for (j=0; j<n_fmt_sp; ++j) {
+        if (strcmp(fmt_sp[j], ".")==0) continue;
         int n_allele_sppairs; char **allele_sppairs;
         line_get_fields(fmt_sp[j], ",", &allele_sppairs, &n_allele_sppairs);
         int k;
         for (k=0; k<n_allele_sppairs; ++k) {
-          char *ae;               /* pointing to first digit of allele count */
-          for (ae = allele_sppairs[k]; !isdigit(*ae); ++ae);
+          // pointing to first digit of allele count
+          char *ae; for (ae = allele_sppairs[k]; !isdigit(*ae); ++ae);
+
+          // locate which allele
           int ai;
           for (ai=0; ai<n_alleles; ++ai)
-            if (strncmp(alleles[ai], allele_sppairs[k], ae-allele_sppairs[k]) == 0)
-              break;
+            if (strncmp(alleles[ai], allele_sppairs[k], ae-allele_sppairs[k]) == 0) break;
+          
           if (ai < n_alleles)
             allele_sp[j*n_alleles+ai] = atoi(ae);
           else
@@ -226,22 +233,31 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
       if (b == NULL || b->tid < 0) continue;
 
       /* compute highest non-ref AF and coverage */
-      int i; int cov=0, haltcnt=0;
-      for (i=0; i<n_alleles; ++i) {
-        cov += allele_sp[i];
-        if (i && allele_sp[i] > haltcnt)
-          haltcnt = allele_sp[i];
+      int i; int highest_cov = 0;
+      for (j=0; j<bd->nsamples; ++j) {
+        int cov = 0;
+        for (i=0; i<n_alleles; ++i) cov += allele_sp[j*n_alleles+i];
+        if (cov > highest_cov) highest_cov = cov;
       }
-      if (cov < conf->mincov) continue;
+      if (highest_cov < conf->mincov) continue;
 
       // output
       // chrm, beg, end, ref, alt
-      bed_data_t *bd = (bed_data_t*) b->data;
       fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%s\t%s", 
           target_name(vcf->targets, b->tid), b->beg, b->end, rec->ref, rec->alt);
       // genotype, support, cov, vaf
-      for (i = 0; i<bd->nsamples; ++i)
-        fprintf(stdout, "\t%s\t%s\t%d\t%1.2f", fmt_gt[i], fmt_sp[i], cov, (double) haltcnt / cov);
+      for (j = 0; j<bd->nsamples; ++j) {
+        int highest_altcnt=0, cov=0; // recomputed cov, could be more efficient here
+        int *allele_sp1 = allele_sp + j*n_alleles;
+        for (i=0; i<n_alleles; ++i) {
+          if (i && allele_sp[i] > highest_altcnt) highest_altcnt = allele_sp1[i];
+          cov += allele_sp1[i];
+        }
+        fprintf(stdout, "\t%s\t%s\t%d\t", fmt_gt[j], fmt_sp[j], cov);
+        if (cov) fprintf(stdout, "%1.2f", (double) highest_altcnt / cov);
+        else putchar('.');
+          
+      }
       putchar('\n');
 
       free(allele_sp);

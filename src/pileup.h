@@ -77,9 +77,12 @@ typedef struct {
 DEFINE_WQUEUE(window, window_t)
 
 /* mutation-methylation code */
-#define NSTATUS 9
-extern const char nt256int8_to_mutcode[6];
-typedef enum {BSS_MA, BSS_MC, BSS_MG, BSS_MT, BSS_MY, BSS_MR, BSS_RETENTION, BSS_CONVERSION, BSS_N} status_t;
+extern const char nt256int8_to_methcode[3];
+extern const char nt256int8_to_basecode[7];
+#define NSTATUS_METH 3
+#define NSTATUS_BASE 7
+typedef enum {METH_RETENTION, METH_CONVERSION, METH_NA} status_meth_t;
+typedef enum {BASE_A, BASE_C, BASE_G, BASE_T, BASE_N, BASE_Y, BASE_R} status_base_t;
 
 /* cytosine context code */
 #define NCONTXTS 6          /* not including NA */
@@ -95,7 +98,7 @@ typedef struct {
   uint8_t cnt_ret;              /* count of retention of entire read */
   uint16_t rlen;                /* read length */
   char qb;                      /* query base */
-  status_t stat;                /* code from mut-met status table */
+  uint8_t stat;                 /* (status_base_t << 4) | status_meth_t */
 } __attribute__((__packed__)) pileup_data_t;
 
 DEFINE_VECTOR(pileup_data_v, pileup_data_t)
@@ -140,8 +143,6 @@ DEFINE_VECTOR(target_v, target_t);
 static inline int compare_targets(const void *a, const void *b) {
   return strcmp(((target_t*)a)->name, ((target_t*)b)->name);
 }
-
-#define mutcode(a) (nt256char_to_nt256int8_table[(uint8_t)a])
 
 cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc);
 

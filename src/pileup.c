@@ -28,7 +28,8 @@
 /* typedef enum {BSS_RETENTION, BSS_CONVERSION, BSS_OTHER} bsstate_t; */
 /* typedef enum {MCT, MCG, MCA, MGT, MGC, MGA} mutation_t; */
 /* const char alts[] = "TGATCA"; */
-const char nt256int8_to_mutcode[6] = "ACGTYR"; // Y is [CT] and R is [GT]
+const char nt256int8_to_methcode[3] = "RCN";  // R: retention, C: conversion, N: NA
+const char nt256int8_to_basecode[7] = "ACGTNYR";  // Y is [CT] and R is [GA]
 /* different representation of context when nome */
 
 const char *cytosine_context[] = {"CG","CHG","CHH","CG","CHG","CHH","CN"};
@@ -453,33 +454,122 @@ cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char 
   }
 }
 
-/* find top two mutant by allele support */
-static void top2mutants(int *_cm1, int *_cm2, int *cnts) {
-  int cm1=-1, cm2=-1;
-  int i;
-  for (i=0; i<6; i++) {
-    if (cnts[i] > 0) {
-      if (cm1<0) {
-        cm1 = i;
-      } else if (cnts[i]>cnts[cm1]) {
-        cm2 = cm1;
-        cm1 = i;
-      } else if (cm2<0 || cnts[i]>cnts[cm2]) {
-        cm2 = i;
-      }
+static int top_mutant(int *cnts_base1) {
+  for (i=0; i<NSTATUS_BASE; ++i) if (i!=BASE_N) supp[i] = (cnts_base_allsamples[i]<<4) | i;
+  qsort(supp, NSTATUS_BASE, sizeof(uint32_t), compare_supp);
+  int cm1 = -1; // top mutant for genotyping
+  for (i=0; i<NSTATUS_BASE; ++i) {
+    if (supp[i]&0xf!=BASE_N && (supp[i]&0xf)!=rb_code && (supp[i]>>4)>0) {
+      cm1=i;
+      break;
     }
   }
+  return cm1;
+}
+
+
+static int top_mutant(int *cnts) {
+  int i, m=-1;
+  for (i=0; i<6; i++) {
+    if (i==BASE_N) continue;
+    if (cnts[i] > 0) {
+      if (m<0) m=i;
+      else if (cnts[i] > cnts[m]) m=i;
+    }
+  }
+  return m;
+}
+
+static void top2mutants(int *_cm1, int *_cm2, int *cnts) {
+
+  int _cnts[6];
+  int cm1=-1, cm2=-1;
+  cm1 = top_mutant(cnts);
+  if (cm1 >= 0) {
+    memcpy(_cnts, cnts, sizeof(int)*6);
+    _cnts[cm1] = 0;
+    cm2 = top_mutant(_cnts);
+  }
+  
+  // disambiguate Y and R somewhat
+  if ((cm1 == BASE_Y && cm2 == BASE_C) || (cm1 == BASE_C && cm2 == BASE_Y)) {
+    cm1 = cnts[BASE_T] ? BASE_Y : BASE_C;
+    memcpy(_cnts, cnts, sizeof(int)*6);
+    _cnts[BASE_C] = _cnts[BASE_T] = _cnts[BASE_Y] = 0;
+    cm2 = top_mutant(_cnts);
+  }
+  if ((cm1 == BASE_Y && cm2 == BASE_T) || (cm1 == BASE_T && cm2 == BASE_Y)) {
+    cm1 = cnts[BASE_C] ? BASE_Y : BASE_T;
+    memcpy(_cnts, cnts, sizeof(int)*6);
+    _cnts[BASE_C] = _cnts[BASE_T] = _cnts[BASE_Y] = 0;
+    cm2 = top_mutant(_cnts);
+  }
+  if ((cm1 == BASE_R && cm2 == BASE_G) || (cm1 == BASE_G && cm2 == BASE_R)) {
+    cm1 = cnts[BASE_A] ? BASE_R : BASE_G;
+    memcpy(_cnts, cnts, sizeof(int)*6);
+    _cnts[BASE_G] = _cnts[BASE_A] = _cnts[BASE_R] = 0;
+    cm2 = top_mutant(_cnts);
+  }
+  if ((cm1 == BASE_R && cm2 == BASE_A) || (cm1 == BASE_A && cm2 == BASE_R)) {
+    cm1 = cnts[BASE_G] ? BASE_R : BASE_A;
+    memcpy(_cnts, cnts, sizeof(int)*6);
+    _cnts[BASE_G] = _cnts[BASE_A] = _cnts[BASE_R] = 0;
+    cm2 = top_mutant(_cnts);
+  }
+
   *_cm1 = cm1; *_cm2 = cm2;
 }
 
-static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[NSTATUS], int n_bams, int *_cm1, int *_cm2) {
+// redistribute base supports, considering bisulfite treatment
+// special treatment here: (should have an option to turn this off)
+// if (reference shows T or there is evidence of T) and there is no sign of C,
+// we assume all counts of Y is T, vice versa and similar applies to G/A and R
 
-  if (!dv) {
-    *_cm1 = -1; *_cm2 = -1;
-    return;
-  }
+static void redistribute_cnts(int *cnts_base_redist, int *cnts_base, int n_bams, uint8_t rb_code) {
+  memcpy(cnts_base_redist, cnts_base, sizeof(int)*NSTATUS_BASE*n_bams);
 
   int sid;
+  for (sid=0; sid<n_bams; ++sid) {
+    int *cnts_base1 = cnts_base + NSTATUS_BASE*sid;
+    int *cnts_base1_redist = cnts_base_redist + NSTATUS_BASE*sid;
+    if (((rb_code == BASE_T || cnts_base1[BASE_T]) && cnts_base1[BASE_C] == 0)) {
+      cnts_base1_redist[BASE_T] += cnts_base1_redist[BASE_Y];
+      cnts_base1_redist[BASE_Y] = 0;
+    }
+
+    if (((rb_code == BASE_C || cnts_base1[BASE_C]) && cnts_base1[BASE_T] == 0)) {
+      cnts_base1_redist[BASE_C] += cnts_base1_redist[BASE_Y];
+      cnts_base1_redist[BASE_Y] = 0;
+    }
+    
+    if (((rb_code == BASE_A || cnts_base1[BASE_A]) && cnts_base1[BASE_G] == 0)) {
+      cnts_base1_redist[BASE_A] += cnts_base1_redist[BASE_R];
+      cnts_base1_redist[BASE_R] = 0;
+    }
+
+    if (((rb_code == BASE_G || cnts_base1[BASE_G]) && cnts_base1[BASE_A] == 0)) {
+      cnts_base1_redist[BASE_G] += cnts_base1_redist[BASE_R];
+      cnts_base1_redist[BASE_R] = 0;
+    }
+  }
+}
+  
+
+static void redistribute_support(supp, rb_code) {
+
+  if ((rb_code == BASE_T && cnts_base1[BASE_C] == 0) ||
+      (rb_code == BASE_C && cnts_base1[BASE_T] == 0))
+    supp
+    cref[sid] += cnts_base1[BASE_Y];
+
+  if ((rb == 'A' && cnts_base1[BASE_G] == 0) ||
+      (rb == 'G' && cnts_base1[BASE_A] == 0)) cref[sid] += cnts_base1[BASE_R];
+}
+
+static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts_meth, int *cnts_base) {
+
+  if (!dv) return;
+
   uint32_t i;
   for (i=0; i<dv->size; ++i) {
     pileup_data_t *d = ref_pileup_data_v(dv, i);
@@ -487,48 +577,25 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts, int allcnts[
     if (d->qual < conf->min_base_qual) continue;
     if (d->qpos < conf->min_dist_end ||
         d->rlen < d->qpos + conf->min_dist_end) continue;
-    cnts[d->sid * NSTATUS + d->stat]++;
+    cnts_meth[d->sid * NSTATUS_METH + (d->stat&0xf)]++;
+    cnts_base[d->sid * NSTATUS_BASE + (d->stat>>4)]++;
   }
-
-  /* reset ambiguous mutation if they can be disambiguated */
-  for (sid=0; sid<n_bams; ++sid) {
-    if (cnts[sid * NSTATUS + BSS_MC]>0 || cnts[sid * NSTATUS + BSS_MT]>0)
-      cnts[sid * NSTATUS + BSS_MY] = 0;
-    if (cnts[sid * NSTATUS + BSS_MG]>0 || cnts[sid * NSTATUS + BSS_MA]>0)
-      cnts[sid * NSTATUS + BSS_MR] = 0;
-  }
-
-  /* pick the top 2 mutations */
-  memset(allcnts, 0, sizeof(int)*NSTATUS);
-  for (sid=0; sid<n_bams; ++sid)
-    for (i=0; i<NSTATUS; ++i)
-      allcnts[i] += cnts[sid * NSTATUS + i];
-
-  top2mutants(_cm1, _cm2, allcnts);
 }
 
-int reference_supp(int *cnts) {
-  int cref = 0;
-  if (cnts[BSS_N]) cref += cnts[BSS_N];
-  if (cnts[BSS_RETENTION] || cnts[BSS_CONVERSION])
-    cref += cnts[BSS_RETENTION] + cnts[BSS_CONVERSION];
-  return cref;
-}
-
-void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[NSTATUS], kstring_t *s) {
+void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[NSTATUS_BASE], kstring_t *s) {
 
   if (cref)
     ksprintf(s, "%c%d", rb, cref);
 
   if (cm1 >= 0) {
     if (cref) kputc(',',s);
-    ksprintf(s, "%c%d", nt256int8_to_mutcode[cm1], cnts[cm1]);
+    ksprintf(s, "%c%d", nt256int8_to_basecode[cm1], cnts[cm1]);
     if (cm2 >= 0) {
-      ksprintf(s, ",%c%d", nt256int8_to_mutcode[cm2], cnts[cm2]);
+      ksprintf(s, ",%c%d", nt256int8_to_basecode[cm2], cnts[cm2]);
       int i;
       for (i=0; i<6; ++i) {
         if (cnts[i]>0 && i!= cm1 && i!= cm2) {
-          ksprintf(s, ",%c%d", nt256int8_to_mutcode[i], cnts[i]);
+          ksprintf(s, ",%c%d", nt256int8_to_basecode[i], cnts[i]);
         }
       }
     }
@@ -561,31 +628,40 @@ void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_g
   *_gl0 = gl0; *_gl1 = gl1; *_gl2 = gl2; *_gq = gq;
 }
 
-static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf, record_t *rec, int n_bams) {
+static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf, record_t *rec, int n_bams, int *cnts_meth, int *cnts_base, int *cnts_base_redist) {
 
   kstring_t *s = &rec->s;
 
   uint32_t i;
   char rb = refcache_getbase_upcase(rs, rpos);
   if (rb == 'N') return;
+  int rb_code = nt256char_to_nt256int8_table[(uint8_t)rb];
 
-  int *cnts = calloc(NSTATUS*n_bams, sizeof(int));
-  int allcnts[NSTATUS]={0};
-  int cm1, cm2;
-  plp_getcnts(dv, conf, cnts, allcnts, n_bams, &cm1, &cm2);
+  memset(cnts_meth, 0, sizeof(int)*NSTATUS_METH*n_bams);
+  memset(cnts_base, 0, sizeof(int)*NSTATUS_BASE*n_bams);
+  plp_getcnts(dv, conf, cnts_meth, cnts_base);
+  redistribute_cnts(cnts_base_redist, cnts_base, n_bams, rb_code);
+
+  int cnts_base_allsamples[NSTATUS_BASE] = {0};
+  int cnts_meth_allsamples[NSTATUS_METH] = {0};
+  int sid;
+  for (sid=0; sid<n_bams; ++sid) {
+    for (i=0; i<NSTATUS_METH; ++i) cnts_meth_allsamples[i] += cnts_meth[sid*NSTATUS_METH+i];
+    for (i=0; i<NSTATUS_BASE; ++i) cnts_base_allsamples[i] += cnts_base[sid*NSTATUS_BASE+i];
+  }
+
+  uint32_t supp[NSTATUS_BASE];
+  int cm1 = top_mutant(cnts_base_allsamples, supp);
 
   /* if not SNP but no signal for BSS_RETENTION or BSS_CONVERSION,
      skip the print when in non-verbose mode */
   if (cm1 < 0 && !conf->verbose
-      && allcnts[BSS_RETENTION] == 0
-      && allcnts[BSS_CONVERSION] == 0) {
-    free(cnts);
+      && cnts_meth_allsamples[METH_RETENTION] == 0
+      && cnts_meth_allsamples[METH_CONVERSION] == 0)
     return;
-  }
 
   /* initialize genotyping */
   char **gt = malloc(n_bams*sizeof(char*));
-  int sid;
   for (sid=0; sid<n_bams; ++sid) {
     gt[sid] = malloc(4*sizeof(char));
     strcpy(gt[sid], "./.");
@@ -603,17 +679,15 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   uint8_t *methcallable = calloc(n_bams, sizeof(uint8_t));
   uint8_t *variant = calloc(n_bams, sizeof(uint8_t));
   for (sid=0; sid<n_bams; ++sid) {
-    int *cnts1 = cnts + NSTATUS*sid;
+    int *cnts_base1 = cnts_base + NSTATUS_BASE*sid;
 
-    /* MY and MR do not interfere */
-    if (cnts1[BSS_RETENTION] + cnts1[BSS_CONVERSION] > 0) {
-      if (cnts1[BSS_MT]==0 && rb == 'C') methcallable[sid] = 1;
-      if (cnts1[BSS_MA]==0 && rb == 'G') methcallable[sid] = 1;
+    /* determine if SNP is interfering methylation calling */
+    if (cnts_base1[METH_RETENTION] + cnts_base1[METH_CONVERSION] > 0) {
+      if (cnts_base1[BASE_T]==0 && rb == 'C') methcallable[sid] = 1;
+      if (cnts_base1[BASE_A]==0 && rb == 'G') methcallable[sid] = 1;
     }
 
-    cref[sid] = reference_supp(cnts1);
-    int altsupp = cm1 >= 0?cnts1[cm1]:0;
-
+    int altsupp = cm1 >= 0?cnts_base1[cm1]:0;
     gl0[sid] = -1; gl1[sid] = -1; gl2[sid] = -1; gq[sid] = 0;
     if (cref[sid] || cm1 >= 0) {
       pileup_genotype(cref[sid], altsupp, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid);
@@ -630,11 +704,11 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   /* determine somatic mutation status */
   double squal=0.0; int ss=5;
   if (conf->somatic && cm1>=0) {
-    int cm1_t, cm2_t; top2mutants(&cm1_t, &cm2_t, cnts);
-    int cm1_n, cm2_n; top2mutants(&cm1_n, &cm2_n, cnts+NSTATUS);
+    int cm1_t, cm2_t; top2mutants(&cm1_t, &cm2_t, cnts_base);
+    int cm1_n, cm2_n; top2mutants(&cm1_n, &cm2_n, cnts_base+NSTATUS_BASE);
     if (cm1_t) {
-      int altcnt_t = cnts[cm1_t];
-      int altcnt_n = cnts[NSTATUS+cm1_t];
+      int altcnt_t = cnts_base[cm1_t];
+      int altcnt_n = cnts_base[NSTATUS_BASE+cm1_t];
       squal = pval2qual(somatic_posterior(cref[0], altcnt_t, cref[1], altcnt_n, conf->error, conf->mu, conf->mu_somatic, conf->contam));
       if (squal>1) ss=2;
       else if (gt[1][2]=='1') {
@@ -655,12 +729,12 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   uint32_t supp[6];
   int fst = 1;
   if (cm1 >= 0) {
-    for (i=0; i<6; ++i) supp[i] = (allcnts[i]<<4) | i;
+    for (i=0; i<6; ++i) supp[i] = (cnts_base_allsamples[i]<<4) | i;
     qsort(supp, 6, sizeof(uint32_t), compare_supp);
     fst = 1;
     for (i=0; i<6; ++i) {
       if ((supp[i]>>4) > 0) {
-        char m = nt256int8_to_mutcode[supp[i]&0xf];
+        char m = nt256int8_to_basecode[supp[i]&0xf];
         if (m == 'Y' || m == 'R') m = 'N';
         if (m != rb) {
           if (!fst) kputc(',', s);
@@ -697,9 +771,10 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   if (cm1 >= 0) {
     kputs(";AB=", s);
     fst = 1;
-    for (i=0; i<6; ++i) {
+    for (i=0; i<NSTATUS_BASE; ++i) {
+      if (i == BASE_N) continue;
       if ((supp[i]>>4) > 0) {
-        char m = nt256int8_to_mutcode[supp[i]&0xf];
+        char m = nt256int8_to_basecode[supp[i]&0xf];
         if (m != rb) {
           if (!fst) kputc(',', s);
           kputc(m, s);
@@ -708,7 +783,6 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
       }
     }
   }
-  
 
   /* FORMAT */
   kputs("\tGT:GL1:GQ:DP", s);
@@ -718,7 +792,8 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   /* loop over samples print format */
   double beta;
   for (sid=0; sid<n_bams; ++sid) {
-    int *cnts1 = cnts + NSTATUS*sid;
+    int *cnts_base1 = cnts_base + NSTATUS_BASE*sid;
+    int *cnts_meth1 = cnts_meth + NSTATUS_METH*sid;
     int dp=0;
     if (dv) for(i=0; i<dv->size; ++i)	if (ref_pileup_data_v(dv, i)->sid == sid) ++dp;
 
@@ -737,22 +812,18 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     /* SP */
     if (any_variant) {
       kputc(':', s);
-      if (variant[sid]) {
-        allele_supp(rb, cref[sid], cm1, cm2, cnts1, s);
-      } else {
-        kputc('.', s);
-      }
+      allele_supp(rb, cref[sid], cm1, cm2, cnts_base1, s);
     }
   
     /* CV, BT */
     if (any_methcallable) {
       if (methcallable[sid]) {
-        beta = (double) cnts1[BSS_RETENTION] / (double) (cnts1[BSS_RETENTION]+cnts1[BSS_CONVERSION]);
+        beta = (double) cnts_meth1[METH_RETENTION] / (double) (cnts_meth1[METH_RETENTION]+cnts_meth1[METH_CONVERSION]);
         if (ctt != CTXT_NA) {
           rec->betasum_context[sid*NCONTXTS+ctt] += beta;
           rec->cnt_context[sid*NCONTXTS+ctt]++;
         }
-        ksprintf(s, ":%d:%1.2f", cnts1[BSS_RETENTION]+cnts1[BSS_CONVERSION], beta);
+        ksprintf(s, ":%d:%1.2f", cnts_meth1[METH_RETENTION]+cnts_meth1[METH_CONVERSION], beta);
       } else {
         kputs(":.:.", s);
       }
@@ -766,7 +837,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     if (conf->verbose) {
       kputs("\tDIAGNOSE", s);
       if (methcallable)
-        ksprintf(s, ";RN=%d;CN=%d", cnts1[BSS_RETENTION], cnts1[BSS_CONVERSION]);
+        ksprintf(s, ";RN=%d;CN=%d", cnts_meth1[METH_RETENTION], cnts_meth1[METH_CONVERSION]);
       verbose_format(0, dv, s, sid);
       verbose_format(1, dv, s, sid);
     }
@@ -776,7 +847,6 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   for (sid=0; sid<n_bams; ++sid) free(gt[sid]);
   free(gt); free(gl0); free(gl1); free(gl2); free(gq);
   free(cref); free(methcallable); free(variant);
-  free(cnts);
 }
 
 /* return -1 if abnormal (missing bsstrand) */
@@ -947,28 +1017,23 @@ static void *process_func(void *_result) {
               d->bsstrand = bsstrand;
               d->qb = qb;
 
+              d->stat = 0;
               if (bsstrand) {	/* BSC */
                 if (rb == 'G') {
-                  if (qb == 'A') d->stat = BSS_CONVERSION;
-                  else if (qb == 'G') d->stat = BSS_RETENTION;
-                  else d->stat = mutcode(qb);
-                } else if (rb != qb) {
-                  if (qb == 'A') d->stat = BSS_MR;
-                  else d->stat = mutcode(qb);
-                } else {
-                  d->stat = BSS_N;
-                }
+                  if (qb == 'A') d->stat = METH_CONVERSION;
+                  else if (qb == 'G') d->stat = METH_RETENTION;
+                  else d->stat = METH_NA;
+                } else d->stat = METH_NA;
+                if (qb == 'A') d->stat |= BASE_R << 4;
+                else d->stat |= nt256char_to_nt256int8_table[(uint8_t)qb];
               } else {		/* BSW */
                 if (rb == 'C') {
-                  if (qb == 'T') d->stat = BSS_CONVERSION;
-                  else if (qb == 'C') d->stat = BSS_RETENTION;
-                  else d->stat = mutcode(qb);
-                } else if (rb != qb) {
-                  if (qb == 'T') d->stat = BSS_MY;
-                  else d->stat = mutcode(qb);
-                } else {
-                  d->stat = BSS_N;
-                }
+                  if (qb == 'T') d->stat = METH_CONVERSION;
+                  else if (qb == 'C') d->stat = METH_RETENTION;
+                  else d->stat = METH_NA;
+                } else d->stat = METH_NA;
+                if (qb == 'T') d->stat |= BASE_Y << 4;
+                else d->stat |= nt256char_to_nt256int8_table[(uint8_t)qb];
               }
             }
             rpos += oplen;
@@ -998,12 +1063,15 @@ static void *process_func(void *_result) {
     }
 
     /* loop over cytosines and format */
+    int *cnts_meth = calloc(NSTATUS_METH*res->n_bams, sizeof(int));
+    int *cnts_base = calloc(NSTATUS_BASE*res->n_bams, sizeof(int));
     for (j=w.beg; j<w.end; ++j) {
       pileup_data_v *plp_data = plp->data[j-w.beg];
       if (plp_data) {
-        plp_format(rs, chrm, j, plp_data, res->conf, &rec, res->n_bams);
+        plp_format(rs, chrm, j, plp_data, res->conf, &rec, res->n_bams, cnts_meth, cnts_base);
       }
     }
+    free(cnts_meth); free(cnts_base);
 
     /* put output string to output queue */
     wqueue_put2(record, res->rq, rec);
