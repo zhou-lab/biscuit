@@ -158,7 +158,6 @@ cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char 
 
 void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq);
 int reference_supp(int cnts[9]);
-void allele_supp(char rb, int cref, int cm1, int cm2, int cnts[9], kstring_t *s);
 
 static inline int compare_supp(const void *a, const void *b)
 {
