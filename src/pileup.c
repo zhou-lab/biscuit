@@ -23,6 +23,7 @@
  * SOFTWARE.
 **/
 
+#include <errno.h>
 #include "pileup.h"
 
 /* typedef enum {BSS_RETENTION, BSS_CONVERSION, BSS_OTHER} bsstate_t; */
@@ -199,7 +200,7 @@ void *write_func(void *data) {
     if (rec.block_id == next_block) {
       do {
         if (rec.s.s) {
-          fputs(rec.s.s, out);
+          if (fputs(rec.s.s, out) < 0 && errno == EPIPE) exit(1);
 
           /* statistics */
           int sid;
@@ -469,7 +470,23 @@ static int top_mutant(int *cnts_base1, uint32_t supp[NSTATUS_BASE], uint8_t rb_c
     uint8_t base = supp[i]&0xf;
     if (base == BASE_R && (rb_code == BASE_A || rb_code == BASE_G)) continue;
     if (base == BASE_Y && (rb_code == BASE_C || rb_code == BASE_T)) continue;
-    if (base != BASE_N && base!=rb_code && (supp[i]>>4)>0) { cm1 = base; break; }
+    if (base != BASE_N && base!=rb_code && (supp[i]>>4)>0) {
+      cm1 = base;
+
+      // no need of following since redistribution is already done
+      /* // disambiguate somewhat */
+      /* if (base == BASE_Y) { */
+      /*   if (cnts_base1[BASE_C] > 0 && cnts_base1[BASE_T] == 0) cm1 = BASE_C; */
+      /*   if (cnts_base1[BASE_T] > 0 && cnts_base1[BASE_C] == 0) cm1 = BASE_T; */
+      /* } */
+      
+      /* if (base == BASE_R) { */
+      /*   if (cnts_base1[BASE_G] > 0 && cnts_base1[BASE_A] == 0) cm1 = BASE_G; */
+      /*   if (cnts_base1[BASE_A] > 0 && cnts_base1[BASE_G] == 0) cm1 = BASE_A; */
+      /* } */
+      
+      break;
+    }
   }
   return cm1;
 }
@@ -478,32 +495,35 @@ static int top_mutant(int *cnts_base1, uint32_t supp[NSTATUS_BASE], uint8_t rb_c
 // special treatment here: (should have an option to turn this off)
 // if (reference shows T or there is evidence of T) and there is no sign of C,
 // we assume all counts of Y is T, vice versa and similar applies to G/A and R
+static void redistribute_cnts(int *cnts_base, int n_bams, uint8_t rb_code) {
 
-static void redistribute_cnts(int *cnts_base_redist, int *cnts_base, int n_bams, uint8_t rb_code) {
-  memcpy(cnts_base_redist, cnts_base, sizeof(int)*NSTATUS_BASE*n_bams);
-
-  int sid;
+  int cnts_base_all[NSTATUS_BASE] = {0}; // all samples, this allows cross-sample inference
+  int sid; uint8_t i;
+  for (sid=0; sid<n_bams; ++sid) {
+    for (i=0; i<NSTATUS_BASE; ++i)
+      cnts_base_all[i] += cnts_base[sid*NSTATUS_BASE+i];
+  }
+  
   for (sid=0; sid<n_bams; ++sid) {
     int *cnts_base1 = cnts_base + NSTATUS_BASE*sid;
-    int *cnts_base1_redist = cnts_base_redist + NSTATUS_BASE*sid;
-    if (((rb_code == BASE_T || cnts_base1[BASE_T]) && cnts_base1[BASE_C] == 0)) {
-      cnts_base1_redist[BASE_T] += cnts_base1_redist[BASE_Y];
-      cnts_base1_redist[BASE_Y] = 0;
+    if (((rb_code == BASE_T || cnts_base_all[BASE_T]) && cnts_base_all[BASE_C] == 0 && rb_code != BASE_C)) {
+      cnts_base1[BASE_T] += cnts_base1[BASE_Y];
+      cnts_base1[BASE_Y] = 0;
     }
 
-    if (((rb_code == BASE_C || cnts_base1[BASE_C]) && cnts_base1[BASE_T] == 0)) {
-      cnts_base1_redist[BASE_C] += cnts_base1_redist[BASE_Y];
-      cnts_base1_redist[BASE_Y] = 0;
+    if (((rb_code == BASE_C || cnts_base_all[BASE_C]) && cnts_base_all[BASE_T] == 0 && rb_code != BASE_T)) {
+      cnts_base1[BASE_C] += cnts_base1[BASE_Y];
+      cnts_base1[BASE_Y] = 0;
     }
     
-    if (((rb_code == BASE_A || cnts_base1[BASE_A]) && cnts_base1[BASE_G] == 0)) {
-      cnts_base1_redist[BASE_A] += cnts_base1_redist[BASE_R];
-      cnts_base1_redist[BASE_R] = 0;
+    if (((rb_code == BASE_A || cnts_base_all[BASE_A]) && cnts_base_all[BASE_G] == 0 && rb_code != BASE_G)) {
+      cnts_base1[BASE_A] += cnts_base1[BASE_R];
+      cnts_base1[BASE_R] = 0;
     }
 
-    if (((rb_code == BASE_G || cnts_base1[BASE_G]) && cnts_base1[BASE_A] == 0)) {
-      cnts_base1_redist[BASE_G] += cnts_base1_redist[BASE_R];
-      cnts_base1_redist[BASE_R] = 0;
+    if (((rb_code == BASE_G || cnts_base_all[BASE_G]) && cnts_base_all[BASE_A] == 0 && rb_code != BASE_A)) {
+      cnts_base1[BASE_G] += cnts_base1[BASE_R];
+      cnts_base1[BASE_R] = 0;
     }
   }
 }
@@ -562,7 +582,9 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   memset(cnts_meth, 0, sizeof(int)*NSTATUS_METH*n_bams);
   memset(cnts_base, 0, sizeof(int)*NSTATUS_BASE*n_bams);
   plp_getcnts(dv, conf, cnts_meth, cnts_base);
-  redistribute_cnts(cnts_base_redist, cnts_base, n_bams, rb_code);
+
+  memcpy(cnts_base_redist, cnts_base, sizeof(int)*NSTATUS_BASE*n_bams);
+  if (conf->ambi_redist) redistribute_cnts(cnts_base_redist, n_bams, rb_code);
 
   int cnts_base_allsamples[NSTATUS_BASE] = {0};
   int cnts_meth_allsamples[NSTATUS_METH] = {0};
@@ -594,10 +616,8 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   double *gq = malloc(n_bams*sizeof(double));
   /* genotype each sample */
   int any_methcallable = 0;
-  int any_variant = 0;
   double lowest_gq = 0;
   uint8_t *methcallable = calloc(n_bams, sizeof(uint8_t));
-  uint8_t *variant = calloc(n_bams, sizeof(uint8_t));
   for (sid=0; sid<n_bams; ++sid) {
     int *cnts_base1 = cnts_base_redist + NSTATUS_BASE*sid;
     int *cnts_meth1 = cnts_meth + NSTATUS_METH*sid;
@@ -609,14 +629,11 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     }
 
     gl0[sid] = -1; gl1[sid] = -1; gl2[sid] = -1; gq[sid] = 0;
-    int cref = cnts_base1[rb_code];
-    if (cref || cm1 >= 0) {
-      pileup_genotype(cref, cnts_base1[cm1], conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid);
-      any_variant = 1;
-      variant[sid] = 1;
-    }
-    if (gq[sid] < lowest_gq || !sid)
-      lowest_gq = gq[sid];
+    int nref = cnts_base1[rb_code];
+    int nalt = cm1 >= 0 ? cnts_base1[cm1] : 0;
+    if (nref + nalt > 0) pileup_genotype(nref, nalt, conf, gt[sid], gl0+sid, gl1+sid, gl2+sid, gq+sid);
+
+    if (gq[sid] < lowest_gq || !sid) lowest_gq = gq[sid];
     
     if (methcallable[sid])
       any_methcallable = 1;
@@ -628,7 +645,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     uint32_t supp_t[NSTATUS_BASE];
     int cm1_t = top_mutant(cnts_base_redist, supp_t, rb_code);
     
-    if (cm1_t) {
+    if (cm1_t >= 0) {
       int altcnt_t = cnts_base_redist[cm1_t];
       int altcnt_n = cnts_base_redist[NSTATUS_BASE+cm1_t];
       int cref_t = cnts_base_redist[rb_code];
@@ -676,7 +693,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
 
   /* QUAL */
   ksprintf(s, "\t%d", (int) lowest_gq);
-  if (lowest_gq > 1) {
+  if (lowest_gq > 5) {
     kputs("\tPASS\t", s);
   } else {
     kputs("\tLowQual\t", s);
@@ -695,7 +712,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     ksprintf(s, ";SS=%d", ss);
     ksprintf(s, ";SC=%d", (int) squal);
   }
-  if (cm1 >= 0) {
+  if (cm1 >= 0 && (cm1 == BASE_Y || cm1 == BASE_R)) {
     kputs(";AB=", s);
     kputc(nt256int8_to_basecode[cm1], s);
     /* fst = 1; */
@@ -716,7 +733,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
 
   /* FORMAT */
   kputs("\tGT:GL1:GQ:DP", s);
-  if (any_variant) kputs(":SP", s);
+  kputs(":SP", s);
   if (cm1 >= 0) kputs(":AC:AF1", s);
   if (any_methcallable) kputs(":CV:BT", s);
 
@@ -734,7 +751,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
       ksprintf(s, "\t%s:%1.0f,%1.0f,%1.0f:%1.0f", gt[sid], 
                max(-1000, gl0[sid]), max(-1000, gl1[sid]), max(-1000, gl2[sid]), gq[sid]);
     } else {
-      ksprintf(s, "\t./.:.,.,.:.");
+      ksprintf(s, "\t./.:.,.,.:0");
     }
     
     /* DP */
@@ -742,22 +759,18 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     else kputs(":0", s);
 
     /* SP */
-    if (any_variant) {
-      kputc(':', s);
-      int added = 0;
-      if (cnts_base1[rb_code]) { ksprintf(s, "%c%d", rb, cnts_base1[rb_code]); added = 1; }
-      if (cm1 >= 0) {
-        uint8_t i;
-        for (i=0; i<NSTATUS_BASE; ++i) {
-          if (i == BASE_N) continue;
-          if (i == rb_code) continue;
-          if (cnts_base1[i] <= 0) continue;
-          ksprintf(s, "%c%d", nt256int8_to_basecode[i], cnts_base1[i]);
-          added = 1;
-        }
-      }
-      if (!added) kputc('.', s);
+    kputc(':', s);
+    int added = 0;
+    if (cnts_base1[rb_code]) { ksprintf(s, "%c%d", rb, cnts_base1[rb_code]); added = 1; }
+    uint8_t i;
+    for (i=0; i<NSTATUS_BASE; ++i) {
+      if (i == BASE_N) continue;
+      if (i == rb_code) continue;
+      if (cnts_base1[i] <= 0) continue;
+      ksprintf(s, "%c%d", nt256int8_to_basecode[i], cnts_base1[i]);
+      added = 1;
     }
+    if (!added) kputc('.', s);
 
     /* AC, AF */
     if (cm1 >= 0) {
@@ -799,7 +812,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   kputc('\n', s);
   for (sid=0; sid<n_bams; ++sid) free(gt[sid]);
   free(gt); free(gl0); free(gl1); free(gl2); free(gq);
-  free(methcallable); free(variant);
+  free(methcallable);
 }
 
 /* return -1 if abnormal (missing bsstrand) */
@@ -1070,11 +1083,11 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
     ksprintf(&header, " %s", argv[i]);
   kputs(">\n", &header);
   kputs("##FILTER=<ID=PASS,Description=\"All filters passed\">\n", &header);
-  kputs("##FILTER=<ID=LowQual,Description=\"Genotype quality smaller than 1\">\n", &header);
+  kputs("##FILTER=<ID=LowQual,Description=\"Genotype quality smaller than 5\">\n", &header);
   kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
   kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
   kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
-  kputs("##INFO=<ID=AB,Number=A,Type=String,Description=\"When true alt-allele is ambiguous, ALT field will be N and true alt-allele is stored here, following IUPAC code convention.\">\n", &header);
+  kputs("##INFO=<ID=AB,Number=A,Type=String,Description=\"When true alt-allele is ambiguous, ALT field will be N and true alt-allele is stored here, following IUPAC code convention. This option does not appear when ALT != N.\">\n", &header);
 
   if (conf->somatic) {
     kputs("##INFO=<ID=SS,Number=1,Type=String,Description=\"Somatic status 0) WILDTYPE; 1) GERMLINE; 2) SOMATIC; 3) LOH; 4) POST_TRX_MOD; 5) UNKNOWN;\">\n", &header);
@@ -1144,6 +1157,7 @@ void conf_init(conf_t *conf) {
   conf->filter_ppair = 1;
   conf->max_nm = 999999;
   conf->filter_qcfail = 1; // qc failed reads (BAM_FQCFAIL) always filtered
+  conf->ambi_redist = 1; // by default ambiguous redistribution is on
   
   /* genotyping */
   
@@ -1182,6 +1196,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -t        max cytosine retention in a read [%u].\n", conf->max_retention);
   fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
   fprintf(stderr, "     -e        minimum distance to end of a read [%u].\n", conf->min_dist_end);
+  fprintf(stderr, "     -r        NO redistribution of ambiguous (Y/R) calls in SNP genotyping.\n");
   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
   fprintf(stderr, "     -d        NO double counting cytosine in overlapping mate reads.\n");
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
@@ -1211,7 +1226,7 @@ int main_pileup(int argc, char *argv[]) {
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "o:w:g:q:e:b:E:M:x:C:P:Q:t:n:m:l:TNcdupv:h"))>=0) {
+  while ((c=getopt(argc, argv, "o:w:g:q:e:b:E:M:x:C:P:Q:t:n:m:l:TNrcdupv:h"))>=0) {
     switch (c) {
     /* case 'i': */
     /*   for(--optind; optind < argc && *argv[optind] != '-'; optind++){ */
@@ -1235,6 +1250,7 @@ int main_pileup(int argc, char *argv[]) {
     case 't': conf.max_retention = atoi(optarg); break;
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'e': conf.min_dist_end = atoi(optarg); break;
+    case 'r': conf.ambi_redist = 0; break;
     case 'c': conf.filter_secondary = 0; break;
     case 'd': conf.filter_doublecnt = 0; break;
     case 'u': conf.filter_duplicate = 0; break;

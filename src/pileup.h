@@ -53,6 +53,7 @@ typedef struct {
   uint8_t filter_duplicate:1;
   uint8_t filter_qcfail:1;
   uint8_t noheader:1;
+  uint8_t ambi_redist:1;
   double error;
   double mu;
   double mu_somatic;

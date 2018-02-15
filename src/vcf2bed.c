@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <zlib.h>
 #include "wzbed.h"
 #include "wzvcf.h"
@@ -170,7 +171,7 @@ static void vcf2bed_ctxt(vcf_file_t *vcf, conf_t *conf, const char *cx) {
       // coverage
       fprintf(stdout, "\t%d", bd->covs[i]);
     }
-    putchar('\n');
+    if (fputc('\n', stdout) < 0 && errno == EPIPE) exit(1);
   }
 
   free_bed1(b, free_bed_data);
@@ -238,11 +239,15 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
 
       /* compute highest non-ref AF and coverage */
       int highest_cov = 0; int sid;
+      double highest_af = 0.0;
       for (sid=0; sid<bd->nsamples; ++sid) {
         int cov = atoi(fmt_ac[sid]);
         if (cov > highest_cov) highest_cov = cov;
+        double af = atof(fmt_af[sid]); // upon failure atof gives 0.0, which is OK
+        if (af > highest_af) highest_af = af;
       }
       if (highest_cov < conf->mincov) goto END;
+      if (highest_af <= 0.0) goto END;
 
       // output
       // chrm, beg, end, ref, alt
@@ -263,7 +268,10 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
         /* if (cov) fprintf(stdout, "%1.2f", (double) highest_altcnt / cov); */
         /* else putchar('.'); */
       }
-      putchar('\n');
+
+      if (fputc('\n', stdout) < 0 && errno == EPIPE) exit(1);
+
+      // putchar('\n');
 
       // free(allele_sp);
       // free_char_array(alleles, n_alleles);
