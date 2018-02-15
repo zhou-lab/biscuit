@@ -188,82 +188,90 @@ static void vcf2bed_snp(vcf_file_t *vcf, conf_t *conf) {
     if (strcmp(rec->alt, ".") != 0) {
       char **fmt_gt; int n_fmt_gt;
       char **fmt_sp; int n_fmt_sp;
+      char **fmt_ac; int n_fmt_ac;
+      char **fmt_af; int n_fmt_af;
       get_vcf_record_fmt("GT", rec->fmt, vcf, &fmt_gt, &n_fmt_gt);
       get_vcf_record_fmt("SP", rec->fmt, vcf, &fmt_sp, &n_fmt_sp);
+      get_vcf_record_fmt("AC", rec->fmt, vcf, &fmt_ac, &n_fmt_ac);
+      get_vcf_record_fmt("AF1", rec->fmt, vcf, &fmt_af, &n_fmt_af);
 
-      if (n_fmt_sp != bd->nsamples || n_fmt_gt != bd->nsamples)
+      if (n_fmt_sp != bd->nsamples || n_fmt_gt != bd->nsamples || n_fmt_ac != bd->nsamples || n_fmt_af != bd->nsamples)
         wzfatal("Malformed VCF file (unmatched no. records) in %s\n", vcf->line);
 
       /* parse out all alleles */
-      char **alleles; int n_alleles;
+      // char **alleles; int n_alleles;
       // use the AB tag for alt
-      char *AB = get_vcf_record_info("AB", rec->info);
-      line_get_fields(AB, ",", &alleles, &n_alleles);
-      free(AB);
-            
-      alleles = realloc(alleles, (++n_alleles)*sizeof(char*));
-      memmove(alleles + 1, alleles, (n_alleles-1)*sizeof(char*));
-      alleles[0] = strdup(rec->ref);
-
-      /* parse out allele support in each sample */
-      int j;
-      int *allele_sp = calloc(n_alleles*n_fmt_sp, sizeof(int));
-      for (j=0; j<n_fmt_sp; ++j) {
-        if (strcmp(fmt_sp[j], ".")==0) continue;
-        int n_allele_sppairs; char **allele_sppairs;
-        line_get_fields(fmt_sp[j], ",", &allele_sppairs, &n_allele_sppairs);
-        int k;
-        for (k=0; k<n_allele_sppairs; ++k) {
-          // pointing to first digit of allele count
-          char *ae; for (ae = allele_sppairs[k]; !isdigit(*ae); ++ae);
-
-          // locate which allele
-          int ai;
-          for (ai=0; ai<n_alleles; ++ai)
-            if (strncmp(alleles[ai], allele_sppairs[k], ae-allele_sppairs[k]) == 0) break;
-          
-          if (ai < n_alleles)
-            allele_sp[j*n_alleles+ai] = atoi(ae);
-          else
-            wzfatal("Allele %s not found in %s\n", allele_sppairs[k], vcf->line);
-        }
-        free_char_array(allele_sppairs, n_allele_sppairs);
-      }
-
-      if (b == NULL || b->tid < 0) continue;
+      // char *AB = get_vcf_record_info("AB", rec->info);
+      /* line_get_fields(AB, ",", &alleles, &n_alleles); */
+      /* free(AB); */
+      /*        */
+      /* alleles = realloc(alleles, (++n_alleles)*sizeof(char*)); */
+      /* memmove(alleles + 1, alleles, (n_alleles-1)*sizeof(char*)); */
+      /* alleles[0] = strdup(rec->ref); */
+      /*  */
+      /* [> parse out allele support in each sample <] */
+      /* int j; */
+      /* int *allele_sp = calloc(n_alleles*n_fmt_sp, sizeof(int)); */
+      /* for (j=0; j<n_fmt_sp; ++j) { */
+      /*   if (strcmp(fmt_sp[j], ".")==0) continue; */
+      /*   int n_allele_sppairs; char **allele_sppairs; */
+      /*   line_get_fields(fmt_sp[j], ",", &allele_sppairs, &n_allele_sppairs); */
+      /*   int k; */
+      /*   for (k=0; k<n_allele_sppairs; ++k) { */
+      /*     // pointing to first digit of allele count */
+      /*     char *ae; for (ae = allele_sppairs[k]; !isdigit(*ae); ++ae); */
+      /*  */
+      /*     // locate which allele */
+      /*     int ai; */
+      /*     for (ai=0; ai<n_alleles; ++ai) */
+      /*       if (strncmp(alleles[ai], allele_sppairs[k], ae-allele_sppairs[k]) == 0) break; */
+      /*      */
+      /*     if (ai < n_alleles) */
+      /*       allele_sp[j*n_alleles+ai] = atoi(ae); */
+      /*     else */
+      /*       wzfatal("Allele %s not found in %s\n", allele_sppairs[k], vcf->line); */
+      /*   } */
+      /*   free_char_array(allele_sppairs, n_allele_sppairs); */
+      /* } */
+      /*  */
+      if (b == NULL || b->tid < 0) goto END;
 
       /* compute highest non-ref AF and coverage */
-      int i; int highest_cov = 0;
-      for (j=0; j<bd->nsamples; ++j) {
-        int cov = 0;
-        for (i=0; i<n_alleles; ++i) cov += allele_sp[j*n_alleles+i];
+      int highest_cov = 0; int sid;
+      for (sid=0; sid<bd->nsamples; ++sid) {
+        int cov = atoi(fmt_ac[sid]);
         if (cov > highest_cov) highest_cov = cov;
       }
-      if (highest_cov < conf->mincov) continue;
+      if (highest_cov < conf->mincov) goto END;
 
       // output
       // chrm, beg, end, ref, alt
       fprintf(stdout, "%s\t%"PRId64"\t%"PRId64"\t%s\t%s", 
           target_name(vcf->targets, b->tid), b->beg, b->end, rec->ref, rec->alt);
       // genotype, support, cov, vaf
-      for (j = 0; j<bd->nsamples; ++j) {
-        int highest_altcnt=0, cov=0; // recomputed cov, could be more efficient here
-        int *allele_sp1 = allele_sp + j*n_alleles;
-        for (i=0; i<n_alleles; ++i) {
-          if (i && allele_sp[i] > highest_altcnt) highest_altcnt = allele_sp1[i];
-          cov += allele_sp1[i];
-        }
-        fprintf(stdout, "\t%s\t%s\t%d\t", fmt_gt[j], fmt_sp[j], cov);
-        if (cov) fprintf(stdout, "%1.2f", (double) highest_altcnt / cov);
-        else putchar('.');
-          
+      for (sid = 0; sid<bd->nsamples; ++sid) {
+        /* int highest_altcnt=0, cov=0; // recomputed cov, could be more efficient here */
+        /* int *allele_sp1 = allele_sp + sid*n_alleles; */
+        /* for (i=0; i<n_alleles; ++i) { */
+        /*   if (i && allele_sp[i] > highest_altcnt) highest_altcnt = allele_sp1[i]; */
+        /*   cov += allele_sp1[i]; */
+        /* } */
+        putchar('\t'); fputs(fmt_gt[sid], stdout);
+        putchar('\t'); fputs(fmt_sp[sid], stdout);
+        putchar('\t'); fputs(fmt_ac[sid], stdout);
+        putchar('\t'); fputs(fmt_af[sid], stdout);
+        /* if (cov) fprintf(stdout, "%1.2f", (double) highest_altcnt / cov); */
+        /* else putchar('.'); */
       }
       putchar('\n');
 
-      free(allele_sp);
-      free_char_array(alleles, n_alleles);
+      // free(allele_sp);
+      // free_char_array(alleles, n_alleles);
+END:
       free_char_array(fmt_gt, n_fmt_gt);
       free_char_array(fmt_sp, n_fmt_sp);
+      free_char_array(fmt_ac, n_fmt_ac);
+      free_char_array(fmt_af, n_fmt_af);
     }
   }
 

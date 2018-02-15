@@ -648,25 +648,28 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   ksprintf(s, "%s\t%u\t.\t%c\t", chrm, rpos, rb);
 
   /* ALT */
-  int fst = 1;
   if (cm1 >= 0) {
-    fst = 1;
-    char m; int Noutput = 0;
-    for (i=0; i<NSTATUS_BASE; ++i) {
-      uint8_t base = supp[i] & 0xf;
-      if ((supp[i]>>4) <= 0) continue;
-      if (base == BASE_N) continue;
-      if (base == BASE_Y && (rb_code == BASE_C || rb_code == BASE_T)) continue;
-      if (base == BASE_R && (rb_code == BASE_G || rb_code == BASE_A)) continue;
-      if (base == BASE_Y || base == BASE_R) m = 'N';
-      else m = nt256int8_to_basecode[base];
-      if (m != rb && (m!='N' || !Noutput)) {
-        if (!fst) kputc(',', s);
-        kputc(m, s);
-        fst = 0;
-        if (m=='N') Noutput = 1; // there is chance that N got output twice.
-      }
-    }
+    char m;
+    if (cm1 == BASE_Y || cm1 == BASE_R) m = 'N';
+    else m = nt256int8_to_basecode[cm1];
+    kputc(m, s);
+    /* int fst = 1; */
+    /* char m; int Noutput = 0; */
+    /* for (i=0; i<NSTATUS_BASE; ++i) { */
+    /*   uint8_t base = supp[i] & 0xf; */
+    /*   if ((supp[i]>>4) <= 0) continue; */
+    /*   if (base == BASE_N) continue; */
+    /*   if (base == BASE_Y && (rb_code == BASE_C || rb_code == BASE_T)) continue; */
+    /*   if (base == BASE_R && (rb_code == BASE_G || rb_code == BASE_A)) continue; */
+    /*   if (base == BASE_Y || base == BASE_R) m = 'N'; */
+    /*   else m = nt256int8_to_basecode[base]; */
+    /*   if (m != rb && (m!='N' || !Noutput)) { */
+    /*     if (!fst) kputc(',', s); */
+    /*     kputc(m, s); */
+    /*     fst = 0; */
+    /*     if (m=='N') Noutput = 1; // there is chance that N got output twice. */
+    /*   } */
+    /* } */
   } else {
     kputc('.', s);
   }
@@ -694,31 +697,34 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
   }
   if (cm1 >= 0) {
     kputs(";AB=", s);
-    fst = 1;
-    for (i=0; i<NSTATUS_BASE; ++i) {
-      if ((supp[i]>>4) <= 0) continue;
-      if ((supp[i]&0xf) == BASE_N) continue;
-      char m;
-      if ((supp[i]&0xf) == BASE_Y) m = 'Y';
-      else if ((supp[i]&0xf) == BASE_R) m = 'R';
-      else m = nt256int8_to_basecode[supp[i]&0xf];
-      if (m != rb) {
-        if (!fst) kputc(',', s);
-        kputc(m, s);
-        fst = 0;
-      }
-    }
+    kputc(nt256int8_to_basecode[cm1], s);
+    /* fst = 1; */
+    /* for (i=0; i<NSTATUS_BASE; ++i) { */
+    /*   if ((supp[i]>>4) <= 0) continue; */
+    /*   if ((supp[i]&0xf) == BASE_N) continue; */
+    /*   char m; */
+    /*   if ((supp[i]&0xf) == BASE_Y) m = 'Y'; */
+    /*   else if ((supp[i]&0xf) == BASE_R) m = 'R'; */
+    /*   else m = nt256int8_to_basecode[supp[i]&0xf]; */
+    /*   if (m != rb) { */
+    /*     if (!fst) kputc(',', s); */
+    /*     kputc(m, s); */
+    /*     fst = 0; */
+    /*   } */
+    /* } */
   }
 
   /* FORMAT */
   kputs("\tGT:GL1:GQ:DP", s);
   if (any_variant) kputs(":SP", s);
+  if (cm1 >= 0) kputs(":AC:AF1", s);
   if (any_methcallable) kputs(":CV:BT", s);
 
   /* loop over samples print format */
   double beta;
   for (sid=0; sid<n_bams; ++sid) {
     int *cnts_base1 = cnts_base + NSTATUS_BASE*sid;
+    int *cnts_base1_redist = cnts_base_redist + NSTATUS_BASE*sid;
     int *cnts_meth1 = cnts_meth + NSTATUS_METH*sid;
     int dp=0;
     if (dv) for(i=0; i<dv->size; ++i)	if (ref_pileup_data_v(dv, i)->sid == sid) ++dp;
@@ -728,7 +734,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
       ksprintf(s, "\t%s:%1.0f,%1.0f,%1.0f:%1.0f", gt[sid], 
                max(-1000, gl0[sid]), max(-1000, gl1[sid]), max(-1000, gl2[sid]), gq[sid]);
     } else {
-      ksprintf(s, "\t./.:.:.");
+      ksprintf(s, "\t./.:.,.,.:.");
     }
     
     /* DP */
@@ -738,7 +744,8 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     /* SP */
     if (any_variant) {
       kputc(':', s);
-      if (cnts_base1[rb_code]) ksprintf(s, "%c%d", rb, cnts_base1[rb_code]);
+      int added = 0;
+      if (cnts_base1[rb_code]) { ksprintf(s, "%c%d", rb, cnts_base1[rb_code]); added = 1; }
       if (cm1 >= 0) {
         uint8_t i;
         for (i=0; i<NSTATUS_BASE; ++i) {
@@ -746,8 +753,19 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
           if (i == rb_code) continue;
           if (cnts_base1[i] <= 0) continue;
           ksprintf(s, "%c%d", nt256int8_to_basecode[i], cnts_base1[i]);
+          added = 1;
         }
       }
+      if (!added) kputc('.', s);
+    }
+
+    /* AC, AF */
+    if (cm1 >= 0) {
+      int nref = cnts_base1_redist[rb_code];
+      int nalt = cnts_base1_redist[cm1];
+      ksprintf(s, ":%d:", nref+nalt);
+      if (nref+nalt) ksprintf(s, "%1.2f", nalt/(double) (nref+nalt));
+      else kputc('.', s);
     }
   
     /* CV, BT */
@@ -1061,11 +1079,13 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
   if (conf->somatic) {
     kputs("##INFO=<ID=SS,Number=1,Type=String,Description=\"Somatic status 0) WILDTYPE; 1) GERMLINE; 2) SOMATIC; 3) LOH; 4) POST_TRX_MOD; 5) UNKNOWN;\">\n", &header);
     kputs("##INFO=<ID=SC,Number=1,Type=Float,Description=\"Somatic score\">\n", &header);
-    kputs("##INFO=<ID=AF,Number=1,Type=Float,Description=\"Variant allele fraction\">\n", &header);
+    kputs("##INFO=<ID=AF1,Number=1,Type=Float,Description=\"Variant allele fraction\">\n", &header);
   }
   
   kputs("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Raw read depth\">\n", &header);
-  kputs("##FORMAT=<ID=SP,Number=.,Type=String,Description=\"Allele support (before bisulfite conversion, with filtering)\">\n", &header);
+  kputs("##FORMAT=<ID=SP,Number=.,Type=String,Description=\"Allele support (considering bisulfite conversion, with filtering)\">\n", &header);
+  kputs("##FORMAT=<ID=AC,Number=.,Type=Integer,Description=\"Depth in calculating alternative allele frequency (after inference, with filtering)\">\n", &header);
+  kputs("##FORMAT=<ID=AF1,Number=.,Type=Float,Description=\"Alternative allele frequency (after inference, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=CV,Number=1,Type=Integer,Description=\"Effective (strand-specific) coverage on cytosine\">\n", &header);
   kputs("##FORMAT=<ID=BT,Number=1,Type=Float,Description=\"Cytosine methylation fraction (aka beta value, with filtering)\">\n", &header);
   kputs("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype from normal\">\n", &header);
