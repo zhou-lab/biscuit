@@ -18,16 +18,6 @@ function biscuitQC {
     fi
   done
 
-  [[ ! -f "$input_vcf" ]] && BISCUIT_QC_BSCONV=false
-  [[ ! -f "$BISCUIT_CPGBED" ]] && BISCUIT_QC_CPGCOV=false
-  [[ ! -f "$BISCUIT_CPGBED" ]] && BISCUIT_QC_CPGDIST=false
-  [[ ! -f "$BISCUIT_CPGBED" ]] && BISCUIT_QC_CPGUNIF=false
-  [[ ! -f "$BISCUIT_EXON" ]] && BISCUIT_QC_CPGDIST=false
-  [[ ! -f "$BISCUIT_RMSK" ]] && BISCUIT_QC_CPGDIST=false
-  [[ ! -f "$BISCUIT_GTF" ]] && BISCUIT_QC_CPGDIST=false
-  [[ ! -f "$BISCUIT_CGIBED" ]] && BISCUIT_QC_CPGDIST=false
-  [[ ! -f "$BISCUIT_CGIBED" ]] && BISCUIT_QC_CGICOV=false
-  
   echo "Running."
 
   ##########################
@@ -43,6 +33,8 @@ function biscuitQC {
   ##########################
   ## duplicate_coverage
   ##########################
+  [[ ! -f "$QCdir/${sname}_bga.bed" ]] && BISCUIT_QC_DUPLICATE=false
+  [[ ! -f "$QCdir/${sname}_bga_q40.bed" ]] && BISCUIT_QC_DUPLCIATE=false
   if [[ "$BISCUIT_QC_DUPLICATE" == true ]]; then
     # duplicate
     samtools view -f 0x400 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split >$QCdir/${sname}_bga_dup.bed
@@ -96,6 +88,9 @@ function biscuitQC {
   ## cpg coverage
   ##########################
 
+  [[ ! -f "$BISCUIT_CPGBED" ]] && BISCUIT_QC_CPGCOV=false
+  [[ ! -f "$QCdir/${sname}_bga.bed" ]] && BISCUIT_QC_CPGCOV=false
+  [[ ! -f "$QCdir/${sname}_bga_q40.bed" ]] && BISCUIT_QC_CPGCOV=false
   if [[ -f "$BISCUIT_QC_CPGCOV" ]]; then
     bedtools intersect -a $BISCUIT_CPGBED -b $QCdir/${sname}_bga.bed -wo -sorted | bedtools groupby -g 1-3 -c 7 -o min >$QCdir/${sname}_cpg.bed
     bedtools intersect -a $BISCUIT_CPGBED -b $QCdir/${sname}_bga_q40.bed -wo -sorted | bedtools groupby -g 1-3 -c 7 -o min >$QCdir/${sname}_cpg_q40.bed
@@ -107,6 +102,12 @@ function biscuitQC {
   ## cpg distribution
   ##########################
 
+  [[ ! -f "$QCdir/${sname}_cpg_q40.bed" ]] && BISCUIT_QC_CPGDIST=false
+  [[ ! -f "$QCdir/${sname}_cpg.bed" ]] && BISCUIT_QC_CPGDIST=false
+  [[ ! -f "$BISCUIT_EXON" ]] && BISCUIT_QC_CPGDIST=false
+  [[ ! -f "$BISCUIT_RMSK" ]] && BISCUIT_QC_CPGDIST=false
+  [[ ! -f "$BISCUIT_GTF" ]] && BISCUIT_QC_CPGDIST=false
+  [[ ! -f "$BISCUIT_CGIBED" ]] && BISCUIT_QC_CPGDIST=false
   if [[ "$BISCUIT_QC_CPGDIST" == true ]]; then
     # whole genome
     wc -l $QCdir/${sname}_cpg_q40.bed | awk -F" " '{printf("Territory\tAll\tUniqCov\tAllCov\nTotalCpGs\t%s",$1)}' >$QCdir/${sname}_cpg_dist_table
@@ -137,6 +138,8 @@ function biscuitQC {
   ##########################
   ## CGI coverage
   ##########################
+  [[ ! -f "$BISCUIT_CGIBED" ]] && BISCUIT_QC_CGICOV=false
+  [[ ! -f "$QCdir/${sname}_cpg_q40.bed" ]] && BISCUIT_QC_CGICOV=false
   if [[ "$BISCUIT_QC_CGICOV" == true ]]; then
     # how CGI is covered by at least one q40-read in at least one CpG
     echo >>$QCdir/${sname}_cpg_dist_table
@@ -155,6 +158,8 @@ function biscuitQC {
   ##########################
   ## uniformity
   ##########################
+  [[ ! -f "$QCdir/${sname}_bga.bed" ]] && BISCUIT_QC_UNIFORMITY=false
+  [[ ! -f "$QCdir/${sname}_bga_q40.bed" ]] && BISCUIT_QC_UNIFORMITY=false
   if [[ "$BISCUIT_QC_UNIFORMITY" == true ]]; then
     awk '{cnt[$1]=$2}END{for (cov in cnt) {sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "sample\tmu\tsigma\tcv\n${sname}_all\t"mu"\t"sigma"\t"sigma/mu}' $QCdir/${sname}_bga_q40_table >$QCdir/${sname}_all_cv_table
     if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
@@ -166,6 +171,8 @@ function biscuitQC {
   ##########################
   ## cpg uniformity
   ##########################
+  [[ ! -f "$QCdir/${sname}_cpg_q40_table" ]] && BISCUIT_QC_CPGUNIF=false
+  [[ ! -f "$QCdir/${sname}_cpg_q40.bed" ]] && BISCUIT_QC_CPGUNIF=false
   if [[ "$BISCUIT_QC_CPGUNIF" == true ]]; then
     awk '{cnt[$1]=$2}END{for(cov in cnt) {sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "sample\tmu\tsigma\tcv\n${sname}_cpg\t"mu"\t"sigma"\t"sigma/mu}' $QCdir/${sname}_cpg_q40_table >$QCdir/${sname}_cpg_cv_table
     if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
@@ -177,7 +184,7 @@ function biscuitQC {
   ##########################
   ## bisulfite conversion
   ##########################
-
+  [[ ! -f "$input_vcf" ]] && BISCUIT_QC_BSCONV=false
   if [[ "$BISCUIT_QC_BSCONV" == true ]]; then
     samtools view -h -q 40 $input_bam | biscuit bsconv $BISCUIT_REFERENCE - | awk 'match($0,/ZN:Z:([^ ]*)/,a){print gensub(/[A-Z,_]+/, "\t", "g", a[1])}' | cut -f2,4,6,8 | awk -v OFS="\t" '{ra[$1]+=1;rc[$2]+=1;rg[$3]+=1;rt[$4]+=1;}END{for(k in ra) {print "CA", k, ra[k]} for(k in rc) {print "CC", k, rc[k]} for(k in rg) {print "CG", k, rg[k]} for(k in rt) {print "CT", k, rt[k]}}' | sort -k1,1 -k2,2n | awk 'BEGIN{print "CTXT\tnumRET\tCnt"}{print}' > $QCdir/${sname}_freqOfTotalRetentionPerRead.tsv
     biscuit vcf2bed -et c $input_vcf | awk '{beta_sum[$6]+=$8; beta_cnt[$6]+=1;} END{print "CA\tCC\tCG\tCT"; print beta_sum["CA"]/beta_cnt["CA"]"\t"beta_sum["CC"]/beta_cnt["CC"]"\t"beta_sum["CG"]/beta_cnt["CG"]"\t"beta_sum["CT"]/beta_cnt["CT"];}' >$QCdir/${sname}_totalBaseConversionRate.tsv
