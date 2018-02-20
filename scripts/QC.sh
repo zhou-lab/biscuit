@@ -27,8 +27,8 @@ function biscuitQC {
     >&2 echo "`date`---- BISCUIT_QC_BASECOV ----"
     bedtools genomecov -bga -split -ibam $input_bam -g ${BISCUIT_REFERENCE}.fai | LC_ALL=C sort -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga.bed
     samtools view -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g ${BISCUIT_REFERENCE}.fai -bga -split | LC_ALL=C sort -k1,1 -k2,2n -T $QCdir  >$QCdir/${sname}_bga_q40.bed
-    awk '{cnt[$4]+=$3-$2}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_bga.bed | sort -k1,1n -T $QCdir >$QCdir/${sname}_bga_table
-    awk '{cnt[$4]+=$3-$2}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_bga_q40.bed | sort -k1,1n -T $QCdir >$QCdir/${sname}_bga_q40_table
+    awk '{cnt[$4]+=$3-$2}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_bga.bed | sort -k1,1n -T $QCdir >$QCdir/${sname}_bga_table.txt
+    awk '{cnt[$4]+=$3-$2}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_bga_q40.bed | sort -k1,1n -T $QCdir >$QCdir/${sname}_bga_q40_table.txt
   fi
   
   ##########################
@@ -39,31 +39,31 @@ function biscuitQC {
   if [[ "$BISCUIT_QC_DUPLICATE" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_DUPLICATE ----"
     # duplicate
-    samtools view -f 0x400 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split >$QCdir/${sname}_bga_dup.bed
+    samtools view -f 0x400 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split | LC_ALL=C sort -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga_dup.bed
 
     # duplication rate
     echo -ne "#bases covered by all reads: " >$QCdir/${sname}_dup_report.txt
-    awk '$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga.bed >>$QCdir/${sname}_dup_report.txt
+    awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga.bed >>$QCdir/${sname}_dup_report.txt
     echo -ne "#bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
-    awk '$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_dup.bed >>$QCdir/${sname}_dup_report.txt
+    awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_dup.bed >>$QCdir/${sname}_dup_report.txt
 
     if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
       # high GC content
       echo -ne "#high-GC bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_TOPGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_TOPGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
       echo -ne "#high-GC bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_TOPGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_TOPGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
 
       # low GC content
       echo -ne "#low-GC bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_BOTGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_BOTGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
       echo -ne "#low-GC bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_BOTGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_BOTGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
     fi
     
     ## Q40
     # duplicate
-    samtools view -f 0x400 -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split >$QCdir/${sname}_bga_dup_q40.bed
+    samtools view -f 0x400 -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split | LC_ALL=C sort -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga_dup_q40.bed
 
     # duplication rate
     echo -ne "#bases covered by all q40-reads: " >>$QCdir/${sname}_dup_report.txt
@@ -97,8 +97,8 @@ function biscuitQC {
     >&2 echo "`date`---- BISCUIT_QC_CPGCOV ----"
     bedtools intersect -a $BISCUIT_CPGBED -b $QCdir/${sname}_bga.bed -wo -sorted | bedtools groupby -g 1-3 -c 7 -o min >$QCdir/${sname}_cpg.bed
     bedtools intersect -a $BISCUIT_CPGBED -b $QCdir/${sname}_bga_q40.bed -wo -sorted | bedtools groupby -g 1-3 -c 7 -o min >$QCdir/${sname}_cpg_q40.bed
-    awk '{cnt[$4]+=1}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_cpg.bed | sort -k1,1n >$QCdir/${sname}_cpg_table
-    awk '{cnt[$4]+=1}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_cpg_q40.bed | sort -k1,1n >$QCdir/${sname}_cpg_q40_table
+    awk '{cnt[$4]+=1}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_cpg.bed | sort -k1,1n >$QCdir/${sname}_cpg_table.txt
+    awk '{cnt[$4]+=1}END{for(cov in cnt) {print int(cov)"\t"int(cnt[cov]);}}' $QCdir/${sname}_cpg_q40.bed | sort -k1,1n >$QCdir/${sname}_cpg_q40_table.txt
   fi
 
   ##########################
@@ -114,29 +114,29 @@ function biscuitQC {
   if [[ "$BISCUIT_QC_CPGDIST" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_CPGDIST ----"
     # whole genome
-    wc -l $QCdir/${sname}_cpg_q40.bed | awk -F" " '{printf("Territory\tAll\tUniqCov\tAllCov\nTotalCpGs\t%s",$1)}' >$QCdir/${sname}_cpg_dist_table
-    awk '$4>0{a+=1}END{printf("\t%d",a)}' $QCdir/${sname}_cpg_q40.bed >>$QCdir/${sname}_cpg_dist_table
-    awk '$4>0{a+=1}END{printf("\t%d\n",a)}' $QCdir/${sname}_cpg.bed >>$QCdir/${sname}_cpg_dist_table
+    wc -l $QCdir/${sname}_cpg_q40.bed | awk -F" " '{printf("Territory\tAll\tUniqCov\tAllCov\nTotalCpGs\t%s",$1)}' >$QCdir/${sname}_cpg_dist_table.txt
+    awk '$4>0{a+=1}END{printf("\t%d",a)}' $QCdir/${sname}_cpg_q40.bed >>$QCdir/${sname}_cpg_dist_table.txt
+    awk '$4>0{a+=1}END{printf("\t%d\n",a)}' $QCdir/${sname}_cpg.bed >>$QCdir/${sname}_cpg_dist_table.txt
 
     # exon
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_EXON -sorted | wc -l | awk -F" " '{printf("ExonicCpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_EXON -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_EXON -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_EXON -sorted | wc -l | awk -F" " '{printf("ExonicCpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_EXON -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_EXON -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
 
     # repeat
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_RMSK -sorted | wc -l | awk -F" " '{printf("RepeatCpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_RMSK -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_RMSK -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_RMSK -sorted | wc -l | awk -F" " '{printf("RepeatCpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_RMSK -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_RMSK -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
 
     # gene
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_GENE -sorted | wc -l | awk -F" " '{printf("GenicCpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_GENE -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_GENE -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_GENE -sorted | wc -l | awk -F" " '{printf("GenicCpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_GENE -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_GENE -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
 
     # CGI
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted | wc -l | awk -F" " '{printf("CGICpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_CGIBED -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted | wc -l | awk -F" " '{printf("CGICpGs\t%s",$1)}' >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted | awk '$4>0{a+=1}END{printf("\t%d",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg.bed -b $BISCUIT_CGIBED -sorted | awk '$4>0{a+=1}END{printf("\t%d\n",a)}'  >>$QCdir/${sname}_cpg_dist_table.txt
   fi
 
   ##########################
@@ -147,17 +147,17 @@ function biscuitQC {
   if [[ "$BISCUIT_QC_CGICOV" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_CGICOV ----"
     # how CGI is covered by at least one q40-read in at least one CpG
-    echo >>$QCdir/${sname}_cpg_dist_table
-    echo -ne "#CpG Islands\t" >>$QCdir/${sname}_cpg_dist_table
-    cat $BISCUIT_CGIBED | wc -l >>$QCdir/${sname}_cpg_dist_table
-    echo -ne "#CpG Islands covered by at least one q40-read in at least one CpG\t" >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table
-    echo -ne "#CpG Islands covered by at least one q40-read in at least three CpGs\t" >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '$1>=3{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table
-    echo -ne "#CpG Islands covered by at least one q40-read in at least five CpGs\t" >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '$1>=5{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table
-    echo -ne "#CpG Islands covered by at least one q40-read in at least ten CpGs\t" >>$QCdir/${sname}_cpg_dist_table
-    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '$1>=10{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table
+    echo >>$QCdir/${sname}_cpg_dist_table.txt
+    echo -ne "#CpG Islands\t" >>$QCdir/${sname}_cpg_dist_table.txt
+    cat $BISCUIT_CGIBED | wc -l >>$QCdir/${sname}_cpg_dist_table.txt
+    echo -ne "#CpG Islands covered by at least one q40-read in at least one CpG\t" >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table.txt
+    echo -ne "#CpG Islands covered by at least one q40-read in at least three CpGs\t" >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '$1>=3{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table.txt
+    echo -ne "#CpG Islands covered by at least one q40-read in at least five CpGs\t" >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '$1>=5{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table.txt
+    echo -ne "#CpG Islands covered by at least one q40-read in at least ten CpGs\t" >>$QCdir/${sname}_cpg_dist_table.txt
+    bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_CGIBED -sorted -wo | awk '$4>0{print $5":"$6"-"$7}' | uniq -c | awk -F" " '$1>=10{print $2"\t"$1}' | wc -l >>$QCdir/${sname}_cpg_dist_table.txt
   fi
   
   ##########################
@@ -167,24 +167,24 @@ function biscuitQC {
   [[ ! -f "$QCdir/${sname}_bga_q40.bed" ]] && BISCUIT_QC_UNIFORMITY=false
   if [[ "$BISCUIT_QC_UNIFORMITY" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_UNIFORMITY ----"
-    awk '{cnt[$1]=$2}END{for (cov in cnt) {sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "sample\tmu\tsigma\tcv\n${sname}_all\t"mu"\t"sigma"\t"sigma/mu}' $QCdir/${sname}_bga_q40_table >$QCdir/${sname}_all_cv_table
+    awk -v sname="${sname}" '{cnt[$1]=$2}END{for (cov in cnt) {sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "sample\tmu\tsigma\tcv\n"sname"_all\t"mu"\t"sigma"\t"sigma/mu}' $QCdir/${sname}_bga_q40_table.txt >$QCdir/${sname}_all_cv_table.txt
     if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
-      bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk -v output=$QCdir/${sname}_all_cv_table '{cnt[$4]+=$3-$2}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "${sname}_all_topgc\t"mu"\t"sigma"\t"sigma/mu >>output}' | sort -k1,1n >$QCdir/${sname}_coverage_cnts_topgc.tsv
-      bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk -v output=$QCdir/${sname}_all_cv_table '{cnt[$4]+=$3-$2}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "${sname}_all_botgc\t"mu"\t"sigma"\t"sigma/mu >>output}' | sort -k1,1n >$QCdir/${sname}_coverage_cnts_botgc.tsv
+      bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk -v sname="${sname}" -v output=$QCdir/${sname}_all_cv_table.txt '{cnt[$4]+=$3-$2}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print sname"_all_topgc\t"mu"\t"sigma"\t"sigma/mu >>output}' | sort -k1,1n >$QCdir/${sname}_coverage_cnts_topgc.txt
+      bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk -v sname="${sname}" -v output=$QCdir/${sname}_all_cv_table.txt '{cnt[$4]+=$3-$2}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print sname"_all_botgc\t"mu"\t"sigma"\t"sigma/mu >>output}' | sort -k1,1n >$QCdir/${sname}_coverage_cnts_botgc.txt
     fi
   fi
   
   ##########################
   ## cpg uniformity
   ##########################
-  [[ ! -f "$QCdir/${sname}_cpg_q40_table" ]] && BISCUIT_QC_CPGUNIF=false
+  [[ ! -f "$QCdir/${sname}_cpg_q40_table.txt" ]] && BISCUIT_QC_CPGUNIF=false
   [[ ! -f "$QCdir/${sname}_cpg_q40.bed" ]] && BISCUIT_QC_CPGUNIF=false
   if [[ "$BISCUIT_QC_CPGUNIF" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_CPGUNIF ----"
-    awk '{cnt[$1]=$2}END{for(cov in cnt) {sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "sample\tmu\tsigma\tcv\n${sname}_cpg\t"mu"\t"sigma"\t"sigma/mu}' $QCdir/${sname}_cpg_q40_table >$QCdir/${sname}_cpg_cv_table
+    awk -v sname="${sname}" '{cnt[$1]=$2}END{for(cov in cnt) {sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "sample\tmu\tsigma\tcv\n"sname"_cpg\t"mu"\t"sigma"\t"sigma/mu}' $QCdir/${sname}_cpg_q40_table.txt >$QCdir/${sname}_cpg_cv_table.txt
     if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
-      bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk '{cnt[$4]+=1}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "${sname}_cpg_topgc\t"mu"\t"sigma"\t"sigma/mu >>"$QCdir/${sname}_cpg_cv_table"}' | sort -k1,1n >$QCdir/${sname}_cpg_coverage_cnts_topgc.tsv
-      bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk '{cnt[$4]+=1}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print "${sname}_cpg_botgc\t"mu"\t"sigma"\t"sigma/mu >>"$QCdir/${sname}_cpg_cv_table"}' | sort -k1,1n >$QCdir/${sname}_cpg_coverage_cnts_botgc.tsv
+      bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk -v sname="${sname}" '{cnt[$4]+=1}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print sname"_cpg_topgc\t"mu"\t"sigma"\t"sigma/mu >>"$QCdir/${sname}_cpg_cv_table.txt"}' | sort -k1,1n >$QCdir/${sname}_cpg_coverage_cnts_topgc.txt
+      bedtools intersect -a $QCdir/${sname}_cpg_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk -v sname="${sname}" '{cnt[$4]+=1}END{for (cov in cnt) {print cov"\t"cnt[cov]; sum_cov+=cnt[cov]*cov; sum_cnt+=cnt[cov];} for(cov in cnt) {sum_var+=((cov-mu)^2)*cnt[cov];} mu=sum_cov/sum_cnt; sigma=sqrt(sum_var/sum_cnt); print sname"_cpg_botgc\t"mu"\t"sigma"\t"sigma/mu >>"$QCdir/${sname}_cpg_cv_table.txt"}' | sort -k1,1n >$QCdir/${sname}_cpg_coverage_cnts_botgc.txt
     fi
   fi
   
@@ -194,10 +194,10 @@ function biscuitQC {
   [[ ! -f "$input_vcf" ]] && BISCUIT_QC_BSCONV=false
   if [[ "$BISCUIT_QC_BSCONV" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_BSCONV ----"
-    samtools view -h -q 40 $input_bam | biscuit bsconv $BISCUIT_REFERENCE - | awk 'match($0,/ZN:Z:([^ ]*)/,a){print gensub(/[A-Z,_]+/, "\t", "g", a[1])}' | cut -f2,4,6,8 | awk -v OFS="\t" '{ra[$1]+=1;rc[$2]+=1;rg[$3]+=1;rt[$4]+=1;}END{for(k in ra) {print "CA", k, ra[k]} for(k in rc) {print "CC", k, rc[k]} for(k in rg) {print "CG", k, rg[k]} for(k in rt) {print "CT", k, rt[k]}}' | sort -k1,1 -k2,2n | awk 'BEGIN{print "CTXT\tnumRET\tCnt"}{print}' > $QCdir/${sname}_freqOfTotalRetentionPerRead.tsv
-    biscuit vcf2bed -et c $input_vcf | awk '{beta_sum[$6]+=$8; beta_cnt[$6]+=1;} END{print "CA\tCC\tCG\tCT"; print beta_sum["CA"]/beta_cnt["CA"]"\t"beta_sum["CC"]/beta_cnt["CC"]"\t"beta_sum["CG"]/beta_cnt["CG"]"\t"beta_sum["CT"]/beta_cnt["CT"];}' >$QCdir/${sname}_totalBaseConversionRate.tsv
-    samtools view -hq 40 $input_bam | biscuit bsconv -b $BISCUIT_REFERENCE - | awk '{for(i=1;i<=8;++i) a[i]+=$i;}END{print "CpA\tCpC\tCpG\tCpT"; print a[1]/(a[1]+a[2])"\t"a[3]/(a[3]+a[4])"\t"a[5]/(a[5]+a[6])"\t"a[7]/(a[7]+a[8]);}' >$QCdir/${sname}_totalReadConversionRate.tsv
-    samtools view -hq 40 $input_bam | biscuit cinread $BISCUIT_REFERENCE - -t ch -p QPAIR,CQPOS,CRETENTION | sort | uniq -c | awk -F" " '$4!="N"{print $2"\t"$3"\t"$4"\t"$1}' | sort -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_CpHRetentionByReadPos.tsv
+    samtools view -h -q 40 $input_bam | biscuit bsconv $BISCUIT_REFERENCE - | awk 'match($0,/ZN:Z:([^ ]*)/,a){print gensub(/[A-Z,_]+/, "\t", "g", a[1])}' | cut -f2,4,6,8 | awk -v OFS="\t" '{ra[$1]+=1;rc[$2]+=1;rg[$3]+=1;rt[$4]+=1;}END{for(k in ra) {print "CA", k, ra[k]} for(k in rc) {print "CC", k, rc[k]} for(k in rg) {print "CG", k, rg[k]} for(k in rt) {print "CT", k, rt[k]}}' | sort -k1,1 -k2,2n | awk 'BEGIN{print "CTXT\tnumRET\tCnt"}{print}' > $QCdir/${sname}_freqOfTotalRetentionPerRead.txt
+    biscuit vcf2bed -et c $input_vcf | awk '{beta_sum[$6]+=$8; beta_cnt[$6]+=1;} END{print "CA\tCC\tCG\tCT"; print beta_sum["CA"]/beta_cnt["CA"]"\t"beta_sum["CC"]/beta_cnt["CC"]"\t"beta_sum["CG"]/beta_cnt["CG"]"\t"beta_sum["CT"]/beta_cnt["CT"];}' >$QCdir/${sname}_totalBaseConversionRate.txt
+    samtools view -hq 40 $input_bam | biscuit bsconv -b $BISCUIT_REFERENCE - | awk '{for(i=1;i<=8;++i) a[i]+=$i;}END{print "CpA\tCpC\tCpG\tCpT"; print a[1]/(a[1]+a[2])"\t"a[3]/(a[3]+a[4])"\t"a[5]/(a[5]+a[6])"\t"a[7]/(a[7]+a[8]);}' >$QCdir/${sname}_totalReadConversionRate.txt
+    samtools view -hq 40 $input_bam | biscuit cinread $BISCUIT_REFERENCE - -t ch -p QPAIR,CQPOS,CRETENTION | sort | uniq -c | awk -F" " '$4!="N"{print $2"\t"$3"\t"$4"\t"$1}' | sort -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_CpHRetentionByReadPos.txt
   fi
 
   ####################
@@ -206,8 +206,8 @@ function biscuitQC {
   if [[ "$BISCUIT_QC_MAPPING" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_MAPPING ----"
     biscuit cinread -p STRAND,BSSTRAND $BISCUIT_REFERENCE $input_bam | awk '{a[$1$2]+=1}END{for(strand in a) {print "strand\t"strand"\t"a[strand];}}' >$QCdir/${sname}_mapping_summary.txt
-    samtools view -F 0x100 -f 0x4 $input_bam | wc -l | cat <(echo -ne "unmapped\t") - >$QCdir/${sname}_mapq_table
-    samtools view -F 0x104 $input_bam | awk '{cnt[$5]+=1}END{for(mapq in cnt) {print mapq"\t"cnt[mapq];}}' | sort -k1,1n >>$QCdir/${sname}_mapq_table
+    samtools view -F 0x100 -f 0x4 $input_bam | wc -l | cat <(echo -ne "unmapped\t") - >$QCdir/${sname}_mapq_table.txt
+    samtools view -F 0x104 $input_bam | awk '{cnt[$5]+=1}END{for(mapq in cnt) {print mapq"\t"cnt[mapq];}}' | sort -k1,1n >>$QCdir/${sname}_mapq_table.txt
 
   fi
 }

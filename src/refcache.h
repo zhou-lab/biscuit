@@ -65,7 +65,7 @@ static inline void __refcache_fetch(refcache_t *rc) {
   int l;
   rc->seq = faidx_fetch_seq(rc->fai, rc->chrm, rc->beg-1, rc->end-1, &l);
   if ((unsigned) l != rc->end-rc->beg+1)
-    wzfatal("Error, cannot retrieve reference: %s:%u-%u.", rc->chrm, rc->beg, rc->end);
+    wzfatal("[%s:%d] Error, cannot retrieve reference: %s:%u-%u.", __func__, __LINE__, rc->chrm, rc->beg, rc->end);
 }
 
 /* if [beg, end] is within [rc->beg, rc->end], do nothing
@@ -87,7 +87,7 @@ static inline void refcache_fetch(refcache_t *rc, char *chrm, uint32_t beg, uint
   }
 
   /* beg and end */
-  if (rc->flank1 > beg + 1) rc->beg = 1;
+  if (rc->flank1 >= beg) rc->beg = 1;
   else rc->beg = beg - rc->flank1;
   if (end + rc->flank2 > (unsigned) rc->seqlen) rc->end = rc->seqlen;
   else rc->end = end + rc->flank2;
@@ -99,7 +99,7 @@ static inline void refcache_fetch(refcache_t *rc, char *chrm, uint32_t beg, uint
 // fetch the whole chromosome
 static inline void refcache_fetch_chrm(refcache_t *rc, char *chrm) {
   rc->seqlen = faidx_seq_len(rc->fai, chrm);
-  if  (rc->seqlen < 0) wzfatal("Error, cannot retrieve chromosome: %s", chrm);
+  if  (rc->seqlen < 0) wzfatal("[%s:%d] Error, cannot retrieve chromosome: %s", __func__, __LINE__, chrm);
   if (rc->beg == 1 && rc->end == (unsigned) rc->seqlen && strcmp(chrm, rc->chrm) == 0) return;
 
   rc->beg = 1; rc->end = rc->seqlen;
@@ -125,7 +125,7 @@ static inline void free_refcache(refcache_t *rc) {
 /* rpos is 1-based */
 static inline char refcache_getbase(refcache_t *rc, uint32_t pos) {
   if (pos<rc->beg || pos>rc->end)
-    wzfatal("Error retrieving base %u outside range %s:%u-%u.\n", pos, rc->chrm, rc->beg, rc->end);
+    wzfatal("[%s:%d] Error retrieving base %u outside range %s:%u-%u.\n", __func__, __LINE__, pos, rc->chrm, rc->beg, rc->end);
   return rc->seq[pos-rc->beg];
 }
 
