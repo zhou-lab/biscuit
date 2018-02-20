@@ -93,7 +93,7 @@ function biscuitQC {
   [[ ! -f "$BISCUIT_CPGBED" ]] && BISCUIT_QC_CPGCOV=false
   [[ ! -f "$QCdir/${sname}_bga.bed" ]] && BISCUIT_QC_CPGCOV=false
   [[ ! -f "$QCdir/${sname}_bga_q40.bed" ]] && BISCUIT_QC_CPGCOV=false
-  if [[ -f "$BISCUIT_QC_CPGCOV" ]]; then
+  if [[ "$BISCUIT_QC_CPGCOV" == true ]]; then
     >&2 echo "`date`---- BISCUIT_QC_CPGCOV ----"
     bedtools intersect -a $BISCUIT_CPGBED -b $QCdir/${sname}_bga.bed -wo -sorted | bedtools groupby -g 1-3 -c 7 -o min >$QCdir/${sname}_cpg.bed
     bedtools intersect -a $BISCUIT_CPGBED -b $QCdir/${sname}_bga_q40.bed -wo -sorted | bedtools groupby -g 1-3 -c 7 -o min >$QCdir/${sname}_cpg_q40.bed
