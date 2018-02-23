@@ -84,6 +84,14 @@ $ biscuit vcf2bed -k 10 -t cg input.vcf.gz
   
 `-e` output sequence contexts.
 
+## QC your run
+
+A bash script is provided to simplify QC procedure.
+```bash
+$ ./scripts/QC.sh -v input.vcf setup_file sample.name input.bam
+```
+generates QC information that can be picked up by MultiQC.
+
 ## EPI-reads and allele-specific methylation
 
 Following illustrates how to produce `epiread` which carries the information of epi-haplotype.
@@ -137,7 +145,6 @@ The inferred `YD` tag gives the following
 $ biscuit bsconv -g "chr1:1000000-1050000" GRCh37.fa input.bam
 ```
 For some library preparation, incomplete conversion are enriched in a subset of reads that needs to be filtered. This command transforms bam into one that contains file `ZN` tag e.g., `ZN:Z:CA_R0C11,CC_R1C14,CG_R0C2,CT_R1C5`. This tag summarizes counts of retention and conversion for four different cytosine contexts `CpA`, `CpC`, `CpG` and `CpT`. It contains a minimum threshold of `CpA`, `CpC`, `CpT` or `CpH` in general. The `-b` option outputs the summary in tables instead of as tags in the BAM file.
-
 
 # Acknowledgements
 
