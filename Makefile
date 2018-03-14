@@ -157,10 +157,10 @@ purge : clean
 ## clean to make a release zip
 .PHONY: release
 release:
-	rm -rf release.zip biscuit-release
+	rm -rf release-source.zip biscuit-release
 	git clone --recursive . biscuit-release
 	make -C biscuit-release cleanse
-	zip -r release.zip biscuit-release
+	zip -r release-source.zip biscuit-release
 	rm -rf biscuit-release
 
 # removes git history, for release internal use
