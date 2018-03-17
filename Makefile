@@ -5,7 +5,7 @@ CF_OPTIMIZE = 1
 
 OS := $(shell uname)
 ifeq ($(OS),  Darwin)
-  CFLAGS += -Wno-unused-function
+	CFLAGS += -Wno-unused-function
 else
 	CLIB += -lrt -ltinfo
 endif

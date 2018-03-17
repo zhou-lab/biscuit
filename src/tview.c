@@ -727,6 +727,11 @@ int main_tview(int argc, char *argv[]) {
     wzfatal("No input bam is given.\n");
   }
 
+  if (!ref_fn) {
+    usage();
+    wzfatal("No reference sequence is given.\n");
+  }
+
   btview_t *tv = btv_init(bam_fn, ref_fn);
   tv->max_reads_per_pos = max_reads_per_pos;
   tv->buf_flank = buf_flank;

@@ -575,7 +575,7 @@ static void *process_func(void *data) {
 static int usage(conf_t *conf) {
   fprintf(stderr, "\n");
   fprintf(stderr, "Convert BAM to epiread output.\n");
-  fprintf(stderr, "Usage: epiread [options] -r [ref.fa] -i [in.bam] -o [out.pileup] -g [chr1:123-234]\n");
+  fprintf(stderr, "Usage: epiread [options] -r [ref.fa] -i [in.bam] -o [out.epiread] -g [chr1:123-234]\n");
   fprintf(stderr, "Options:\n\n");
   fprintf(stderr, "     -i        input bam.\n");
   fprintf(stderr, "     -B        bed input for SNP display in epiread output [no SNP]\n");
