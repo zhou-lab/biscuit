@@ -90,7 +90,7 @@ A bash script is provided to simplify QC procedure.
 ```bash
 $ ./scripts/QC.sh -v input.vcf setup_file sample.name input.bam
 ```
-generates QC information that can be picked up by MultiQC.
+generates QC information that can be picked up by MultiQC. Setup files for [hg19](http://zwdzwd.io/BISCUITqc/hg19_QC_assets.zip), [hg38](http://zwdzwd.io/BISCUITqc/hg38_QC_assets.zip) and [mm10](http://zwdzwd.io/BISCUITqc/mm10_QC_assets.zip) are provided. Other genome builds can be built following the same format.
 
 ## EPI-reads and allele-specific methylation
 
