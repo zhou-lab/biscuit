@@ -2,9 +2,21 @@
 
 BISulfite-seq CUI Toolkit (BISCUIT) is a utility suite for analyzing sodium bisulfite conversion-based DNA methylation/modification data. It was written to perform alignment, DNA methylation and mutation calling, allele specific methylation from bisulfite sequencing data.
 
-# Download and Install
+# Download
 
-Source code and precompiled binaries for the latest release can be found [here](https://github.com/zwdzwd/biscuit/releases/latest).
+Source code
+```bash
+$ curl -O $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep release-source.zip | cut -d '"' -f 4)
+```
+All releases are available [here](https://github.com/zwdzwd/biscuit/releases/). Note after v0.2.0, make sure use `git clone --recursive` to get the submodules.
+
+The precompiled
+```bash
+$ # macOS
+$ curl -O $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep macOS | cut -d '"' -f 4)
+$ # Linux
+$ curl -O $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep x86_64 | cut -d '"' -f 4)
+```
 
 ## Compile
 
@@ -17,8 +29,6 @@ $ make
 ```
 
 The created `biscuit` binary is the main entry point.
-
-All releases are available [here](https://github.com/zwdzwd/biscuit/releases/). Note after v0.2.0, make sure use `git clone --recursive` to get the submodules.
 
 <!-- User Guide is available [here](https://github.com/zwdzwd/biscuit/wiki). -->
 

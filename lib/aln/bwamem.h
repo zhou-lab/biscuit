@@ -57,11 +57,13 @@ typedef struct {
   int8_t mat[25];         // scoring matrix; mat[0] == 0 if unset
   
   /* reads can only be mapped to parent or daughter strands
+   * for SE:
    * opt->parent&1: is restricted
-   * opt->parent>>1: restricted strand
-   * 0,1 - both
-   * 2 - parent
-   * 3 - daughter */
+   * opt->parent>>1: restricted strand (1 for parent, 0 for daughter)
+   * for PE:
+   * 0: read 1 to parent and read 2 to daughter
+   * 1: read 1 and read 2 to both
+   **/
   uint8_t parent;
 
   /* the following would almost be impossible unless some kind of sequence context capture
