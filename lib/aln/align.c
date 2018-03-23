@@ -243,10 +243,8 @@ int main_align(int argc, char *argv[]) {
   mem_opt_t *opt, opt0;
   int fd, fd2, i, c, ignore_alt = 0, no_mt_io = 0;
   int fixed_chunk_size = -1;
-  gzFile fp, fp2 = 0;
   char *p, *rg_line = 0, *hdr_line = 0;
   const char *mode = 0;
-  void *ko = 0, *ko2 = 0;
   //mem_pestat_t pes[4];
   ktp_aux_t aux;
 
@@ -430,6 +428,8 @@ int main_align(int argc, char *argv[]) {
     for (i = 0; i < aux.idx->bns->n_seqs; ++i)
       aux.idx->bns->anns[i].is_alt = 0;
 
+  gzFile fp, fp2 = 0;
+  void *ko = 0, *ko2 = 0;
   if  (!aux._seq1) {
     /* setup fastq input */
     ko = kopen(argv[optind + 1], &fd);
@@ -465,11 +465,19 @@ int main_align(int argc, char *argv[]) {
   free(opt);
   bwa_idx_destroy(aux.idx);
   kseq_destroy(aux.ks);
-  if (fp) { err_gzclose(fp); kclose(ko); }
+  if (fp) {
+    err_gzclose(fp);
+    kclose(ko);
+    if (ko) free(ko);           /* kclose doesn't do that */
+  }
   free(aux.pes0);
   if (aux.ks2) {
     kseq_destroy(aux.ks2);
-    if (fp2) { err_gzclose(fp2); kclose(ko2); }
+    if (fp2) {
+      err_gzclose(fp2);
+      kclose(ko2);
+      if (ko2) free(ko2);       /* kclose doesn't do that */
+    }
   }
   return 0;
 }

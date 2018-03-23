@@ -936,7 +936,7 @@ static void *process_func(void *_result) {
         if (c->flag > 0){
           if (conf->filter_secondary && (c->flag & BAM_FSECONDARY)) continue;
           if (conf->filter_duplicate && (c->flag & BAM_FDUP)) continue;
-          if (conf->filter_ppair && !(c->flag & BAM_FPROPER_PAIR)) continue;
+          if (conf->filter_ppair && c->flag & BAM_FPAIRED && !(c->flag & BAM_FPROPER_PAIR)) continue;
           if (conf->filter_qcfail && c->flag & BAM_FQCFAIL) continue;
         }
 

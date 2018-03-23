@@ -286,6 +286,7 @@ static void mem_mark_primary_se_core(const mem_opt_t *opt, int n_mark, mem_alnre
 
 void mem_mark_primary_se(const mem_opt_t *opt, mem_alnreg_v *regs, int64_t id) {
 
+  regs->n_pri = 0;
   if (regs->n == 0) return;
 
   if (bwa_verbose >= 4) {

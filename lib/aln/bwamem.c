@@ -207,7 +207,7 @@ static void bis_worker1(void *data, int i, int tid)
 
     if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s' <=====\n", __func__, w->seqs[i].name);
 
-    regs = &w->regs[i]; kv_init(*regs);
+    regs = &w->regs[i]; kv_init(*regs); regs->n_pri = 0;
     if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 0);
     if (!(opt->parent) || opt->parent>>1) /* no restriction or target parent */
@@ -221,7 +221,7 @@ static void bis_worker1(void *data, int i, int tid)
 
     if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/1 <=====\n", __func__, w->seqs[i<<1|0].name);
     regs = &w->regs[i<<1|0];
-    kv_init(*regs);
+    kv_init(*regs); regs->n_pri = 0;
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
     if (opt->parent)            /* align read 1 to daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
@@ -229,7 +229,7 @@ static void bis_worker1(void *data, int i, int tid)
 
     if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/2 <=====\n", __func__, w->seqs[i<<1|1].name);
     regs = &w->regs[i<<1|1];
-    kv_init(*regs);
+    kv_init(*regs); regs->n_pri = 0;
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
     if (opt->parent)            /* align read 2 to parent */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 1);
