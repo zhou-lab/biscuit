@@ -546,7 +546,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
 
   // Actual pairing and set mapQ
   int pscore, sub_pscore; // best and 2nd best pairing score
-  int n_subpairings; int z[2];
+  int n_subpairings; int z[2] = {0};
   mem_pair(opt, bns, pes, regs_pair, id, &pscore, &sub_pscore, &n_subpairings, z);
   if (pscore <= 0) return mem_reg2sam_pe_nopairing(opt, bns, pac, s, regs_pair, pes);
 
@@ -559,7 +559,7 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
         p1->score, p1->qb, p1->qe, (long)p1->rb, (long)p1->re, bns->anns[p1->rid].name, p1->pos,
         p2->score, p2->qb, p2->qe, (long)p2->rb, (long)p2->re, bns->anns[p2->rid].name, p2->pos);
   }
-
+  
   // opt->pen_unpaired - penalty for not pairing
   int score_unpaired = regs_pair[0].a[0].score + regs_pair[1].a[0].score - opt->pen_unpaired;
   if (pscore > score_unpaired) { // use z for pairing
@@ -612,8 +612,9 @@ void mem_reg2sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pa
   }
 
   // set SAM
-  for (i = 0; i < 2; ++i)
+  for (i = 0; i < 2; ++i) {
     mem_alnreg_setSAM(opt, bns, pac, &s[i], &regs_pair[i].a[z[i]]);
+  }
 
   // write SAM
   for (i = 0; i < 2; ++i) {

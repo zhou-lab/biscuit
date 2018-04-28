@@ -185,10 +185,11 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
   for (i = 0; (unsigned) i < v.n; ++i) {
     // v is sorted ascendingly in coordinates, going backward
     for (k = i-1; k >= 0; --k) {
-      if (v.a[i].x >> 32 != v.a[k].x >> 32) break;
+      if (v.a[i].x >> 32 != v.a[k].x >> 32) break; // must be on same bss and same chromosome
       /* if ((int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break; */
-      if ((v.a[i].x>>63 != v.a[k].x>>63) || // not the same bisulfite strand
-          (int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
+      if (v.a[i].x>>63 != v.a[k].x>>63) break; // not the same bisulfite strand
+      if ((int64_t) (v.a[i].x & 0xffffffffU) - (int64_t) (v.a[k].x & 0xffffffffU) > max(pes.low, pes.high)) break;
+      if ((v.a[i].y&1) == (v.a[k].y&1)) break; // one is read 1 and the other from read 2
 
       int64_t is=0;
       if (bwa_verbose >= 8) {
@@ -254,7 +255,13 @@ void mem_pair(const mem_opt_t *opt, const bntseq_t *bns, const mem_pestat_t pes,
       if (*sub - (int)(proper_pairs.a[i].x>>32) <= tmp)
         ++*n_sub;
 
-  } else *score = 0, *sub = 0, *n_sub = 0;
+  } else {
+    *score = 0;
+    *sub = 0;
+    *n_sub = 0;
+    z[0] = -1;
+    z[1] = -1;
+  }
   free(proper_pairs.a); free(v.a);
 
   return;
