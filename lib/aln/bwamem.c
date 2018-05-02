@@ -66,7 +66,7 @@ mem_opt_t *mem_opt_init() {
   o->split_width = 10;
   o->max_occ = 500;
   o->max_chain_gap = 10000;
-  o->max_ins = 10000;
+  o->max_ins = 5000;
   o->mask_level = 0.50;
   o->drop_ratio = 0.50;
   // XA_drop_ratio: secondary hit should have score at least this fraction of the primary hit

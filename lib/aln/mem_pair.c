@@ -85,7 +85,8 @@ mem_pestat_t mem_pestat(const mem_opt_t *opt, const bntseq_t *bns, int n, const 
     if (best0->bss != best1->bss) continue;
 
     if (mem_alnreg_isize(bns, best0, best1, &is))
-      if (is <= opt->max_ins) kv_push(int64_t, isize, is);
+      if (is <= opt->max_ins && is >= -opt->max_ins)
+        kv_push(int64_t, isize, is);
   }
 
   if (bwa_verbose >= 3) fprintf(stderr, "[M::%s] # candidate unique pairs: %ld\n", __func__, isize.n);
