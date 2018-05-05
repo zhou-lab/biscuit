@@ -941,10 +941,14 @@ static void *process_func(void *_result) {
         }
 
         uint8_t *nm = bam_aux_get(b, "NM");
-        if (nm && bam_aux2i(nm)>conf->max_nm) continue;
+        if (nm && bam_aux2i(nm) > conf->max_nm) continue;
+
+        uint8_t *as = bam_aux_get(b, "AS");
+        if (as && bam_aux2i(as) < conf->min_score) continue;
+        
         uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
         if (cnt_ret > conf->max_retention) continue;
-
+        
         uint32_t rpos = c->pos+1, qpos = 0, rmpos = c->mpos + 1;
         for (i=0; i<c->n_cigar; ++i) {
           uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
@@ -1148,6 +1152,7 @@ void conf_init(conf_t *conf) {
   
   conf->min_base_qual = 20;
   conf->min_mapq = 40;
+  conf->min_score = 40;
   conf->max_retention = 999999;
   conf->min_read_len = 10;
   conf->min_dist_end = 3;
@@ -1193,6 +1198,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "\nPileup filtering:\n\n");
   fprintf(stderr, "     -b        min base quality [%u].\n", conf->min_base_qual);
   fprintf(stderr, "     -m        minimum mapping quality [%u].\n", conf->min_mapq);
+  fprintf(stderr, "     -a        minimum alignment score (from AS-tag) [%u].\n", conf->min_score);
   fprintf(stderr, "     -t        max cytosine retention in a read [%u].\n", conf->max_retention);
   fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
   fprintf(stderr, "     -e        minimum distance to end of a read [%u].\n", conf->min_dist_end);
@@ -1226,7 +1232,7 @@ int main_pileup(int argc, char *argv[]) {
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "o:w:g:q:e:b:E:M:x:C:P:Q:t:n:m:l:TNrcdupv:h"))>=0) {
+  while ((c=getopt(argc, argv, "o:w:g:q:e:b:E:M:x:C:P:Q:t:n:m:a:l:TNrcdupv:h"))>=0) {
     switch (c) {
     /* case 'i': */
     /*   for(--optind; optind < argc && *argv[optind] != '-'; optind++){ */
@@ -1247,6 +1253,7 @@ int main_pileup(int argc, char *argv[]) {
       
     case 'b': conf.min_base_qual = atoi(optarg); break;
     case 'm': conf.min_mapq = atoi(optarg); break;
+    case 'a': conf.min_score = atoi(optarg); break;
     case 't': conf.max_retention = atoi(optarg); break;
     case 'l': conf.min_read_len = atoi(optarg); break;
     case 'e': conf.min_dist_end = atoi(optarg); break;

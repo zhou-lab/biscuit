@@ -65,6 +65,7 @@ typedef struct {
   int is_nome;
   int somatic; /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
   int epiread_pair;             /* pair output mode in epireads, doesn't mean "paired-end" */
+  int min_score;                /* minimum score from AS tag */
 } conf_t;
 
 void conf_init(conf_t *conf);

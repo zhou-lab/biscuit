@@ -192,6 +192,52 @@ typedef struct {
   int64_t n_processed;
 } worker_t;
 
+/*
+ * The memmem() function finds the start of the first occurrence of the
+ * substring 'needle' of length 'nlen' in the memory area 'haystack' of
+ * length 'hlen'.
+ *
+ * The return value is a pointer to the beginning of the sub-string, or
+ * NULL if the substring is not found.
+ */
+static void *memmem(const void *haystack, size_t hlen, const void *needle, size_t nlen) {
+  int needle_first;
+  const void *p = haystack;
+  size_t plen = hlen;
+
+  if (!nlen) return NULL;
+
+  needle_first = *(unsigned char *)needle;
+
+  while (plen >= nlen && (p = memchr(p, needle_first, plen - nlen + 1))) {
+    if (!memcmp(p, needle, nlen))
+      return (void *)p;
+    
+    p++;
+    plen = hlen - (p - haystack);
+  }
+
+  return NULL;
+}
+
+static void read_identify_adaptor(bseq1_t *seq, uint8_t *adaptor, int l_adaptor) {
+  if (adaptor == NULL) seq->l_adaptor = 0;
+  else {
+    uint8_t *adaptor_firstbase = memmem(seq->seq, seq->l_seq, adaptor, l_adaptor);
+    if (adaptor_firstbase) seq->l_adaptor = seq->l_seq-(adaptor_firstbase-seq->seq);
+    else {
+      int i;
+      for (i=l_adaptor-1; i; --i) {
+        if (memcmp(seq->seq+seq->l_seq-i, adaptor, i)==0) {
+          break;
+        }
+      }
+      seq->l_adaptor = i;
+    }
+  }
+  seq->l_seq -= seq->l_adaptor; // shorten the read length.
+}
+
 /***** bisulfite adaptation *****/
 /**
  * @param i i-th read is under consideration
@@ -207,6 +253,8 @@ static void bis_worker1(void *data, int i, int tid)
 
     if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s' <=====\n", __func__, w->seqs[i].name);
 
+    read_identify_adaptor(&w->seqs[i], opt->adaptor1, opt->l_adaptor1);
+    
     regs = &w->regs[i]; kv_init(*regs); regs->n_pri = 0;
     if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 0);
@@ -218,7 +266,9 @@ static void bis_worker1(void *data, int i, int tid)
 
     // sanity check the read names
     check_paired_read_names(w->seqs[i<<1|0].name, w->seqs[i<<1|1].name);
-
+    read_identify_adaptor(&w->seqs[i<<1|0], opt->adaptor1, opt->l_adaptor1);
+    read_identify_adaptor(&w->seqs[i<<1|1], opt->adaptor2, opt->l_adaptor2);
+    
     if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/1 <=====\n", __func__, w->seqs[i<<1|0].name);
     regs = &w->regs[i<<1|0];
     kv_init(*regs); regs->n_pri = 0;

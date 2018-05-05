@@ -75,6 +75,11 @@ typedef struct {
   /* bisulfite scoring matrix */
   int8_t ctmat[25];       /* C>T matrix */
   int8_t gamat[25];       /* G>A matrix */
+
+  uint8_t *adaptor1;            /* adaptor for read 1 */
+  int l_adaptor1;               /* length of read 1 adaptor */
+  uint8_t *adaptor2;            /* adaptor for read 2 */
+  int l_adaptor2;               /* length of read 2 adaptor */
 } mem_opt_t;
 
 typedef struct {
