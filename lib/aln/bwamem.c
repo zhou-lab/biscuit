@@ -275,7 +275,7 @@ static void bis_worker1(void *data, int i, int tid)
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
     if (opt->parent)            /* align read 1 to daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
-    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
+    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|0], regs);
 
     if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/2 <=====\n", __func__, w->seqs[i<<1|1].name);
     regs = &w->regs[i<<1|1];
@@ -283,7 +283,7 @@ static void bis_worker1(void *data, int i, int tid)
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
     if (opt->parent)            /* align read 2 to parent */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 1);
-    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
+    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|1], regs);
   }
 }
 
@@ -294,6 +294,7 @@ static void bis_worker1(void *data, int i, int tid)
 static void bis_worker2(void *data, int i, int tid) {
   (void) tid;
   worker_t *w = (worker_t*)data;
+
   if (!(w->opt->flag&MEM_F_PE)) { // SE
     if (bwa_verbose >= 4)
       printf("\n=====> [%s] Finalizing SE read '%s' <=====\n", __func__, w->seqs[i].name);

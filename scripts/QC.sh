@@ -202,7 +202,12 @@ function biscuitQC {
     biscuit cinread -p STRAND,BSSTRAND $BISCUIT_REFERENCE $input_bam | awk '{a[$1$2]+=1}END{for(strand in a) {print "strand\t"strand"\t"a[strand];}}' >$QCdir/${sname}_strand_table.txt
     samtools view -F 0x100 -f 0x4 $input_bam | wc -l | cat <(echo -ne "unmapped\t") - >$QCdir/${sname}_mapq_table.txt
     samtools view -F 0x104 $input_bam | awk '{cnt[$5]+=1}END{for(mapq in cnt) {print mapq"\t"cnt[mapq];}}' | sort -k1,1n >>$QCdir/${sname}_mapq_table.txt
+    ## insert size
+    ## this excludes read by AS (40) and mapq (40)
+    samtools view -F 0x104 $input_bam | awk '{match($0,/AS:i:([0-9]*)/,a); score[a[1]]+=1; sumscore+=1; if (and($2,0x2) && a[1]>=40 && $5>=40 && $9>=0 && $9 <=2000) {isize[$9]+=1; sumisize+=1}}END{for(k in isize){print "I", k, isize[k] / sumisize} for(k in score){print "S", k, score[k] / sumscore}}' | sort -k1,1 -k2,2n >$QCdir/${sname}_isize_score_table.txt
   fi
+
+
 
   ######################
   ## Beta distribution
