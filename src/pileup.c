@@ -624,8 +624,21 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
 
     /* determine if SNP is interfering methylation calling */
     if (cnts_meth1[METH_RETENTION] + cnts_meth1[METH_CONVERSION] > 0) {
-      if (cnts_base1[BASE_T]==0 && rb == 'C') methcallable[sid] = 1;
-      if (cnts_base1[BASE_A]==0 && rb == 'G') methcallable[sid] = 1;
+      //if (cnts_base1[BASE_T]==0 && rb == 'C') methcallable[sid] = 1;
+      //if (cnts_base1[BASE_A]==0 && rb == 'G') methcallable[sid] = 1;
+      if (rb == 'C') {
+        if (cnts_base1[BASE_T] == 0)
+          methcallable[sid] = 1;
+        else if (cnts_base1[BASE_C]>0 && cnts_base1[BASE_T]/(double) cnts_base1[BASE_C] < 0.05)
+          methcallable[sid] = 1;
+      }
+
+      if (rb == 'G') {
+        if (cnts_base1[BASE_A] == 0)
+          methcallable[sid] = 1;
+        else if (cnts_base1[BASE_G]>0 && cnts_base1[BASE_A]/(double) cnts_base1[BASE_G] < 0.05)
+          methcallable[sid] = 1;
+      }
     }
 
     gl0[sid] = -1; gl1[sid] = -1; gl2[sid] = -1; gq[sid] = 0;

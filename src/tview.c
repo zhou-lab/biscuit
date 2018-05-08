@@ -393,8 +393,9 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
       rpos += oplen;
       break;
     case BAM_CSOFT_CLIP:
-    case BAM_CHARD_CLIP:
       qpos += oplen;
+      break;
+    case BAM_CHARD_CLIP:
       break;
     default:
       wzfatal("Unknown cigar, %u\n", op);
