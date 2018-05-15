@@ -200,7 +200,7 @@ typedef struct {
  * The return value is a pointer to the beginning of the sub-string, or
  * NULL if the substring is not found.
  */
-static void *memmem(const void *haystack, size_t hlen, const void *needle, size_t nlen) {
+static void *wzmemmem(const void *haystack, size_t hlen, const void *needle, size_t nlen) {
   int needle_first;
   const void *p = haystack;
   size_t plen = hlen;
@@ -223,7 +223,7 @@ static void *memmem(const void *haystack, size_t hlen, const void *needle, size_
 static void read_identify_adaptor(bseq1_t *seq, uint8_t *adaptor, int l_adaptor) {
   if (adaptor == NULL) seq->l_adaptor = 0;
   else {
-    uint8_t *adaptor_firstbase = memmem(seq->seq, seq->l_seq, adaptor, l_adaptor);
+    uint8_t *adaptor_firstbase = wzmemmem(seq->seq, seq->l_seq, adaptor, l_adaptor);
     if (adaptor_firstbase) seq->l_adaptor = seq->l_seq-(adaptor_firstbase-seq->seq);
     else {
       int i;
