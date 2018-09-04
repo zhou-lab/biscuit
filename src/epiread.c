@@ -32,7 +32,7 @@ DEFINE_VECTOR(char_v, char)
 typedef struct episnp_chrom1_t {
   char *chrm;
   size_t n;
-  uint32_t *locs;
+  uint32_t *locs;  // snp locations
 } episnp_chrom1_t;
 
 DEFINE_VECTOR(episnp_chrom1_v, episnp_chrom1_t)
@@ -280,7 +280,7 @@ static void format_epiread(kstring_t *epi, bam1_t *b, refcache_t *rs, uint8_t bs
         kputs("\t.\t.", epi);
       kputc('\n', epi);
     }
-  } else {
+  } else { // regular BS-seq
     if (first_cg > 0 && (unsigned) first_cg >= w->beg && (unsigned) first_cg < w->end) {
       ksprintf(epi, "%s\t%s\t%c\t%c", chrm, bam_get_qname(b), (b->core.flag&BAM_FREAD2)?'2':'1', bsstrand?'-':'+');
       /* CpG */
@@ -459,14 +459,14 @@ static void format_epiread_pairwise(kstring_t *epi, bam1_t *b, refcache_t *rs, u
   for (k=0; k<snp_p->size; ++k) {
     if (!((unsigned) get_int_v(snp_p, k) >= w->beg && (unsigned) get_int_v(snp_p, k) < w->end))
       continue;                  /* avoid double counting between windows */
-    if (conf->is_nome) {
-      for (j=0; j<hcg_p->size; ++j) {
+    if (conf->is_nome) { // NOMe-seq
+      for (j=0; j<hcg_p->size; ++j) { // SNP and HCG (NOMe-seq)
         ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(hcg_p, j), get_char_v(snp_c, k), get_char_v(hcg_c, j));
       }
-      for (j=0; j<gch_p->size; ++j) {
+      for (j=0; j<gch_p->size; ++j) { // SNP and GCH (NOMe-seq)
         ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(gch_p, j), get_char_v(snp_c, k), get_char_v(gch_c, j));
       }
-    } else {
+    } else { // regular BS-seq
       for (j=0; j<cg_p->size; ++j) {
         /* chrm, snp position, cpg position, snp calling, cytosine calling */
           ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n", chrm, get_int_v(snp_p, k), get_int_v(cg_p, j), get_char_v(snp_c, k), get_char_v(cg_c, j));
@@ -515,7 +515,7 @@ static void *process_func(void *data) {
       episnp_chrom1_t *episnp1 = get_episnp1(res->snp, chrm);
       if (episnp1) {          /* if chromosome is found in snp file */
         for (j=0; j<episnp1->n; ++j) {
-          uint32_t l=episnp1->locs[j];
+          uint32_t l = episnp1->locs[j];
           if (l>=snp_beg && l<snp_end) {
             episnp_set(snps, l-snp_beg);
           }
@@ -608,6 +608,7 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
   kstring_t line;
   line.l = line.m = 0; line.s = 0;
 
+  // read SNP bed file
   episnp_chrom1_t *episnp1 = 0;
   char *tok;
   FILE *fh = fopen(snp_bed_fn,"r");

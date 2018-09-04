@@ -273,7 +273,7 @@ static void bis_worker1(void *data, int i, int tid)
     regs = &w->regs[i<<1|0];
     kv_init(*regs); regs->n_pri = 0;
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
-    if (opt->parent)            /* align read 1 to daughter */
+    if (!opt->parent)            /* unrestricted: align read 1 to daughter */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|0], regs);
 
@@ -281,7 +281,7 @@ static void bis_worker1(void *data, int i, int tid)
     regs = &w->regs[i<<1|1];
     kv_init(*regs); regs->n_pri = 0;
     mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
-    if (opt->parent)            /* align read 2 to parent */
+    if (!opt->parent)            /* unrestricted: align read 2 to parent */
       mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 1);
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|1], regs);
   }

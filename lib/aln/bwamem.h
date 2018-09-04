@@ -61,8 +61,11 @@ typedef struct {
    * opt->parent&1: is restricted
    * opt->parent>>1: restricted strand (1 for parent, 0 for daughter)
    * for PE:
-   * 0: read 1 to parent and read 2 to daughter
-   * 1: read 1 and read 2 to both
+   * opt->parent&1: is restricted (read 1 to parent and read 2 to daughter)
+   * opt->parent>>1: not used
+   * in other words, for PE:
+   * opt->parent == 1: read 1 to parent and read 2 to daughter
+   *                0: read 1 and read 2 to both
    **/
   uint8_t parent;
 

@@ -33,27 +33,33 @@
 #include "bamfilter.h"
 #include "pileup.h"
 
-const char *tp_names[] = {"QNAME", "QPAIR", "STRAND", "BSSTRAND", "MAPQ",
-                         "CHRM",
-                         "CRPOS",
-                         "CQPOS",
-                         "CRBASE",
-                         "CCTXT",
-                         "CQBASE",
-                         "CRETENTION"};
+const char *tp_names[] = {
+  "QNAME", "QPAIR", "STRAND", "BSSTRAND", "MAPQ",
+  "QBEG", "QEND",
+  "CHRM",
+  "CRPOS",
+  "CGRPOS",
+  "CQPOS",
+  "CRBASE",
+  "CCTXT",
+  "CQBASE",
+  "CRETENTION"};
 
-typedef enum {TP_QNAME, TP_QPAIR, TP_STRAND, TP_BSSTRAND, TP_MAPQ,
-              TP_CHRM,          // chromosome
-              TP_CRPOS,         // cytosine position on reference
-              TP_CQPOS,         // cytosine position on query
-              TP_CRBASE,        // cytosine reference
-              TP_CCTXT,         // cytosine context, strand flipped
-              TP_CQBASE,        // base called on read
-              TP_CRETENTION} __tp_name_t; // retention (R) or conversion (C)
+typedef enum {
+  TP_QNAME, TP_QPAIR, TP_STRAND, TP_BSSTRAND, TP_MAPQ,
+  TP_QBEG, TP_QEND, // query start, end
+  TP_CHRM,          // chromosome
+  TP_CRPOS,         // cytosine position on reference
+  TP_CGRPOS,        // CpG position on reference (-1 if not applicable)
+  TP_CQPOS,         // cytosine position on query
+  TP_CRBASE,        // cytosine reference
+  TP_CCTXT,         // cytosine context, strand flipped
+  TP_CQBASE,        // base called on read
+  TP_CRETENTION} __tp_name_t; // retention (R) or conversion (C)
 
 const char *tgt_names[] = {"c", "cg", "ch", "hcg", "gch"};
 
-typedef enum {SL_C, SL_CG, SL_CH, SL_HCG, SL_GCH} __tgt_name_t;
+typedef enum {SL_C, SL_CG, SL_CH, SL_HCG, SL_GCH} __tgt_name_t; // SL_ select target
 
 typedef struct {
   int n_tp_names;
@@ -132,11 +138,20 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
           switch(conf->tp_names[k]) {
           case TP_QNAME: fputs(bam_get_qname(b), conf->out); break;
           case TP_QPAIR: fputc((c->flag&BAM_FREAD2)?'2':'1', conf->out); break;
+          case TP_QBEG: fprintf(conf->out, "%d", c->pos+1); break;
+          case TP_QEND: fprintf(conf->out, "%d", bam_endpos(b)); break;
           case TP_STRAND: fputc((c->flag&BAM_FREVERSE)?'-':'+', conf->out); break;
           case TP_BSSTRAND: fputc(bsstrand?'-':'+', conf->out); break;
           case TP_MAPQ: fprintf(conf->out, "%d", c->qual); break;
           case TP_CHRM: fputs(hdr->target_name[c->tid], conf->out); break;
           case TP_CRPOS: fprintf(conf->out, "%u", rpos+j); break;
+          case TP_CGRPOS: {
+            if (fivenuc[3] == 'G') {
+              if (rb == 'C') fprintf(conf->out, "%u", rpos+j);
+              else if (rb == 'G') fprintf(conf->out, "%u", rpos+j-1);
+            } else fprintf(conf->out, "-1");
+            break;
+          }
           case TP_CQPOS: {
             // note when there is hard clipping, l_qseq might be < qpos+j
             // see following for compensation
