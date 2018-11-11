@@ -1,5 +1,5 @@
 FROM ubuntu:latest
-MAINTAINER "zack ramjan" <zack.hr@gREMOVEmail.com>
+MAINTAINER "Wanding Zhou" <zhouwanding@gmail.com>
 ENV container docker
 RUN apt-get update -y && \
     apt-get install git -y && \
@@ -9,11 +9,8 @@ RUN apt-get update -y && \
     apt-get install wget -y
 
 RUN cd / && \
-    git clone https://github.com/zwdzwd/biscuit.git && \
-    cd /biscuit && \
-    pwd && \
-    make && \
-    cp /biscuit/bin/biscuit /usr/bin && \
+    wget "https://github.com/zwdzwd/biscuit/releases/download/v0.3.8.20180515/biscuit_0_3_8_x86_64" && \
+    cp biscuit_0_3_8_x86_64 /usr/bin/biscuit && \
     cd / && \
     wget "https://github.com/samtools/samtools/releases/download/1.3.1/samtools-1.3.1.tar.bz2" && \
     tar -jxvf samtools-1.3.1.tar.bz2 && \
