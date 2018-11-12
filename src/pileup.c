@@ -1214,6 +1214,8 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -a        minimum alignment score (from AS-tag) [%u].\n", conf->min_score);
   fprintf(stderr, "     -t        max cytosine retention in a read [%u].\n", conf->max_retention);
   fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
+  // TODO: we should distinguish 5'-end and 3'-end. On the 3'-end, it should be before
+  // the end of mapping instead of end of read since adaptor sequences are soft-clipped.
   fprintf(stderr, "     -e        minimum distance to end of a read [%u].\n", conf->min_dist_end);
   fprintf(stderr, "     -r        NO redistribution of ambiguous (Y/R) calls in SNP genotyping.\n");
   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");

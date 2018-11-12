@@ -11,6 +11,7 @@ RUN apt-get update -y && \
 RUN cd / && \
     wget "https://github.com/zwdzwd/biscuit/releases/download/v0.3.8.20180515/biscuit_0_3_8_x86_64" && \
     cp biscuit_0_3_8_x86_64 /usr/bin/biscuit && \
+    chmod 755 /usr/bin/biscuit && \
     cd / && \
     wget "https://github.com/samtools/samtools/releases/download/1.3.1/samtools-1.3.1.tar.bz2" && \
     tar -jxvf samtools-1.3.1.tar.bz2 && \
@@ -25,4 +26,7 @@ VOLUME [ "/data" ]
 
 #connect to live instance
 #docker exec -it biscuit_docker /bin/bash
+
+#use singularity
+#singularity pull docker://zhouwanding/biscuit_v0.3.8
 

@@ -10,7 +10,7 @@ Using biscuit with docker
 
 1.) get the container 
 
-	docker pull zackramjan/biscuit
+	docker pull zhouwanding/biscuit_v0.3.8
 
 2.) prepare your data
 since the container can only see explicitely specified dirs, put your data and reference in a directoy that will be passed to the docker container
@@ -21,7 +21,7 @@ for example, I create a "mydata" dir and put my fastq's (R1.fastq and R2.fastq) 
 
 3.) start the container.  you will need to specify the local data dir(for examlple "mydata") with your refs and fastq
 
-	docker run -ti -d --name=biscuit_docker -v mydata:/data -w /data zackramjan/biscuit
+	docker run -ti -d --name=biscuit_docker -v mydata:/data -w /data zhouwanding/biscuit_0.3.8
 
 4.) use biscuit. you can now perform alignments etc, remember that biscuit command are executed as if you're within your specified "data" directory (ie "mydata" in our example)
 for example: first I index my genome
