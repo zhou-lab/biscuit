@@ -28,7 +28,8 @@ github_username:  zwdzwd
 
 # Build settings
 markdown: kramdown
-theme: jekyll-theme-minimal
+theme: just-the-docs
+# theme: jekyll-theme-minimal
 # theme: minima
 plugins:
   - jekyll-feed

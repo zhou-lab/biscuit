@@ -5,10 +5,10 @@ title: BISCUIT
 layout: default
 ---
 
-# BISCUIT Usage
+BISCUIT works in similar way from
 
-## Alignment
+- Alignment
 
-## Extract Methylation Level
+- Extract Methylation Level
 
-## Working with epireads
+- Working with epireads
