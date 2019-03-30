@@ -16,11 +16,7 @@
 title: BISCUIT
 email: wanding.zhou@vai.org
 description: >- # this means to ignore newlines until "baseurl:"
-  BISulfite-seq CUI Toolkit (BISCUIT) BISulfite-seq CUI Toolkit
-  (BISCUIT) is a utility suite for analyzing sodium bisulfite
-  conversion-based DNA methylation/modification data. It was written
-  to perform alignment, DNA methylation and mutation calling, allele
-  specific methylation from bisulfite sequencing data.
+
 baseurl: "biscuit" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: zhouwanding
@@ -29,6 +25,10 @@ github_username:  zwdzwd
 # Build settings
 markdown: kramdown
 remote_theme: pmarsceill/just-the-docs
+search_enabled: true
+aux_links: "BISCUIT on GitHub":
+  - "//github.com/zwdzwd/biscuit"
+
 # theme: jekyll-theme-minimal
 # theme: minima
 plugins:

@@ -1,5 +1,5 @@
 ---
-layout: about
+layout: default
 title: Working with Epialleles
 permalink: /epiread/
 ---
