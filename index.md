@@ -22,3 +22,9 @@ description: "BISulfite-seq CUI Toolkit (BISCUIT) BISulfite-seq CUI Toolkit
 - Extract Methylation Level
 
 - Working with epireads
+
+## About the project
+
+### License
+
+### Contributing
