@@ -1,0 +1,4 @@
+#ifndef PACKAGE_VERSION
+#define PACKAGE_VERSION "BISCUIT_VERSION"
+
+#endif
