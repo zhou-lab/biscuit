@@ -244,53 +244,74 @@ static void read_identify_adaptor(bseq1_t *seq, uint8_t *adaptor, int l_adaptor)
  * @param tid thread id
  * @return w->regs[i] mem_alnreg_v*
  */
-static void bis_worker1(void *data, int i, int tid)
-{
-  worker_t *w = (worker_t*)data;
-  mem_alnreg_v *regs; const mem_opt_t *opt=w->opt;
+static void bis_worker1(void *data, int i, int tid) {
+   
+   worker_t *w = (worker_t*)data;
+   mem_alnreg_v *regs; const mem_opt_t *opt=w->opt;
 
-  if (!(opt->flag&MEM_F_PE)) {	// SE
+   if (!(opt->flag&MEM_F_PE)) {	// SE
 
-    if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s' <=====\n", __func__, w->seqs[i].name);
+      if (bwa_verbose >= 4)
+         printf("\n=====> [%s] Processing read '%s' <=====\n",
+                __func__, w->seqs[i].name);
 
-    read_identify_adaptor(&w->seqs[i], opt->adaptor1, opt->l_adaptor1);
+      read_identify_adaptor(
+         &w->seqs[i], opt->adaptor1, opt->l_adaptor1);
     
-    regs = &w->regs[i]; kv_init(*regs); regs->n_pri = 0;
-    if (!(opt->parent&1) || // no restriction
-        opt->parent>>1)     // to daughter
-       mem_align1_core(opt, w->bwt, w->bns, w->pac,
-                       &w->seqs[i], w->intv_cache[tid], regs, 0);
+      regs = &w->regs[i]; kv_init(*regs); regs->n_pri = 0;
+      if (!(opt->parent&1) || // no restriction
+          opt->parent>>1)     // to daughter
+         mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                         &w->seqs[i], w->intv_cache[tid], regs, 0);
     
-    if (!(opt->parent&1) || // no restriction
-        !(opt->parent>>1))  // to parent
-       mem_align1_core(opt, w->bwt, w->bns, w->pac,
-                       &w->seqs[i], w->intv_cache[tid], regs, 1);
+      if (!(opt->parent&1) || // no restriction
+          !(opt->parent>>1))  // to parent
+         mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                         &w->seqs[i], w->intv_cache[tid], regs, 1);
     
-    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
+      mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
-  } else {			// PE
+   } else {			// PE
 
-    // sanity check the read names
-    check_paired_read_names(w->seqs[i<<1|0].name, w->seqs[i<<1|1].name);
-    read_identify_adaptor(&w->seqs[i<<1|0], opt->adaptor1, opt->l_adaptor1);
-    read_identify_adaptor(&w->seqs[i<<1|1], opt->adaptor2, opt->l_adaptor2);
+      // sanity check the read names
+      check_paired_read_names(
+         w->seqs[i<<1|0].name, w->seqs[i<<1|1].name);
+      
+      read_identify_adaptor(
+         &w->seqs[i<<1|0], opt->adaptor1, opt->l_adaptor1);
+      
+      read_identify_adaptor(
+         &w->seqs[i<<1|1], opt->adaptor2, opt->l_adaptor2);
     
-    if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/1 <=====\n", __func__, w->seqs[i<<1|0].name);
-    regs = &w->regs[i<<1|0];
-    kv_init(*regs); regs->n_pri = 0;
-    mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
-    if (!opt->parent)            /* unrestricted: align read 1 to daughter */
-      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
-    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|0], regs);
+      if (bwa_verbose >= 4)
+         printf("\n=====> [%s] Processing read '%s'/1 <=====\n",
+                __func__, w->seqs[i<<1|0].name);
+      
+      regs = &w->regs[i<<1|0];
+      kv_init(*regs); regs->n_pri = 0;
+      mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                      &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
+      
+      if (!opt->parent)   /* unrestricted: align read 1 to daughter */
+         mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                         &w->seqs[i<<1|0], w->intv_cache[tid], regs, 0);
+      
+      mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|0], regs);
 
-    if (bwa_verbose >= 4) printf("\n=====> [%s] Processing read '%s'/2 <=====\n", __func__, w->seqs[i<<1|1].name);
-    regs = &w->regs[i<<1|1];
-    kv_init(*regs); regs->n_pri = 0;
-    mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
-    if (!opt->parent)            /* unrestricted: align read 2 to parent */
-      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|1], w->intv_cache[tid], regs, 1);
-    mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|1], regs);
-  }
+      if (bwa_verbose >= 4)
+         printf("\n=====> [%s] Processing read '%s'/2 <=====\n",
+                __func__, w->seqs[i<<1|1].name);
+      
+      regs = &w->regs[i<<1|1];
+      kv_init(*regs); regs->n_pri = 0;
+      
+      mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                      &w->seqs[i<<1|1], w->intv_cache[tid], regs, 0);
+      if (!opt->parent)     /* unrestricted: align read 2 to parent */
+         mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                         &w->seqs[i<<1|1], w->intv_cache[tid], regs, 1);
+      mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i<<1|1], regs);
+   }
 }
 
 /**
@@ -303,7 +324,8 @@ static void bis_worker2(void *data, int i, int tid) {
 
   if (!(w->opt->flag&MEM_F_PE)) { // SE
     if (bwa_verbose >= 4)
-      printf("\n=====> [%s] Finalizing SE read '%s' <=====\n", __func__, w->seqs[i].name);
+      printf("\n=====> [%s] Finalizing SE read '%s' <=====\n",
+             __func__, w->seqs[i].name);
 
     mem_mark_primary_se(w->opt, &w->regs[i], w->n_processed + i);
     mem_alnreg_resetFLAG(&w->regs[i]);
@@ -313,20 +335,28 @@ static void bis_worker2(void *data, int i, int tid) {
     free(w->regs[i].a);
   } else {			// PE
     if (bwa_verbose >= 4)
-      printf("\n=====> [%s] Finalizing PE read '%s' <=====\n", __func__, w->seqs[i<<1|0].name);
+      printf("\n=====> [%s] Finalizing PE read '%s' <=====\n",
+             __func__, w->seqs[i<<1|0].name);
 
     if (!(w->opt->flag & MEM_F_NO_RESCUE)) 
-      mem_alnreg_matesw(w->opt, w->bns, w->pac, w->pes, &w->seqs[i<<1], &w->regs[i<<1]);
+      mem_alnreg_matesw(w->opt, w->bns, w->pac,
+                        w->pes, &w->seqs[i<<1], &w->regs[i<<1]);
 
-    if (bwa_verbose >= 4) printf("\n\n====== [%s] Primary-marking read 1\n", __func__);
+    if (bwa_verbose >= 4)
+       printf("\n\n====== [%s] Primary-marking read 1\n", __func__);
+    
     mem_mark_primary_se(w->opt, &w->regs[i<<1|0], i<<1|0);
 
-    if (bwa_verbose >= 4) printf("\n\n====== [%s] Primary-marking read 2\n", __func__);
+    if (bwa_verbose >= 4)
+       printf("\n\n====== [%s] Primary-marking read 2\n", __func__);
+    
     mem_mark_primary_se(w->opt, &w->regs[i<<1|1], i<<1|1);
 
     mem_alnreg_resetFLAG(&w->regs[i<<1|0]);
     mem_alnreg_resetFLAG(&w->regs[i<<1|1]);
-    mem_reg2sam_pe(w->opt, w->bns, w->pac, (w->n_processed>>1) + i, &w->seqs[i<<1], &w->regs[i<<1], w->pes);
+    mem_reg2sam_pe(
+       w->opt, w->bns, w->pac, (w->n_processed>>1) + i,
+       &w->seqs[i<<1], &w->regs[i<<1], w->pes);
 
     mem_alnreg_freeSAM(&w->regs[i<<1|0]);
     mem_alnreg_freeSAM(&w->regs[i<<1|1]);
@@ -339,47 +369,50 @@ static void bis_worker2(void *data, int i, int tid) {
  * @param seqs: query sequences
  * @param pes0: paired-end statistics
  */
-void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0) {
+void mem_process_seqs(
+   const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns,
+   const uint8_t *pac, int64_t n_processed, int n,
+   bseq1_t *seqs, const mem_pestat_t *pes0) {
 
-  extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);
-  int i;
+   extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);
+   int i;
 
-  double ctime, rtime;
-  ctime = cputime(); rtime = realtime();
-  /* global_bns = bns;		[> get rid of this <] */
+   double ctime, rtime;
+   ctime = cputime(); rtime = realtime();
+   /* global_bns = bns;		[> get rid of this <] */
 
-  /* initiate worker, shared across all threads */
-  worker_t w;
-  w.regs = malloc(n * sizeof(mem_alnreg_v));
-  w.opt = opt; w.bwt = bwt; w.bns = bns; w.pac = pac;
-  w.seqs = seqs; w.n_processed = n_processed;
-  /* w.pes = pes; // isn't this shared across all threads? */
+   /* initiate worker, shared across all threads */
+   worker_t w;
+   w.regs = malloc(n * sizeof(mem_alnreg_v));
+   w.opt = opt; w.bwt = bwt; w.bns = bns; w.pac = pac;
+   w.seqs = seqs; w.n_processed = n_processed;
+   /* w.pes = pes; // isn't this shared across all threads? */
 
-  /***** Step 1: Generate mapping position *****/
-  w.intv_cache = malloc(opt->n_threads * sizeof(bwtintv_cache_t));
-  for (i = 0; i < opt->n_threads; ++i)
-    w.intv_cache[i] = bwtintv_cache_init(); // w.intv_cache[i] is used by thread i only
+   /***** Step 1: Generate mapping position *****/
+   w.intv_cache = malloc(opt->n_threads * sizeof(bwtintv_cache_t));
+   for (i = 0; i < opt->n_threads; ++i)
+      w.intv_cache[i] = bwtintv_cache_init(); // w.intv_cache[i] is used by thread i only
 
-  kt_for(opt->n_threads, bis_worker1, &w, (opt->flag&MEM_F_PE)? n>>1 : n);
+   kt_for(opt->n_threads, bis_worker1, &w, (opt->flag&MEM_F_PE)? n>>1 : n);
 
-  for (i = 0; i < opt->n_threads; ++i)
-    bwtintv_cache_destroy(w.intv_cache[i]);
-  free(w.intv_cache);
+   for (i = 0; i < opt->n_threads; ++i)
+      bwtintv_cache_destroy(w.intv_cache[i]);
+   free(w.intv_cache);
 
-  /********************************
-   * Step 2: Obtain PE statistics *
-   ********************************/
-  if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
-    if (pes0) w.pes = *pes0;
-    else w.pes = mem_pestat(opt, w.bns, n, w.regs);
-  }
+   /********************************
+    * Step 2: Obtain PE statistics *
+    ********************************/
+   if (opt->flag & MEM_F_PE) { // infer insert sizes if not provided
+      if (pes0) w.pes = *pes0;
+      else w.pes = mem_pestat(opt, w.bns, n, w.regs);
+   }
 
-  /***** Step 3: Pairing and generate mapping *****/
-  kt_for(opt->n_threads, bis_worker2, &w, (opt->flag&MEM_F_PE)? n>>1 : n);
+   /***** Step 3: Pairing and generate mapping *****/
+   kt_for(opt->n_threads, bis_worker2, &w, (opt->flag&MEM_F_PE)? n>>1 : n);
 
-  free(w.regs);
+   free(w.regs);
 
-  if (bwa_verbose >= 3)
-    fprintf(stderr, "[M::%s] Processed %d reads in %.3f CPU sec, %.3f real sec\n", __func__, n, cputime() - ctime, realtime() - rtime);
+   if (bwa_verbose >= 3)
+      fprintf(stderr, "[M::%s] Processed %d reads in %.3f CPU sec, %.3f real sec\n", __func__, n, cputime() - ctime, realtime() - rtime);
 }
 
