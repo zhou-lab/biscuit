@@ -103,8 +103,11 @@ static inline void refcache_fetch(
    if (end + rc->flank2 > (unsigned) rc->seqlen) rc->end = rc->seqlen;
    else rc->end = end + rc->flank2;
 
-   rc->chrm = realloc(rc->chrm, strlen(chrm)+1);
-   strcpy(rc->chrm, chrm);
+   if (chrm != rc->chrm) {
+      rc->chrm = realloc(rc->chrm, strlen(chrm)+1);
+      strcpy(rc->chrm, chrm);
+   }
+   
    __refcache_fetch(rc);
 }
 
@@ -123,8 +126,12 @@ static inline void refcache_fetch_chrm(refcache_t *rc, char *chrm) {
        strcmp(chrm, rc->chrm) == 0) return;
 
    rc->beg = 1; rc->end = rc->seqlen;
-   rc->chrm = realloc(rc->chrm, strlen(chrm)+1);
-   strcpy(rc->chrm, chrm);
+
+   if (chrm != rc->chrm) {
+      rc->chrm = realloc(rc->chrm, strlen(chrm)+1);
+      strcpy(rc->chrm, chrm);
+   }
+   
    __refcache_fetch(rc);
 }
 

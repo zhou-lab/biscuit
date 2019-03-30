@@ -24,7 +24,12 @@ static int usage() {
    return 1;
 }
 
-DEFINE_VECTOR(kstring_v, kstring_t)
+typedef struct read_t {
+   kstring_t seq;
+   kstring_t other;
+} read_t;
+
+DEFINE_VECTOR(read_v, read_t)
 
 int main_rectangle(int argc, char *argv[]) {
 
@@ -44,20 +49,21 @@ int main_rectangle(int argc, char *argv[]) {
    char *ref_fn = argv[optind++];
    char *epiread_fn = argv[optind++];
    refcache_t *rc = init_refcache(ref_fn, 1000, 1000);
-   tsv_t *tsv = tsv_open(epiread_fn);
 
+   tsv_t *tsv = tsv_open(epiread_fn);
    int region_beg = 0, region_width = -1;
-   kstring_v *reads = init_kstring_v(1000);
+   read_v *reads = init_read_v(1000);
    char *chrm = NULL;
    while (tsv_read(tsv)) {
-      int read_beg = atoi(tsv->fields[4]);
+      if (tsv_is_blankline(tsv)) continue;
+      int read_beg = atoi(tsv_field(tsv, 4));
       if (!region_beg) region_beg = read_beg;
 
       if (chrm == NULL) {
-         chrm = calloc(strlen(tsv->fields[0]+1), sizeof(char));
-         strcpy(chrm, tsv->fields[0]);
+         chrm = calloc(strlen(tsv_field(tsv, 0))+1, sizeof(char));
+         strcpy(chrm, tsv_field(tsv, 0));
          refcache_set_chromosome(rc, chrm);
-      } else if (strcmp(chrm, tsv->fields[0]) != 0) {
+      } else if (strcmp(chrm, tsv_field(tsv, 0)) != 0) {
          fprintf(
             stderr,
             "[%s:%d] Error, rectangle cannot cross chromosomes.\n",
@@ -70,28 +76,35 @@ int main_rectangle(int argc, char *argv[]) {
       for (p = region_beg; p < read_beg; ++pad)
          p = refcache_next_cg(rc, p) + 1;
 
-      kstring_t *read = next_ref_kstring_v(reads);
-      while(pad--) kputc('N', read);
-      kputs(tsv->fields[5], read);
+      read_t *r = next_ref_read_v(reads);
+      r->seq = (const kstring_t) {0};
+      while(pad--) kputc('N', &r->seq);
+      kputs(tsv->fields[5], &r->seq);
+      r->other = (const kstring_t) {0};
+      kputs(tsv->line, &r->other);
 
-      if (region_width < 0 || (unsigned) region_width < read->l)
-         region_width = read->l;
+      // update region width
+      if (region_width < 0 || (unsigned) region_width < r->seq.l)
+         region_width = r->seq.l;
    }
+   free(chrm);
 
-   FILE *out;
-   if (out_fn) out = fopen(out_fn, "w");
-   else out = stdout;
-
-   /* Pad the reads with length */
+   FILE *out = wzopen_out(out_fn);
    unsigned i;
    for (i = 0; i < reads->size; ++i) {
-      kstring_t *read = ref_kstring_v(reads, i);
-      while (read->l < (unsigned) region_width) kputc('N', read);
-      fputs(read->s, out);
+      read_t *r = ref_read_v(reads, i);
+      while (r->seq.l < (unsigned) region_width) kputc('N', &r->seq);
+      fputs(r->other.s, out);
+      fputc('\t', out);
+      fputs(r->seq.s, out);
       fputc('\n', out);
+      free(r->seq.s);
+      free(r->other.s);
    }
 
    tsv_close(tsv);
-   
+   free_read_v(reads);
+   free_refcache(rc);
+
    return 0;
 }
