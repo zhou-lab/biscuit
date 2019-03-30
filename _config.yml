@@ -23,8 +23,8 @@ description: >- # this means to ignore newlines until "baseurl:"
   specific methylation from bisulfite sequencing data.
 baseurl: "biscuit" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
-twitter_username: jekyllrb
-github_username:  jekyll
+twitter_username: zhouwanding
+github_username:  zwdzwd
 
 # Build settings
 markdown: kramdown
