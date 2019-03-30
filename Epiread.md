@@ -6,7 +6,19 @@ permalink: /epiread/
 
 ## Generating epireads
 
-Epiread format is a compact way of storing CpG retention pattern as well as SNP information on the same read. It is useful for estimating epiallele fraction and clonal structure/cell population (Li et al. Genome Biology 2014, Zheng et al. Genome Biology 2014). BISCUIT extends the original epiread format proposed by the methpipe team by allowing SNP information displayed. The columns indicate: **1)** chromosome name; **2)** read name; **3)** read position in paired-end sequencing; **4)** bisulfite strand (bisulfite Watson or Crick); **5)** position of the cytosine in the first CpG (0-based); **6)** retention pattern ("C" for retention and "T" for conversion) for all CpGs covered; **7)** position of the first SNP if SNP location file is provided; **8)** base call of all SNPs covered.
+Epiread format is a compact way of storing CpG retention pattern as
+well as SNP information on the same read. It is useful for estimating
+epiallele fraction and clonal structure/cell population (Li et
+al. Genome Biology 2014, Zheng et al. Genome Biology 2014). BISCUIT
+extends the original epiread format proposed by the methpipe team by
+allowing SNP information displayed. The columns indicate: **1)**
+chromosome name; **2)** read name; **3)** read position in paired-end
+sequencing; **4)** bisulfite strand (bisulfite Watson or Crick);
+**5)** position of the cytosine in the first CpG (0-based); **6)**
+retention pattern ("C" for retention and "T" for conversion) for all
+CpGs covered; **7)** position of the first SNP if SNP location file is
+provided; **8)** base call of all SNPs covered.
+
 ```
 chr19   NS500653:8:HF5FGBGXX:3:12402:11299:9856 1       +       3040315 CCCCTCCC        .       .
 chr19   NS500653:8:HF5FGBGXX:3:12609:17196:5738 1       +       3055491 T       .       .
