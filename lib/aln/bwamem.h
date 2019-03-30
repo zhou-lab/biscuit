@@ -59,7 +59,13 @@ typedef struct {
   /* reads can only be mapped to parent or daughter strands
    * for SE:
    * opt->parent&1: is restricted
-   * opt->parent>>1: restricted strand (1 for parent, 0 for daughter)
+   * opt->parent>>1: restricted strand (0 for parent, 1 for daughter)
+   * In other words, for PE
+   * opt->parent == 0: read to both
+   *                1: read to parent
+   *                2: officially undefined (but to both in reality)
+   *                3. read to daughter
+   * 
    * for PE:
    * opt->parent&1: is restricted (read 1 to parent and read 2 to daughter)
    * opt->parent>>1: not used

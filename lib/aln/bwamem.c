@@ -47,47 +47,47 @@
 /* static const bntseq_t *global_bns = 0; // for debugging only */
 
 mem_opt_t *mem_opt_init() {
-  mem_opt_t *o;
-  o = calloc(1, sizeof(mem_opt_t));
-  o->flag = 0;
-  o->a = 1;
-  o->b = 2;                     /* WZBS */
-  /* o->b = 4; */
-  o->o_del = o->o_ins = 6;
-  o->e_del = o->e_ins = 1;
-  o->w = 100;
-  o->T = 30;
-  o->zdrop = 100;
-  o->pen_unpaired = 17;
-  /* o->pen_clip5 = o->pen_clip3 = 5; */
-  o->pen_clip5 = o->pen_clip3 = 10; /* WZBS */
-  o->max_mem_intv = 20;
-  o->min_seed_len = 19;
-  o->split_width = 10;
-  o->max_occ = 500;
-  o->max_chain_gap = 10000;
-  o->max_ins = 5000;
-  o->mask_level = 0.50;
-  o->drop_ratio = 0.50;
-  // XA_drop_ratio: secondary hit should have score at least this fraction of the primary hit
-  o->XA_drop_ratio = 0.80;
-  o->split_factor = 1.5;
-  o->chunk_size = 10000000;
-  o->n_threads = 1;
-  o->max_XA_hits = 5; // max number of primary-chr secondary hits in XA
-  o->max_XA_hits_alt = 5; // max number of alt-chr secondary hits in XA
-  o->max_matesw = 50;
-  o->mask_level_redun = 0.95;
-  o->min_chain_weight = 0;
-  o->max_chain_extend = 1<<30;
-  o->mapQ_coef_len = 50; o->mapQ_coef_fac = log(o->mapQ_coef_len);
-  o->bsstrand = 0;
-  o->parent = 0;
-  bwa_fill_scmat(o->a, o->b, o->mat);
-  /* WZBS */
-  bwa_fill_scmat_ct(o->a, o->b, o->ctmat);
-  bwa_fill_scmat_ga(o->a, o->b, o->gamat);
-  return o;
+   mem_opt_t *o;
+   o = calloc(1, sizeof(mem_opt_t));
+   o->flag = 0;
+   o->a = 1;
+   o->b = 2;                     /* WZBS */
+   /* o->b = 4; */
+   o->o_del = o->o_ins = 6;
+   o->e_del = o->e_ins = 1;
+   o->w = 100;
+   o->T = 30;
+   o->zdrop = 100;
+   o->pen_unpaired = 17;
+   /* o->pen_clip5 = o->pen_clip3 = 5; */
+   o->pen_clip5 = o->pen_clip3 = 10; /* WZBS */
+   o->max_mem_intv = 20;
+   o->min_seed_len = 19;
+   o->split_width = 10;
+   o->max_occ = 500;
+   o->max_chain_gap = 10000;
+   o->max_ins = 5000;
+   o->mask_level = 0.50;
+   o->drop_ratio = 0.50;
+   // XA_drop_ratio: secondary hit should have score at least this fraction of the primary hit
+   o->XA_drop_ratio = 0.80;
+   o->split_factor = 1.5;
+   o->chunk_size = 10000000;
+   o->n_threads = 1;
+   o->max_XA_hits = 5; // max number of primary-chr secondary hits in XA
+   o->max_XA_hits_alt = 5; // max number of alt-chr secondary hits in XA
+   o->max_matesw = 50;
+   o->mask_level_redun = 0.95;
+   o->min_chain_weight = 0;
+   o->max_chain_extend = 1<<30;
+   o->mapQ_coef_len = 50; o->mapQ_coef_fac = log(o->mapQ_coef_len);
+   o->bsstrand = 0;
+   o->parent = 0;
+   bwa_fill_scmat(o->a, o->b, o->mat);
+   /* WZBS */
+   bwa_fill_scmat_ct(o->a, o->b, o->ctmat);
+   bwa_fill_scmat_ga(o->a, o->b, o->gamat);
+   return o;
 }
 
 /************************
@@ -125,13 +125,13 @@ void bseq_bsconvert(bseq1_t *s, uint8_t parent) {
   if (s->bisseq[parent]) return;
 
   uint32_t i;
-  if (parent) {
+  if (parent) {                 // C>T strand
     s->bisseq[1] = calloc(s->l_seq, sizeof(uint8_t));
     for (i=0; i< (unsigned) s->l_seq; ++i) {
       if (s->seq[i] == 1) s->bisseq[1][i] = 3;
       else s->bisseq[1][i] = s->seq[i];
     }
-  } else {
+  } else {                      // G>A strand
     s->bisseq[0] = calloc(s->l_seq, sizeof(uint8_t));
     for (i=0; i< (unsigned) s->l_seq; ++i) {
       if (s->seq[i] == 2) s->bisseq[0][i] = 0;
@@ -256,10 +256,16 @@ static void bis_worker1(void *data, int i, int tid)
     read_identify_adaptor(&w->seqs[i], opt->adaptor1, opt->l_adaptor1);
     
     regs = &w->regs[i]; kv_init(*regs); regs->n_pri = 0;
-    if (!(opt->parent) || !(opt->parent>>1)) /* no restriction or target daughter */
-      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 0);
-    if (!(opt->parent) || opt->parent>>1) /* no restriction or target parent */
-      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i], w->intv_cache[tid], regs, 1);
+    if (!(opt->parent&1) || // no restriction
+        opt->parent>>1)     // to daughter
+       mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                       &w->seqs[i], w->intv_cache[tid], regs, 0);
+    
+    if (!(opt->parent&1) || // no restriction
+        !(opt->parent>>1))  // to parent
+       mem_align1_core(opt, w->bwt, w->bns, w->pac,
+                       &w->seqs[i], w->intv_cache[tid], regs, 1);
+    
     mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
   } else {			// PE

@@ -184,8 +184,8 @@ int usage(mem_opt_t *opt) {
   fprintf(stderr, "Algorithm options:\n");
   fprintf(stderr, "       -t INT        number of threads [%d]\n", opt->n_threads);
   fprintf(stderr, "       -b INT        For PE, read1 to parent, read2 to daughter (1);\n");
-  fprintf(stderr, "                     read1 and read2 to both (0: default); For SE, parent (3);\n");
-  fprintf(stderr, "                     daughter (1); both (0, default); Def: parent (bisulfite\n");
+  fprintf(stderr, "                     read1 and read2 to both (0: default); For SE, parent (1);\n");
+  fprintf(stderr, "                     daughter (3); both (0, default); Def: parent (bisulfite\n");
   fprintf(stderr, "                     treated strand), daughter (synthesized strand)\n");
   fprintf(stderr, "       -f INT        1: BSW strand; 3: BSC strand; 0 (default): both; (libraries\n");
   fprintf(stderr, "                     targeting either BSW or BSC are unseen so far!)\n");
