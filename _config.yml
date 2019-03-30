@@ -16,7 +16,7 @@
 title: BISCUIT
 email: wanding.zhou@vai.org
 description: >- # this means to ignore newlines until "baseurl:"
-
+# baseurl: ""
 baseurl: "biscuit" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: zhouwanding
@@ -25,9 +25,11 @@ github_username:  zwdzwd
 # Build settings
 markdown: kramdown
 remote_theme: pmarsceill/just-the-docs
+# theme: just-the-docs
 search_enabled: true
-aux_links: "BISCUIT on GitHub":
-  - "//github.com/zwdzwd/biscuit"
+aux_links:
+  "BISCUIT on GitHub":
+    - "//github.com/zwdzwd/biscuit"
 
 # theme: jekyll-theme-minimal
 # theme: minima
