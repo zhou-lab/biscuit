@@ -1,0 +1,36 @@
+This file keeps notes of update procedure and local tests.
+
+* Make a release
+** Update version number (HPC)
+
+#+BEGIN_SRC sh
+biscuit_date=20190330
+biscuit_version=0.3.9
+base_dir=~/tools/biscuit/development/biscuit/
+biscuit_version_undersc=${biscuit_version//\./_}
+biscuit_version_long=${biscuit_version}.${biscuit_date}
+cd $base_dir
+sed 's/BISCUIT_VERSION/'$biscuit_version_long'/' src/biscuit.h.in >src/biscuit.h
+git commit -am "version $biscuit_version_long"
+git tag -a $biscuit_version_long -m "Version "$biscuit_version_long
+git push
+git push --tags
+make release
+#+END_SRC
+
+** Make Mac binary and transfer linux
+
+#+BEGIN_SRC sh
+biscuit_version=0.3.9
+base_dir=~/tools/biscuit/development/biscuit/
+biscuit_version_undersc=${biscuit_version//\./_}
+scp hpc:~/tools/biscuit/development/biscuit/release-source.zip .
+scp hpc:~/tools/biscuit/development/biscuit/biscuit biscuit_${biscuit_version_undersc}_x86_64
+unzip releaese-source.zip
+cd biscuit_release
+make
+cp biscuit ../biscuit_${biscuit_version_undersc}_macOS
+cd ..
+#+END_SRC
+
+** Upload release-source.zip, biscuit_??_x86_64 and biscuit_??_macOS
