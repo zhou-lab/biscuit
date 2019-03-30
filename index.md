@@ -8,6 +8,7 @@ description: "BISulfite-seq CUI Toolkit (BISCUIT) BISulfite-seq CUI Toolkit
   conversion-based DNA methylation/modification data. It was written
   to perform alignment, DNA methylation and mutation calling, allele
   specific methylation from bisulfite sequencing data."
+nav_order: 1
 ---
 
 # BISCUIT - Focus on Sequencing Data with Bisulfite Conversion
@@ -24,6 +25,9 @@ description: "BISulfite-seq CUI Toolkit (BISCUIT) BISulfite-seq CUI Toolkit
 - Working with epireads
 
 ## About the project
+
+This package is made by the folks from Van Andel Research Institute
+with help from prior code base from the internet.
 
 ### License
 
