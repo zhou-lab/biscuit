@@ -55,6 +55,7 @@ int main_bsstrand(int argc, char *argv[]);
 int main_cinread(int argc, char *argv[]);
 int main_bsconv(int argc, char *argv[]);
 int main_mergecg(int argc, char *argv[]);
+int main_rectangle(int argc, char *argv[]);
 
 static int usage()
 {
@@ -79,6 +80,7 @@ static int usage()
   fprintf(stderr, "     mergecg       merge C and G in CpG context.\n");
   fprintf(stderr, "\n  -- Epireads\n");
   fprintf(stderr, "     epiread       convert bam to epiread format\n");
+  fprintf(stderr, "     rectangle     convert epiread to rectangle format\n");
   fprintf(stderr, "     asm           test allele specific methylation\n");
   // fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
   fprintf(stderr, "\n");
@@ -109,6 +111,7 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "cinread") == 0) ret = main_cinread(argc-1, argv+1);
   else if (strcmp(argv[1], "mergecg") == 0) ret = main_mergecg(argc-1, argv+1);
   else if (strcmp(argv[1], "bsconv") == 0) ret = main_bsconv(argc-1, argv+1);
+  else if (strcmp(argv[1], "rectangle") == 0) ret = main_rectangle(argc-1, argv+1);
   else {
     fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
     return 1;

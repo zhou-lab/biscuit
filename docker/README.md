@@ -43,3 +43,9 @@ the result is "myout.bam" which will get written to the data dir you specified (
 	docker exec -it biscuit_docker /bin/bash
 
 /data will contain your data directory.
+
+Using biscuit with singularity
+
+	docker exec -B mydata:/data docker://zhouwanding/biscuit_v0.3.8 bash -c "biscuit align NC_001416.fa r1.fastq r2.fastq | samtools view -b -o myout.bam"
+
+
