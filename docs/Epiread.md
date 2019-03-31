@@ -1,8 +1,7 @@
 ---
-layout: default
-title: Working with Epialleles
+title: Epi-read
 permalink: /epiread/
-nav_order: 2
+nav_order: 5
 ---
 
 ## Generating epireads
