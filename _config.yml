@@ -36,6 +36,13 @@ aux_links:
 plugins:
   - jekyll-feed
 
+defaults:
+  -
+    scope:
+      path: "docs"
+      values:
+        layout: "default"
+
 # Exclude from processing.
 # The following items will not be processed, by default. Create a custom list
 # to override the default setting.
