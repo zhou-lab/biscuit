@@ -1,6 +1,6 @@
 ---
 title: BAM Operation
-parent: Alignment
+parent: Read Mapping
 nav_order: 3
 ---
 
