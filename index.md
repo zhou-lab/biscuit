@@ -24,14 +24,16 @@ One can do this in terminal using the following one-liner:
 
 For mac OS,
 ```bash
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest |
-    grep browser_download_url | grep macOS | cut -d '"' -f 4) && chmod a+x biscuit*
+$ curl -o biscuit \
+    -L $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest |
+    grep browser_download_url | grep macOS | cut -d '"' -f 4) && chmod a+x biscuit
 ```
 
 For linux,
 ```bash
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | 
-    grep browser_download_url | grep x86_64 | cut -d '"' -f 4) && chmod a+x biscuit*
+$ curl -o biscuit \
+    -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | 
+    grep browser_download_url | grep x86_64 | cut -d '"' -f 4) && chmod a+x biscuit
 ```
 
 ### Compile from Source Code
