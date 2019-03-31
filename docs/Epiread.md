@@ -1,7 +1,7 @@
 ---
 title: Epi-read
 permalink: /epiread/
-nav_order: 5
+nav_order: 6
 ---
 
 ## Generating epireads

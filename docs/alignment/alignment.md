@@ -26,7 +26,6 @@ indexed alignment BAM file.
 $ biscuit align -t 10 GRCh38.fa fastq1.fq.gz fastq2.fq.gz | 
     samtools sort -T . -O bam -o output.bam
 $ samtools index output.bam
-$ samtools flagstat output.bam >output.bam.flagstat
 ```
 
 See [here](https://github.com/zwdzwd/biscuit/wiki/Measure-cytosine-retention-and-SNP) for more information.

@@ -4,9 +4,16 @@ nav_order: 1
 parent: Read Mapping
 ---
 
+# Visualize BS-converted Read Mapping
+
+## tview
+
+The `tview` subroutine colors the alignments in bisulfite mode.
 The biscuit tview is similar to samtools tview but color reads
-considering bisulfite conversion. Make sure you supply the reference
-fasta to the command. i.e. 
+considering bisulfite conversion. Unlike samtools, in this subroutine,
+a reference fasta file is mandatory so that bisulfite conversion can
+be identified.  Make sure you supply the reference fasta to the
+command. i.e.
 
 ```bash
 $ biscuit tview -g chr19:7525080 input.bam ref.fa

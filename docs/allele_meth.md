@@ -1,6 +1,6 @@
 ---
 title: Allele-specific Methylation
-nav_order: 6
+nav_order: 7
 ---
 
 # Allele-specific Methylation

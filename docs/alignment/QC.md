@@ -7,46 +7,8 @@ parent: Read Mapping
 
 # Usage
 
-## Visualize alignment
 
-The `tview` subroutine colors the alignments in bisulfite mode. [Here](https://github.com/zwdzwd/biscuit/wiki/Visualize-reads-with-bisulfite-conversion) is a screenshot.
 
-```bash
-$ biscuit tview -g chr19:7525080 input.bam ref.fa
-```
-Unlike samtools, in this subroutine, a reference fasta file is mandatory so that bisulfite conversion can be identified.
-
-## Mark duplicate reads
-
-This step is optional. The mark duplicate of BISCUIT is bisulfite strand aware.
-```bash
-$ biscuit markdup input.bam output.bam
-```
-
-## Pileup
-
-Like samtools, BISCUIT extract DNA methylation as well as genetic information. The following shows how to produce a tabix-indexed VCF file.
-```bash
-$ biscuit pileup GRCh38.fa input.bam -o output.vcf -q 20
-$ bgzip output.vcf
-$ tabix -p vcf output.vcf.gz
-```
-
-## Make bed files
-
-The following extract CpG beta values from the VCF file.
-```bash
-$ biscuit vcf2bed -k 10 -t cg input.vcf.gz
-```
-
-`-t` can also take
-
-  * `snp` - SNP information
-  * `c` - all cytosines
-  * `hcg` - HCG for NOMe-seq
-  * `gch` - GCH for NOMe-seq
-  
-`-e` output sequence contexts.
 
 ## QC your run
 
