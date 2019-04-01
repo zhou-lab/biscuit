@@ -1,6 +1,6 @@
 ---
-title: Mutation Extraction
+title: Extract Mutation
 nav_order: 5
 ---
 
-# Mutation Extraction
+# Extract Mutation

@@ -11,10 +11,12 @@ description: "BISulfite-seq CUI Toolkit (BISCUIT) BISulfite-seq CUI Toolkit
 nav_order: 1
 ---
 
-# BISCUIT - Decipher Sequencing Data with Bisulfite Conversion
+# BISCUIT - Understand Sequencing Data with Bisulfite Conversion
 {: .fs-9 }
 
 [Get started now](#getting-started){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 } [View it on GitHub](https://github.com/zwdzwd/biscuit){: .btn .fs-5 .mb-4 .mb-md-0 }
+
+---
 
 ### Getting Started
 
@@ -52,42 +54,61 @@ $ make
 
 The created `biscuit` binary is the main entry point.
 
-### Usage
+### Overview of Functionalities
 
-Functionalities are listed by just typing `biscuit` in terminal.
+See the following list for an overview of different
+functionalities/subcommands provided in `biscuit`. You can also see
+this by just typing `biscuit` in terminal.
 
-```bash
-$ biscuit
-```
-```
-Program: BISCUIT (BISulfite-seq CUI Toolkit)
-Version: 0.3.9.20190330
-Contact: Wanding Zhou <wanding.zhou@vai.org>
+#### Read Mapping
 
-Usage:   biscuit <command> [options]
+  - `index` Index reference genome (see 
+    [Read Mapping]({{ site.baseurl }}{% link docs/alignment/alignment.md %}))
+  - `align` Map bisulfite converted short reads to reference (see
+    [Read Mapping]({{ site.baseurl }}{% link docs/alignment/alignment.md %}))
 
-Command:
-  -- Read mapping
-     index         index reference genome sequences in the FASTA format
-     align         align bisulfite treated short reads using adapted BWA-mem algorithm
+#### BAM Operation
 
-  -- BAM operation
-     tview         text alignment viewer with bisulfite coloring
-     markdup       mark duplicates on the same bisulfite strand
-     bsstrand      validate/correct bisulfite conversion strand label (YD tag)
-     bsconv        summarize/filter reads by bisulfite conversion (ZN tag)
-     cinread       print cytosine-read pair in a long form.
+  - `tview` View read mapping in terminal with bisulfite coloring (see
+    [Visualization]({{ site.baseurl }}
+    {% link docs/alignment/visualization.md %}))
+  - `markdup` Mark read duplication (see [BAM operation]({{ site.baseurl }}
+    {% link docs/alignment/bam_operation.md %}))
+  - `bsstrand` Investigate bisulfite conversion strand label (see
+    [Quality Control]({{ site.baseurl }}
+    {% link docs/alignment/QC.md %}))
+  - `bsconv` Investigate bisulfite conversion rate (see
+    [Quality Control]({{ site.baseurl }}
+    {% link docs/alignment/QC.md %}))
+  - `cinread` Print cytosine-read pair in a long form (see
+    [BAM operation]({ site.baseurl }}
+    {% link docs/alignment/bam_operation.md %}))
 
-  -- Base summary
-     pileup        pileup cytosine and mutations.
-     vcf2bed       convert VCF to bed graph.
-     mergecg       merge C and G in CpG context.
+#### Methylation, SNP Extraction
 
-  -- Epireads
-     epiread       convert bam to epiread format
-     rectangle     convert epiread to rectangle format
-     asm           test allele specific methylation
-```
+  - `pileup` Generate standard-compliant VCF (see 
+    [Read Pileup]({{ site.baseurl }}
+    {% link docs/pileup.md %}))
+  - `vcf2bed` Extract mutation, methylation from VCF.
+    (see [Extract Methylation]({{ site.baseurl }}
+    {% link docs/methylextraction.md %}) and 
+    [Extract Mutation]({{ site.baseurl }}
+    {% link docs/methylextraction.md %}))
+  - `mergecg` Merge neighboring C and G in CpG context.
+    (see [Extract Methylation]({{ site.baseurl }}
+    {% link docs/methylextraction.md %}))
+  
+#### Epi-read & Epi-allele
+
+  - `epiread` Convert bam to epi-read format (see
+    [Epi-read & Epi-allele]({{ site.baseurl }}
+    {% link docs/Epiread.md %}))
+  - `rectangle` Convert epi-read to rectangle format (see
+    [Epi-read & Epi-allele]({{ site.baseurl }}
+    {% link docs/Epiread.md %}))
+  - `asm` Test allele-specific methylation. (see
+    [Allele-specific Methylation]({{ site.baseurl }}
+    {% link docs/allele_meth.md %}))
 
 ### About the project
 

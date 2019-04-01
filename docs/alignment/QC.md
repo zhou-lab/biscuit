@@ -5,36 +5,11 @@ parent: Read Mapping
 ---
 # Quality Control
 
-# Usage
-
-
-
-
-## QC your run
-
 A bash script is provided to simplify QC procedure.
 ```bash
 $ ./scripts/QC.sh -v input.vcf setup_file sample.name input.bam
 ```
 generates QC information that can be picked up by MultiQC. Setup files for [hg19](http://zwdzwd.io/BISCUITqc/hg19_QC_assets.zip), [hg38](http://zwdzwd.io/BISCUITqc/hg38_QC_assets.zip) and [mm10](http://zwdzwd.io/BISCUITqc/mm10_QC_assets.zip) are provided. Other genome builds can be built following the same format.
-
-## EPI-reads and allele-specific methylation
-
-Following illustrates how to produce `epiread` which carries the information of epi-haplotype.
-```bash
-$ biscuit epiread -r GRCh38.fa -i input.bam -B snp.bed
-```
-
-To test all SNP-CpG pair,
-```bash
-$ biscuit epiread -r GRCh38.fa -P -i input.bam -B snp.bed
-```
-Details can be found [here](https://github.com/zwdzwd/biscuit/wiki/Convert-to-epiread-format).
-
-```bash
-sort -k1,1 -k2,2n -k3,3n in.epiread >out.epiread
-biscuit asm out.epiread >out.asm
-```
 
 ## Validate bisulfite conversion label
 

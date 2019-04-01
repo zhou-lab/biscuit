@@ -22,3 +22,5 @@ $ biscuit vcf2bed -k 10 -t cg input.vcf.gz
   * `gch` - GCH for NOMe-seq
   
 `-e` output sequence contexts.
+
+### Merge neighboring C and G in CpG context
