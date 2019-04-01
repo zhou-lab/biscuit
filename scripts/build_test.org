@@ -25,12 +25,12 @@ biscuit_version=0.3.9
 base_dir=/home/wanding.zhou/tools/biscuit/development/biscuit/
 biscuit_version_undersc=${biscuit_version//\./_}
 scp hpc:$base_dir/release-source.zip .
-scp hpc:$base_dir/biscuit biscuit_${biscuit_version_undersc}_x86_64
+scp hpc:$base_dir/biscuit biscuit_${biscuit_version_undersc}_linux_amd64
 unzip release-source.zip
 cd biscuit-release
 make
-cp biscuit ../biscuit_${biscuit_version_undersc}_macOS
+cp biscuit ../biscuit_${biscuit_version_undersc}_darwin_amd64
 cd ..
 #+END_SRC
 
-** Upload release-source.zip, biscuit_??_x86_64 and biscuit_??_macOS
+** Upload release-source.zip, biscuit_linux_amd64 and biscuit_darwin_amd64

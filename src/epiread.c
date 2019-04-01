@@ -500,7 +500,8 @@ static void *process_func(void *data) {
    htsFile *in = hts_open(res->bam_fn, "rb");
    hts_idx_t *idx = sam_index_load(in, res->bam_fn);
    if (!idx) {
-      fprintf(stderr, "[%s:%d] BAM is not indexed?\n", __func__, __LINE__);
+      fprintf(stderr, "[%s:%d] BAM %s is not indexed?\n",
+              __func__, __LINE__, res->bam_fn);
       fflush(stderr);
       exit(1);
    }
