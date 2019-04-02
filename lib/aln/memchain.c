@@ -687,118 +687,133 @@ static void right_extend_seed_set_align_end(
  * @param query query sequence, raw WITHOUT bisulfite conversion
  * @return mem_alnreg_v *av / reg, (the newly formed chain is pushed to av)
  */
-void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *regs, uint8_t parent) {
+void mem_chain2aln(
+   const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query,
+   const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *regs,
+   uint8_t parent, uint32_t reg0) {
 
-  if (bwa_verbose >= 4) {
-    err_printf("[%s] ---> Convert following chain to region <---\n", __func__);
-    mem_print_chain1(bns, c);
-  }
+   if (bwa_verbose >= 4) {
+      err_printf("[%s] ---> Convert following chain to region <---\n", __func__);
+      mem_print_chain1(bns, c);
+   }
 
-  if (c->n == 0) return;
+   if (c->n == 0) return;
 
-  // get reference sequence that alignment can happen: [rmax[0], rmax[1]]
-  int64_t rmax[2];
-  mem_chain_reference_span(opt, l_query, bns->l_pac, c, rmax);
+   // get reference sequence that alignment can happen: [rmax[0], rmax[1]]
+   int64_t rmax[2];
+   mem_chain_reference_span(opt, l_query, bns->l_pac, c, rmax);
 
-  // retrieve the reference sequence
-  int rid;
-  uint8_t *rseq = bns_fetch_seq(bns, pac, &rmax[0], c->seeds[0].rbeg, &rmax[1], &rid);
-  assert(c->rid == rid);
+   // retrieve the reference sequence
+   int rid;
+   uint8_t *rseq = bns_fetch_seq(bns, pac, &rmax[0], c->seeds[0].rbeg, &rmax[1], &rid);
+   assert(c->rid == rid);
 
-  // sort seeds by score by score
-  uint64_t *srt = calloc(c->n, sizeof(uint64_t));
-  int i;
-  for (i = 0; i < c->n; ++i)
-    srt[i] = (uint64_t)c->seeds[i].score<<32 | i;
-  ks_introsort_64(c->n, srt);
+   // sort seeds by score by score
+   uint64_t *srt = calloc(c->n, sizeof(uint64_t));
+   int i;
+   for (i = 0; i < c->n; ++i)
+      srt[i] = (uint64_t)c->seeds[i].score<<32 | i;
+   ks_introsort_64(c->n, srt);
 
-  int k; unsigned u;
-  for (k = c->n - 1; k >= 0; --k) { // loop from best scored seed to least
-    const mem_seed_t *s = c->seeds + (uint32_t)srt[k];
+   int k; unsigned u;
+   for (k = c->n - 1; k >= 0; --k) { // loop from best scored seed to least
+      const mem_seed_t *s = c->seeds + (uint32_t)srt[k];
 
-    // test whether extension has been made before
-    for (u = 0; u < regs->n; ++u) {
-      mem_alnreg_t *reg = regs->a+u;
-      int64_t rd;
-      int qd, w, max_gap;
+      // test whether extension has been made before
+      for (u = reg0; u < regs->n; ++u) {
+         mem_alnreg_t *reg = regs->a+u;
+         int64_t rd;
+         int qd, w, max_gap;
 
-      // not fully contained
-      if (s->rbeg < reg->rb || s->rbeg + s->len > reg->re || s->qbeg < reg->qb || s->qbeg + s->len > reg->qe) continue;
+         // not fully contained
+         if (s->rbeg < reg->rb || s->rbeg + s->len > reg->re || s->qbeg < reg->qb || s->qbeg + s->len > reg->qe) continue;
 
-      // this seed may give a better alignment
-      if (s->len - reg->seedlen0 > .1 * l_query) continue;
+         // this seed may give a better alignment
+         if (s->len - reg->seedlen0 > .1 * l_query) continue;
 
-      // The seed is "around" a previous hit.
-      // qd: distance ahead of the seed on query; rd: on reference
-      qd = s->qbeg - reg->qb;
-      rd = s->rbeg - reg->rb;
-      max_gap = cal_max_gap(opt, min(qd, rd)); // the maximal gap allowed in regions ahead of the seed
-      w = min(max_gap, reg->w);
-      if (qd - rd < w && rd - qd < w) break;
+         // The seed is "around" a previous hit.
+         // qd: distance ahead of the seed on query; rd: on reference
+         qd = s->qbeg - reg->qb;
+         rd = s->rbeg - reg->rb;
+         max_gap = cal_max_gap(opt, min(qd, rd)); // the maximal gap allowed in regions ahead of the seed
+         w = min(max_gap, reg->w);
+         if (qd - rd < w && rd - qd < w) break;
       
-      // similar to the previous four lines, but this time we look at the region behind
-      qd = reg->qe - (s->qbeg + s->len);
-      rd = reg->re - (s->rbeg + s->len);
-      max_gap = cal_max_gap(opt, min(qd, rd));
-      w = min(max_gap, reg->w);
-      if (qd - rd < w && rd - qd < w) break;
-    }
-
-    // the seed is (almost) contained in an existing alignment; 
-    // further testing is needed to confirm it is not leading to a different aln
-    if (u < regs->n) {
-
-      if (bwa_verbose >= 4)
-        printf("** [%s] Seed(%d) [%ld;%ld,%ld] is almost contained in an existing alignment [%d,%d) <=> [%ld,%ld)\n", __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg, regs->a[u].qb, regs->a[u].qe, (long)regs->a[u].rb, (long)regs->a[u].re);
-
-      for (i = k + 1; i < c->n; ++i) { // check overlapping seeds in the same chain
-        const mem_seed_t *t;
-        if (srt[i] == 0) continue;
-        t = &c->seeds[(uint32_t)srt[i]];
-        if (t->len < s->len * .95) continue; // only check overlapping if t is long enough; TODO: more efficient by early stopping
-        if (s->qbeg <= t->qbeg && s->qbeg + s->len - t->qbeg >= s->len>>2 && t->qbeg - s->qbeg != t->rbeg - s->rbeg) break;
-        if (t->qbeg <= s->qbeg && t->qbeg + t->len - s->qbeg >= s->len>>2 && s->qbeg - t->qbeg != s->rbeg - t->rbeg) break;
+         // similar to the previous four lines, but this time we look at the region behind
+         qd = reg->qe - (s->qbeg + s->len);
+         rd = reg->re - (s->rbeg + s->len);
+         max_gap = cal_max_gap(opt, min(qd, rd));
+         w = min(max_gap, reg->w);
+         if (qd - rd < w && rd - qd < w) break;
       }
 
-      if (i == c->n) { // no overlapping seeds; then skip extension
-        srt[k] = 0; // mark that seed extension has not been performed
-        continue;
+      // the seed is (almost) contained in an existing alignment; 
+      // further testing is needed to confirm it is not leading to a different aln
+      if (u < regs->n) {
+
+         if (bwa_verbose >= 4)
+            printf(
+               "** [%s] Seed(%d) [%ld;%ld,%ld] is almost contained in an existing alignment [%d,%d) <=> [%ld,%ld)\n",
+               __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg,
+               regs->a[u].qb, regs->a[u].qe,
+               (long)regs->a[u].rb, (long)regs->a[u].re);
+
+         for (i = k + 1; i < c->n; ++i) { // check overlapping seeds in the same chain
+            const mem_seed_t *t;
+            if (srt[i] == 0) continue;
+            t = &c->seeds[(uint32_t)srt[i]];
+            if (t->len < s->len * .95) continue; // only check overlapping if t is long enough; TODO: more efficient by early stopping
+            if (s->qbeg <= t->qbeg && s->qbeg + s->len - t->qbeg >= s->len>>2 && t->qbeg - s->qbeg != t->rbeg - s->rbeg) break;
+            if (t->qbeg <= s->qbeg && t->qbeg + t->len - s->qbeg >= s->len>>2 && s->qbeg - t->qbeg != s->rbeg - t->rbeg) break;
+         }
+
+         if (i == c->n) { // no overlapping seeds; then skip extension
+            srt[k] = 0; // mark that seed extension has not been performed
+            continue;
+         }
+
+         if (bwa_verbose >= 4)
+            printf("** [%s] Seed(%d) might lead to a different alignment even though it is contained. Extension will be performed.\n", __func__, k);
       }
 
+      /**** seed extension ****/
+      int aw[2]; // aw: actual bandwidth used in extension aw[0] - left extension; a[1] - right extension
+      mem_alnreg_t *reg = kv_pushp(mem_alnreg_t, *regs);
+      memset(reg, 0, sizeof(mem_alnreg_t)); // reset every new mem_alnreg_t
+      reg->w = aw[0] = aw[1] = opt->w;
+      reg->score = reg->truesc = -1;
+      reg->rid = c->rid;
+
       if (bwa_verbose >= 4)
-        printf("** [%s] Seed(%d) might lead to a different alignment even though it is contained. Extension will be performed.\n", __func__, k);
-    }
+         err_printf(
+            "** ---> [%s] Extending from seed(%d) [%ld;%ld,%ld] @ %s <---\n",
+            __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg,
+            bns->anns[c->rid].name);
 
-    /**** seed extension ****/
-    int aw[2]; // aw: actual bandwidth used in extension aw[0] - left extension; a[1] - right extension
-    mem_alnreg_t *reg = kv_pushp(mem_alnreg_t, *regs);
-    memset(reg, 0, sizeof(mem_alnreg_t)); // reset every new mem_alnreg_t
-    reg->w = aw[0] = aw[1] = opt->w;
-    reg->score = reg->truesc = -1;
-    reg->rid = c->rid;
+      left_extend_seed_set_align_beg(opt, s, query, rseq, rmax, &aw[0], parent, reg);
+      right_extend_seed_set_align_end(opt, s, query, l_query, rseq, rmax, &aw[1], parent, reg);
 
-    if (bwa_verbose >= 4) err_printf("** ---> [%s] Extending from seed(%d) [%ld;%ld,%ld] @ %s <---\n", __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg, bns->anns[c->rid].name);
+      reg->bss = mem_getbss(parent, bns, reg->rb); /* set bisulfite strand */
+      reg->parent = parent;
 
-    left_extend_seed_set_align_beg(opt, s, query, rseq, rmax, &aw[0], parent, reg);
-    right_extend_seed_set_align_end(opt, s, query, l_query, rseq, rmax, &aw[1], parent, reg);
-
-    reg->bss = mem_getbss(parent, bns, reg->rb); /* set bisulfite strand */
-    reg->parent = parent;
-
-    if (bwa_verbose >= 4) printf("*** [%s] Added alignment region: [%d,%d) <=> [%ld,%ld); score=%d; {left,right}_bandwidth={%d,%d}\n", __func__, reg->qb, reg->qe, (long) reg->rb, (long)reg->re, reg->score, aw[0], aw[1]);
+      if (bwa_verbose >= 4)
+         printf(
+            "*** [%s] Added alignment region: [%d,%d) <=> [%ld,%ld); score=%d; {left,right}_bandwidth={%d,%d}\n",
+            __func__, reg->qb, reg->qe, (long) reg->rb, (long)reg->re,
+            reg->score, aw[0], aw[1]);
  
-    /* compute seedcov */
-    for (i = 0, reg->seedcov = 0; i < c->n; ++i) {
-      const mem_seed_t *t = &c->seeds[i];
-      if (t->qbeg >= reg->qb && t->qbeg + t->len <= reg->qe && t->rbeg >= reg->rb && t->rbeg + t->len <= reg->re) // seed fully contained
-        reg->seedcov += t->len; // this is not very accurate, but for approx. mapQ, this is good enough
-    }
-    reg->w = aw[0] > aw[1]? aw[0] : aw[1];
-    reg->seedlen0 = s->len; // length of best scored seed
+      /* compute seedcov */
+      for (i = 0, reg->seedcov = 0; i < c->n; ++i) {
+         const mem_seed_t *t = &c->seeds[i];
+         if (t->qbeg >= reg->qb && t->qbeg + t->len <= reg->qe && t->rbeg >= reg->rb && t->rbeg + t->len <= reg->re) // seed fully contained
+            reg->seedcov += t->len; // this is not very accurate, but for approx. mapQ, this is good enough
+      }
+      reg->w = aw[0] > aw[1]? aw[0] : aw[1];
+      reg->seedlen0 = s->len; // length of best scored seed
 
-    reg->frac_rep = c->frac_rep;
-  }
-  free(srt); free(rseq);
+      reg->frac_rep = c->frac_rep;
+   }
+   free(srt); free(rseq);
 }
 
 

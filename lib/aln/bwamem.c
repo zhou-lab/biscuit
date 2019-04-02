@@ -143,33 +143,38 @@ void bseq_bsconvert(bseq1_t *s, uint8_t parent) {
 /**
  * @param bseq - read sequence
  * @return mem_alnreg_v* regs */
-static void mem_align1_core(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs, uint8_t parent) {
+static void mem_align1_core(
+   const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns,
+   const uint8_t *pac, bseq1_t *bseq, void *buf, mem_alnreg_v *regs,
+   uint8_t parent) {
 
-  if (bwa_verbose >= 4) 
-    printf("[%s] === Seeding %s against (parent: %u)\n", __func__, bseq->name, parent);
+   if (bwa_verbose >= 4) 
+      printf("[%s] === Seeding %s against (parent: %u)\n", __func__, bseq->name, parent);
 
-  int l_seq = bseq->l_seq;
-  bseq_bsconvert(bseq, parent); // set bseq->bisseq
+   int l_seq = bseq->l_seq;
+   bseq_bsconvert(bseq, parent); // set bseq->bisseq
 
-  /* WZ: I think it's always 2-bit encoding */
-  /* for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so */
-  /* 	seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]]; */
+   /* WZ: I think it's always 2-bit encoding */
+   /* for (i = 0; i < l_seq; ++i) // convert to 2-bit encoding if we have not done so */
+   /* 	seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]]; */
 
-  /* use both bisseq and unconverted sequence here */
-  mem_chain_v chn = mem_chain(opt, bwt, bns, pac, bseq, buf, parent);
-  /* filter whole chains */
-  mem_chain_flt(opt, &chn);
-  /* filter seeds in the chain by seed score */
-  mem_flt_chained_seeds(opt, bns, pac, bseq, &chn, parent);
+   /* use both bisseq and unconverted sequence here */
+   mem_chain_v chn = mem_chain(opt, bwt, bns, pac, bseq, buf, parent);
+   /* filter whole chains */
+   mem_chain_flt(opt, &chn);
+   /* filter seeds in the chain by seed score */
+   mem_flt_chained_seeds(opt, bns, pac, bseq, &chn, parent);
 
-  uint32_t i;
-  for (i = 0; i < chn.n; ++i) {
-    mem_chain_t *p = &chn.a[i];
-    /* add mem_chain_t *p to mem_alnreg_v *regs */
-    mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, parent);
-    free(chn.a[i].seeds);
-  }
-  free(chn.a);
+   // make sure different bisulfite strand does not interfere
+   uint32_t reg0 = regs->n;
+   uint32_t i;
+   for (i = 0; i < chn.n; ++i) {
+      mem_chain_t *p = &chn.a[i];
+      /* add mem_chain_t *p to mem_alnreg_v *regs */
+      mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, parent, reg0);
+      free(chn.a[i].seeds);
+   }
+   free(chn.a);
 }
 
 static void check_paired_read_names(const char *name1, const char *name2) {
@@ -261,13 +266,13 @@ static void bis_worker1(void *data, int i, int tid) {
       regs = &w->regs[i]; kv_init(*regs); regs->n_pri = 0;
       if (!(opt->parent&1) || // no restriction
           opt->parent>>1)     // to daughter
-         mem_align1_core(opt, w->bwt, w->bns, w->pac,
-                         &w->seqs[i], w->intv_cache[tid], regs, 0);
+         mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i],
+                         w->intv_cache[tid], regs, 0);
     
       if (!(opt->parent&1) || // no restriction
           !(opt->parent>>1))  // to parent
-         mem_align1_core(opt, w->bwt, w->bns, w->pac,
-                         &w->seqs[i], w->intv_cache[tid], regs, 1);
+         mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i],
+                         w->intv_cache[tid], regs, 1);
     
       mem_merge_regions(opt, w->bns, w->pac, &w->seqs[i], regs);
 
@@ -289,8 +294,8 @@ static void bis_worker1(void *data, int i, int tid) {
       
       regs = &w->regs[i<<1|0];
       kv_init(*regs); regs->n_pri = 0;
-      mem_align1_core(opt, w->bwt, w->bns, w->pac,
-                      &w->seqs[i<<1|0], w->intv_cache[tid], regs, 1);
+      mem_align1_core(opt, w->bwt, w->bns, w->pac, &w->seqs[i<<1|0],
+                      w->intv_cache[tid], regs, 1);
       
       if (!opt->parent)   /* unrestricted: align read 1 to daughter */
          mem_align1_core(opt, w->bwt, w->bns, w->pac,

@@ -83,4 +83,7 @@ void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint
 
 void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn);
 
-void mem_chain2aln(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query, const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *regs, uint8_t parent);
+void mem_chain2aln(
+   const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
+   int l_query, const uint8_t *query, const mem_chain_t *c,
+   mem_alnreg_v *regs, uint8_t parent, uint32_t reg0);
