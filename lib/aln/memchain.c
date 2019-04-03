@@ -61,8 +61,9 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t
   mem->n = 0;
 
   // first pass: find all SMEMs, only keep seeds with length >= min_seed_len
-  while (x < len) {
+  while (x < len) { // when seed end reaches read end
     if (seq[x] < 4) {
+       // returns end of seed on read
       x = bwt_smem1(bwt, bwtc, len, seq, x, start_width, _mem, tmpv);
       for (i = 0; i < _mem->n; ++i)
         if ((uint32_t)_mem->a[i].info - (_mem->a[i].info>>32) >= (unsigned) opt->min_seed_len)
@@ -109,25 +110,26 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t
  **************/
 
 /* filtering seed if it violates asymmetric scoring */
-static int asymmetric_flt_seed(mem_seed_t *s, const uint8_t *pac, const bntseq_t *bns, bseq1_t *bseq) {
-  int is_rev;
-  bwtint_t pos = bns_depos(bns, s->rbeg, &is_rev);
-  if (is_rev) pos -= s->len - 1;
-  int64_t rb = s->rbeg;
-  int64_t re = rb + s->len;
-  int rid;
-  uint8_t *ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
-  int i;
-  for (i=0; i<s->len; ++i) {
-    /* filter seeds with T(ref)>C(read) or A(ref)>G(read) */
-    if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) ||
-        (ref[i]==0&&bseq->seq[s->qbeg+i]==2)) {
-      free(ref);
-      return 1;
-    }
-  }
-  free(ref);
-  return 0;
+static int asymmetric_flt_seed(
+   mem_seed_t *s, const uint8_t *pac, const bntseq_t *bns, bseq1_t *bseq) {
+   int is_rev;
+   bwtint_t pos = bns_depos(bns, s->rbeg, &is_rev);
+   if (is_rev) pos -= s->len - 1;
+   int64_t rb = s->rbeg;
+   int64_t re = rb + s->len;
+   int rid;
+   uint8_t *ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
+   int i;
+   for (i=0; i<s->len; ++i) {
+      /* filter seeds with T(ref)>C(read) or A(ref)>G(read) */
+      if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) ||
+          (ref[i]==0&&bseq->seq[s->qbeg+i]==2)) {
+         free(ref);
+         return 1;
+      }
+   }
+   free(ref);
+   return 0;
 }
 
 /***************
@@ -235,114 +237,124 @@ static int test_and_merge(const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, c
 #define mem_getbss(parent, bns, rb) ((rb>bns->l_pac)==(parent)?1:0)
 #define chain_cmp(a, b) (((b).pos < (a).pos) - ((a).pos < (b).pos))
 KBTREE_INIT(chn, mem_chain_t, chain_cmp)
-mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *intv_cache, uint8_t parent) {
+mem_chain_v mem_chain(
+   const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns,
+   const uint8_t *pac, bseq1_t *bseq, void *intv_cache, uint8_t parent) {
 
-  /* aux->mem -> kbtree_t(chn) *tree -> mem_chain_v chain */
-  uint32_t i;
-  int b, e, l_rep;
-  int64_t l_pac = bns->l_pac;
-  bwtintv_cache_t *_intv_cache;
+   /* aux->mem -> kbtree_t(chn) *tree -> mem_chain_v chain */
+   uint32_t i;
+   int b, e, l_rep;
+   int64_t l_pac = bns->l_pac;
+   bwtintv_cache_t *_intv_cache;
 
-  mem_chain_v chains;
-  kv_init(chains);
-  if (bseq->l_seq < opt->min_seed_len) return chains; // if the query is shorter than the seed length, no match
+   mem_chain_v chains;
+   kv_init(chains);
+   if (bseq->l_seq < opt->min_seed_len) return chains; // if the query is shorter than the seed length, no match
 
-  /* B-tree of mem_chain_t */
-  kbtree_t(chn) *tree;
-  tree = kb_init(chn, KB_DEFAULT_SIZE);
+   /* B-tree of mem_chain_t */
+   kbtree_t(chn) *tree;
+   tree = kb_init(chn, KB_DEFAULT_SIZE);
 
-  /* if cache is not given, create a temporary one */
-  _intv_cache = intv_cache ? (bwtintv_cache_t*) intv_cache : bwtintv_cache_init();
+   /* if cache is not given, create a temporary one */
+   _intv_cache = intv_cache ? (bwtintv_cache_t*) intv_cache : bwtintv_cache_init();
 
-  /* generate bwtintv_v (seeds) in _intv_cache->mem */
-  mem_collect_intv(opt, &bwt[parent], &bwt[!parent], bseq->l_seq, bseq->bisseq[parent], _intv_cache);
+   /* generate bwtintv_v (seeds) in _intv_cache->mem */
+   mem_collect_intv(opt, &bwt[parent], &bwt[!parent], bseq->l_seq, bseq->bisseq[parent], _intv_cache);
 
-  /* loop over mem and compute l_rep - number of repetitive seeds */
-  for (i = 0, b = e = l_rep = 0; i < _intv_cache->mem.n; ++i) {
-    bwtintv_t *intv = &_intv_cache->mem.a[i];
-    if (intv->x[2] <= opt->max_occ) continue; // skip unique seeds
-    int sb = (intv->info>>32), se = (uint32_t)intv->info;
-    if (sb > e) l_rep += e - b, b = sb, e = se;
-    else e = e > se ? e : se;
-  }
-  l_rep += e - b;
+   /* loop over mem and compute l_rep - number of repetitive seeds */
+   for (i = 0, b = e = l_rep = 0; i < _intv_cache->mem.n; ++i) {
+      bwtintv_t *intv = &_intv_cache->mem.a[i];
+      if (intv->x[2] <= opt->max_occ) continue; // skip unique seeds
+      int sb = (intv->info>>32), se = (uint32_t)intv->info;
+      if (sb > e) l_rep += e - b, b = sb, e = se;
+      else e = e > se ? e : se;
+   }
+   l_rep += e - b; // length of reads covered by repetitive seeds
 
-  /* cluster seeds into chains
-   * find the closest chain from the lower side in kbtree_t(chn) *tree
-   * if closest chain is nonexistent, then add the new seed as a new chain in the tree.
-   * Note _intv_cache->mem is sorted by position. so this would work. */
-  for (i = 0; i < _intv_cache->mem.n; ++i) {
-    /* change bwtintv_t into mem_seed_t s */
-    bwtintv_t *intv = &_intv_cache->mem.a[i];
-    int step, slen = (uint32_t)intv->info - (intv->info>>32); /* seed length */
-    uint32_t count; uint64_t k;
-    // if (slen < opt->min_seed_len) continue;
-    // ignore if too short or too repetitive
+   /* cluster seeds into chains
+    * find the closest chain from the lower side in kbtree_t(chn) *tree
+    * if closest chain is nonexistent, then add the new seed as a new chain in the tree.
+    * Note _intv_cache->mem is sorted by position. so this would work. */
+   for (i = 0; i < _intv_cache->mem.n; ++i) {
+      /* change bwtintv_t into mem_seed_t s */
+      bwtintv_t *intv = &_intv_cache->mem.a[i];
+      int slen = (uint32_t)intv->info - (intv->info>>32); /* seed length */
+      uint32_t count; uint64_t k;
+      // if (slen < opt->min_seed_len) continue;
+      // ignore if too short or too repetitive
 
-    /* if the interval is small (small p->x[2])
-     * record every position in the interval
-     * otherwise, record max_occ positions as seeds.
-     * This is to avoid highly repetitive regions. lowering max_occ increase sensitivity. */
-    step = intv->x[2] > opt->max_occ? intv->x[2] / opt->max_occ : 1;
-    for (k = count = 0; k < intv->x[2] && count < opt->max_occ; k += step, ++count) {
+      /* if the number of positions is small (small p->x[2])
+       * visit every position in the interval
+       * otherwise, look at max_occ positions at most (sampling is arbitrary).
+       * This is to avoid highly repetitive regions. High max_occ increase sensitivity. */
+      
+      // int step = intv->x[2] > opt->max_occ? intv->x[2] / opt->max_occ : 1;
+      // for (k = count = 0; k < intv->x[2] && count < opt->max_occ; k += step, ++count) {
+      
+      // when there are few hits, keep visiting to the end
+      // when there are enough hits, then cap number of visits at opt->max_occ
+      for (k = count = 0; k < intv->x[2] && count < opt->max_occ && (
+              (count > 5 && k < opt->max_occ) || count <= 5); ++k) {
+         
+         mem_chain_t tmp;    // the chain that hold the key for query
+         mem_chain_t *lower; // lower bound interval in B-tree
+         mem_chain_t *upper; // upper bound interval in B-tree
 
-      mem_chain_t tmp;    // the chain that hold the key for query
-      mem_chain_t *lower; // lower bound interval in B-tree
-      mem_chain_t *upper; // upper bound interval in B-tree
+         /* this is the base coordinate in the forward-reverse reference */
+         mem_seed_t s;
+         s.rbeg = tmp.pos = bwt_sa(&bwt[parent], intv->x[0] + k);
+         s.qbeg = intv->info>>32;
+         s.score = s.len = slen;
 
-      /* this is the base coordinate in the forward-reverse reference */
-      mem_seed_t s;
-      s.rbeg = tmp.pos = bwt_sa(&bwt[parent], intv->x[0] + k);
-      s.qbeg = intv->info>>32;
-      s.score = s.len = slen;
+         /* bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!! */
+         int rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
+         if (rid < 0) continue;
 
-      /* bridging multiple reference sequences or the forward-reverse boundary; TODO: split the seed; don't discard it!!! */
-      int rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
-      if (rid < 0) continue;
+         /* filter seeds that do not conform to the assymetric scoring matrix */
+         if (asymmetric_flt_seed(&s, pac, bns, bseq)) continue;
 
-      /* filter seeds that do not conform to the assymetric scoring matrix */
-      if (asymmetric_flt_seed(&s, pac, bns, bseq)) continue;
+         /* force to a certain strand */
+         if ((opt->bsstrand & 1) &&
+             mem_getbss(parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
 
-      /* force to a certain strand */
-      if ((opt->bsstrand & 1) && mem_getbss(parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
+         int to_add = 0;
+         if (kb_size(tree)) {
+            kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
+            // merge with the chain in the lower side, because bwtintv_v is sorted by position
+            if (!lower || !test_and_merge(opt, l_pac, lower, &s, rid)) to_add = 1;
+         } else to_add = 1;
 
-      int to_add = 0;
-      if (kb_size(tree)) {
-        kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
-        // merge with the chain in the lower side, because bwtintv_v is sorted by position
-        if (!lower || !test_and_merge(opt, l_pac, lower, &s, rid)) to_add = 1;
-      } else to_add = 1;
-
-      /* new chain with one seed */
-      if (to_add) {
-        tmp.n = 1; tmp.m = 4;
-        tmp.seeds = calloc(tmp.m, sizeof(mem_seed_t));
-        tmp.seeds[0] = s;
-        tmp.rid = rid;
-        tmp.is_alt = !!bns->anns[rid].is_alt;
-        kb_putp(chn, tree, &tmp);
+         /* new chain with one seed */
+         if (to_add) {
+            ++count;
+            tmp.n = 1; tmp.m = 4;
+            tmp.seeds = calloc(tmp.m, sizeof(mem_seed_t));
+            tmp.seeds[0] = s;
+            tmp.rid = rid;
+            tmp.is_alt = !!bns->anns[rid].is_alt;
+            kb_putp(chn, tree, &tmp);
+         }
       }
-    }
-  }
-  if (intv_cache == 0) bwtintv_cache_destroy(_intv_cache);
+   }
+   if (intv_cache == 0) bwtintv_cache_destroy(_intv_cache);
 
-  /* kbtree_t(chn) *tree to mem_chain_v *chain */
-  kv_resize(mem_chain_t, chains, kb_size(tree));
+   /* kbtree_t(chn) *tree to mem_chain_v *chain */
+   kv_resize(mem_chain_t, chains, kb_size(tree));
 
-  /* traverse tree and build mem_chain_v *chain */
+   /* traverse tree and build mem_chain_v *chain */
 #define traverse_func(p_) (chains.a[chains.n++] = *(p_))
-  __kb_traverse(mem_chain_t, tree, traverse_func);
+   __kb_traverse(mem_chain_t, tree, traverse_func);
 #undef traverse_func
 
-  for (i = 0; i < chains.n; ++i) chains.a[i].frac_rep = (float)l_rep / bseq->l_seq;
-  if (bwa_verbose >= 4) {
-    printf("[%s] Found %zu chains; Fraction of repetitive seeds: %.3f\n", __func__, chains.n, (float)l_rep / bseq->l_seq);
-    mem_print_chains(bns, &chains);
-  }
-
-  kb_destroy(chn, tree);
-
-  return chains;
+   for (i = 0; i < chains.n; ++i) chains.a[i].frac_rep = (float)l_rep / bseq->l_seq;
+   if (bwa_verbose >= 4) {
+      printf("[%s] Found %zu chains; Fraction of repetitive seeds: %.3f\n", __func__, chains.n, (float)l_rep / bseq->l_seq);
+      mem_print_chains(bns, &chains);
+   }
+   
+   kb_destroy(chn, tree);
+   
+   return chains;
 }
 
 /*******************
