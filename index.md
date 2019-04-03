@@ -28,14 +28,14 @@ For mac OS,
 ```bash
 $ curl -o biscuit \
     -L $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest |
-    grep browser_download_url | grep linux | cut -d '"' -f 4) && chmod a+x biscuit
+    grep browser_download_url | grep darwin | cut -d '"' -f 4) && chmod a+x biscuit
 ```
 
 For linux,
 ```bash
 $ curl -o biscuit \
     -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | 
-    grep browser_download_url | grep darwin | cut -d '"' -f 4) && chmod a+x biscuit
+    grep browser_download_url | grep linux | cut -d '"' -f 4) && chmod a+x biscuit
 ```
 
 ### Compile from Source Code
