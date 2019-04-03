@@ -1,12 +1,10 @@
 ---
 title: "Visualization"
-nav_order: 1
+nav_order: 2
 parent: Read Mapping
 ---
 
 # Visualize BS-converted Read Mapping
-
-## tview
 
 The `tview` subroutine colors the alignments in bisulfite mode.
 The biscuit tview is similar to samtools tview but color reads

@@ -1,7 +1,8 @@
 ---
 title: BAM Operation
 parent: Read Mapping
-nav_order: 3
+nav_order: 4
+permalink: /bamoperation/
 ---
 
 # BAM Operation
