@@ -2,7 +2,6 @@
 title: Understand BAM
 parent: Read Mapping
 nav_order: 1
-has_children: true
 ---
 # Understand BISCUIT bams
 
