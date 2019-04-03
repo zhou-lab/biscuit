@@ -14,7 +14,7 @@ permalink: docs/alignment
 1. TOC
 {:toc}
 
-### Index reference for alignment
+### Index reference for mapping
 
 ```bash
 biscuit index GRCh38.fa
@@ -25,7 +25,7 @@ The index of BISCUIT composed of the 2-bit packed reference
 FM-index of the parent strand (`.par.bwt` and `.par.sa`) and
 the daughter strand (`.dau.bwt` and `.dau.sa`).
 
-### Read alignment
+### Read mapping
 
 The following snippet shows how BISCUIT can be used in conjunction
 with [samtools](https://github.com/samtools/samtools) to produce
@@ -35,6 +35,17 @@ $ biscuit align -t 10 GRCh38.fa fastq1.fq.gz fastq2.fq.gz |
     samtools sort -T . -O bam -o output.bam
 $ samtools index output.bam
 ```
+
+### Map one sequence
+
+One does not need to prepare a fastq file to map the reads. The `-1`
+option let you map one read on the fly.
+
+```bash
+$ biscuit align GRCh38.fa -1 AATTGGCC
+```
+
+One can also just map one pair of reads with an extra `-2` option.
 
 ### Which strand to map?
 
@@ -60,7 +71,6 @@ Project). `-b 1` makes mapping more efficient and less error-prone for
 the conventional libraries. `-b 3` (rarely used) forces reads to be
 mapped to daughter strands.
 
-
 #### Paired-End library
 
 By default, BISCUIT map read 1 to one strand (parent or daughter) and
@@ -70,6 +80,41 @@ parent strand and read 2 to be mapped to the daughter strand. You
 could map read 1 to the daughter and read 2 to the parent by simply
 swapping the read 1 and read 2 fastq file.
 
+#### An example
+
+Let's look at one example:
+
+```bash
+biscuit align mm10.fa -1
+    TTGGTGTGTGGGTTTTGATGTTGGGTGGAGGGTTT
+```
+
+```
+inputread	0	chr10	3386516	3	35M	*	0	0
+    TTGGTGTGTGGGTTTTGATGTTGGGTGGAGGGTTT	*
+	NM:i:0	MD:Z:35	ZC:i:1	ZR:i:0	AS:i:35
+	XS:i:34	XL:i:35	XA:Z:chr10,+3386516,35M,1	XB:Z:1,0
+	YD:A:f
+```
+
+One can see without specifying the strand BISCUIT sends the read
+to bisulfite Waston (`YD:A:f`) automatically without 
+mismatches (`NM:i:0`).
+
+```bash
+biscuit align -b 3 mm10.fa -1
+    TTGGTGTGTGGGTTTTGATGTTGGGTGGAGGGTTT
+```
+
+```
+inputread	0	chr10	3386516	60	35M	*	0	0
+    TTGGTGTGTGGGTTTTGATGTTGGGTGGAGGGTTT	*
+	NM:i:1	MD:Z:34C0	ZC:i:0	ZR:i:17	AS:i:34
+	XS:i:0	XL:i:35	YD:A:r
+```
+
+With `-b 3`, BISCUIT sends the read to Bisulfite Crick (`YD:A:r`)
+with 1 mismatch (`NM:i:1`).
 
 ### Distinguish decoy chromosomes in human and mouse
 
@@ -80,6 +125,10 @@ the primary chromosomes. This can be turned off through a `-i` option.
 The logic of inference is the following: If the chromosome names are
 like chr1, chr2, ..., then chromosomes with name pattern `chrUn`,
 `_random`, `_hap`, `_alt` are set as ALT chromosomes.
+
+### Other useful options
+
+- `-F` suppresses SAM header output
 
 ### Other alignment features worth mentioning
 
