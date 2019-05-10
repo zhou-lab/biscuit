@@ -26,8 +26,8 @@ how insert size are computed.
 - `PA` - ratio of score (AS) / alt_score (XS), the higher the ratio,
   the more accurate the position
 - `SA` - other parts of a chimeric primary mapping
-- `YD` - Bisulfite conversion strand label, `f` for forward/Watson and
-  `r` for reverse/Crick, a la BWA-meth.
+- `YD` - Bisulfite conversion strand label, `f` for forward/Watson (C>T from
+  IGV) and `r` for reverse/Crick (G>A from IGV), a la BWA-meth.
 
 See also [BAM Operation]({{ site.baseurl }}{% link docs/alignment/bam_operation.md %})
 for how to add `ZN` tag for cytosine conversion under `CpG`, and other
