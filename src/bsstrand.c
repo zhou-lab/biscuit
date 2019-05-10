@@ -32,6 +32,8 @@
 #include "bamfilter.h"
 
 typedef enum {TAG_BSW, TAG_BSC, TAG_CONFLICT, TAG_UNKNOWN} conversion_tag_t;
+/* typedef enum {TAG_R1, TAG_R2} mapping_read_t; */
+/* typedef enum {TAG_FOR, TAG_REV} mapping_strand_t; */
 const char conversion_tags[4] = "frcu";
 
 typedef struct {
@@ -40,10 +42,11 @@ typedef struct {
 } bsstrand_conf_t;
 
 typedef struct {
-	refcache_t *rs;
-	int n_corr, n_mapped, n_unmapped;
-  int confusion[16];
-	bsstrand_conf_t *conf;
+   refcache_t *rs;
+   int n_corr, n_mapped, n_unmapped;
+   int confusion[16];
+   int strandcnt[16];
+   bsstrand_conf_t *conf;
 } bsstrand_data_t;
 
 /* f - bisulfite converted Watson
@@ -172,6 +175,10 @@ int bsstrand_func(bam1_t *b, samFile *out, bam_hdr_t *header, void *data) {
     }
   }
 
+  // R1_FOR, R1_REV, R2_FOR, R2_REV
+  d->strandcnt[(c->flag & BAM_FREAD1 ? 0 : 1) * 8 +
+               (c->flag & BAM_FREVERSE ? 1 : 0) * 4 + tag]++;
+
   if (conf->output_count) {
     bam_aux_append(b, "YC", 'i', 4, (uint8_t*) &nC2T);
     bam_aux_append(b, "YG", 'i', 4, (uint8_t*) &nG2A);
@@ -227,7 +234,7 @@ int main_bsstrand(int argc, char *argv[]) {
     wzfatal("Please provide reference and input bam.\n");
   }
 
-  bsstrand_data_t d = {0};
+  bsstrand_data_t d = {0}; // all counts reset to 0
   d.rs = init_refcache(reffn, 100, 100000);
   d.conf = &conf;
 	bam_filter(infn, outfn, reg, &d, bsstrand_func);
@@ -237,10 +244,31 @@ int main_bsstrand(int argc, char *argv[]) {
 	fprintf(stderr, "Unmapped reads: %d\n", d.n_unmapped);
 	fprintf(stderr, "Corrected reads: %d (%1.2f%%)\n", d.n_corr, (double)d.n_corr/(double)d.n_mapped*100.);
 
+  int i;
+  /* Mapping strand vs conversion strand */
+  fprintf(stderr, "\nStrand Distribution:\n");
+  fprintf(stderr, "strand\\BS      BSW (f)      BSC (r)\n");
+  fprintf(stderr, "     R1 (f):   ");
+  for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[i]); fprintf(stderr, "\n");
+  fprintf(stderr, "     R1 (r):   ");
+  for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[4+i]); fprintf(stderr, "\n");
+  fprintf(stderr, "     R2 (f):   ");
+  for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[8+i]); fprintf(stderr, "\n");
+  fprintf(stderr, "     R2 (r):   ");
+  for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[12+i]); fprintf(stderr, "\n");
+  fprintf(stderr, "\n");
+
+  for (i=0; i<2; ++i) {
+     fprintf(stderr, "\nR%d mapped to converted:   %d", i+1, 
+             d.strandcnt[i*8+0*4+TAG_BSW] + d.strandcnt[i*8+1*4+TAG_BSC]);
+     fprintf(stderr, "\nR%d mapped to synthesized: %d", i+1,
+             d.strandcnt[i*8+1*4+TAG_BSW] + d.strandcnt[i*8+0*4+TAG_BSC]);
+  }
+  fprintf(stderr, "\n");
+
   /* confusion matrix of conversion counts */
   fprintf(stderr, "\nConfusion counts:\n");
-  fprintf(stderr, "orig\\infer     BSW (f)      BSC (r)      Conflict (c) Unknown (u)\n");
-  int i;
+  fprintf(stderr, "orig\\infer      BSW (f)      BSC (r)      Conflict (c) Unknown (u)\n");
   fprintf(stderr, "     BSW (f):   ");
   for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[i]); fprintf(stderr, "\n");
   fprintf(stderr, "     BSC (r):   ");

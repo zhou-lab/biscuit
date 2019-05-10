@@ -235,6 +235,7 @@ static int test_and_merge(const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, c
 
 #include "kbtree.h"
 #define mem_getbss(parent, bns, rb) ((rb>bns->l_pac)==(parent)?1:0)
+#define mem_getbss2(parent, bns, re) ((re>bns->l_pac)==(parent)?1:0)
 #define chain_cmp(a, b) (((b).pos < (a).pos) - ((a).pos < (b).pos))
 KBTREE_INIT(chn, mem_chain_t, chain_cmp)
 mem_chain_v mem_chain(
@@ -314,8 +315,11 @@ mem_chain_v mem_chain(
          if (asymmetric_flt_seed(&s, pac, bns, bseq)) continue;
 
          /* force to a certain strand */
+         // Note that there are marginal cases where the seed span the boundary
+         // of the two converted references. Now these are discarded.
          if ((opt->bsstrand & 1) &&
-             mem_getbss(parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
+             mem_getbss(parent, bns, s.rbeg) != opt->bsstrand>>1 &&
+             mem_getbss2(parent, bns, s.rbeg + s.len) != opt->bsstrand>>1) continue;
 
          int to_add = 0;
          if (kb_size(tree)) {

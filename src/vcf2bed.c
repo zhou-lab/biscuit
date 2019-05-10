@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <zlib.h>
 #include "wzbed.h"
@@ -302,7 +303,7 @@ static int usage(conf_t *conf) {
 
 int main_vcf2bed(int argc, char *argv[]) { 
   conf_t conf = {.mincov=3, .showctxt=0};
-  strcpy(conf.target, "cg");
+  strcpy(conf.target, "CG");
   char *target_samples = NULL;
 
   int c;
@@ -330,12 +331,12 @@ int main_vcf2bed(int argc, char *argv[]) {
 
   char *raw_target = strdup(conf.target);
   wzstrupr(conf.target); // use uppercase internally
-  if (strcmp(conf.target, "CG") != 0 &&
-      strcmp(conf.target, "CH") != 0 &&
-      strcmp(conf.target, "C") != 0 &&
-      strcmp(conf.target, "HCG") != 0 &&
-      strcmp(conf.target, "GCH") != 0 &&
-      strcmp(conf.target, "SNP") != 0) wzfatal("Invalid option for -t: %s.\n", raw_target);
+  if (strcasecmp(conf.target, "CG") != 0 &&
+      strcasecmp(conf.target, "CH") != 0 &&
+      strcasecmp(conf.target, "C") != 0 &&
+      strcasecmp(conf.target, "HCG") != 0 &&
+      strcasecmp(conf.target, "GCH") != 0 &&
+      strcasecmp(conf.target, "SNP") != 0) wzfatal("Invalid option for -t: %s.\n", raw_target);
   free(raw_target);
 
   if (strcmp(conf.target, "SNP")==0) vcf2bed_snp(vcf, &conf);
