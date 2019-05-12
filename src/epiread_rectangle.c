@@ -26,7 +26,7 @@ static int usage() {
 
 typedef struct read_t {
    kstring_t seq;
-   kstring_t other;
+   kstring_t other; // other fields of the line
 } read_t;
 
 DEFINE_VECTOR(read_v, read_t)
@@ -56,7 +56,16 @@ int main_rectangle(int argc, char *argv[]) {
    char *chrm = NULL;
    while (tsv_read(tsv)) {
       if (tsv_is_blankline(tsv)) continue;
-      int read_beg = atoi(tsv_field(tsv, 4));
+      char *f = tsv_field(tsv, 4);
+      if (f[0] == '.') {
+         read_t *r = next_ref_read_v(reads);
+         r->seq = (const kstring_t) {0};
+         r->other = (const kstring_t) {0};
+         kputs(tsv->line, &r->other);
+         continue;
+      }
+      
+      int read_beg = atoi(f);
       if (!region_beg) region_beg = read_beg;
 
       if (chrm == NULL) {

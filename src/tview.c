@@ -405,35 +405,35 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
 
 char *sam_short_format1(const bam_hdr_t *h, const bam1_t *b) {
 
-  kstring_t str;
-  str.l = str.m = 0; str.s = NULL;
+   kstring_t str;
+   str.l = str.m = 0; str.s = NULL;
 
-  int i;
-  const bam1_core_t *c = &b->core;
-  kputw(c->flag, &str); kputc('|', &str); // flag
-  if (c->tid >= 0) { // chr
-    kputs(h->target_name[c->tid], &str);
-    kputc('|', &str);
-  } else kputsn("*|", 2, &str);
-  kputw(c->pos + 1, &str); kputc('|', &str); // pos
-  kputw(c->qual, &str); kputc('|', &str); // qual
-  if (c->n_cigar) { // cigar
-    uint32_t *cigar = bam_get_cigar(b);
-    for (i = 0; i < c->n_cigar; ++i) {
-      kputw(bam_cigar_oplen(cigar[i]), &str);
-      kputc(bam_cigar_opchr(cigar[i]), &str);
-    }
-  } else kputc('*', &str);
-  kputc('|', &str);
-  if (c->mtid < 0) kputsn("*|", 2, &str); // mate chr
-  else if (c->mtid == c->tid) kputsn("=|", 2, &str);
-  else {
-    kputs(h->target_name[c->mtid], &str);
-    kputc('|', &str);
-  }
-  kputw(c->mpos + 1, &str); kputc('|', &str); // mate pos
-  kputw(c->isize, &str); kputc('|', &str); // template len
-  return str.s;
+   int i;
+   const bam1_core_t *c = &b->core;
+   kputw(c->flag, &str); kputc('|', &str); // flag
+   if (c->tid >= 0) { // chr
+      kputs(h->target_name[c->tid], &str);
+      kputc('|', &str);
+   } else kputsn("*|", 2, &str);
+   kputw(c->pos + 1, &str); kputc('|', &str); // pos
+   kputw(c->qual, &str); kputc('|', &str); // qual
+   if (c->n_cigar) { // cigar
+      uint32_t *cigar = bam_get_cigar(b);
+      for (i = 0; i < c->n_cigar; ++i) {
+         kputw(bam_cigar_oplen(cigar[i]), &str);
+         kputc(bam_cigar_opchr(cigar[i]), &str);
+      }
+   } else kputc('*', &str);
+   kputc('|', &str);
+   if (c->mtid < 0) kputsn("*|", 2, &str); // mate chr
+   else if (c->mtid == c->tid) kputsn("=|", 2, &str);
+   else {
+      kputs(h->target_name[c->mtid], &str);
+      kputc('|', &str);
+   }
+   kputw(c->mpos + 1, &str); kputc('|', &str); // mate pos
+   kputw(c->isize, &str); kputc('|', &str); // template len
+   return str.s;
 }
 
 /* draw all alignments */
@@ -553,7 +553,7 @@ static void btv_win_help(btview_t *tv) {
   mvwprintw(win, r++, 2, "b          Color for base quality");
   mvwprintw(win, r++, 2, "n          Color for nucleotide");
   mvwprintw(win, r++, 2, ".          Toggle on/off dot view");
-  mvwprintw(win, r++, 2, "s          Toggle on/off rd short format");
+  mvwprintw(win, r++, 2, "s          Toggle on/off rd brief");
   mvwprintw(win, r++, 2, "r          Toggle on/off rd name");
   /* mvwprintw(win, r++, 2, "i          Toggle on/off ins"); */
   mvwprintw(win, r++, 2, "v          Inverse video");

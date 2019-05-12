@@ -88,7 +88,7 @@ static int mem_test_reg_concatenation(const mem_opt_t *opt, const bntseq_t *bns,
   if (bwa_verbose >= 4) printf("* test potential hit merge with global alignment; w=%d\n", w);
 
   int score;
-  bis_bwa_gen_cigar2(a->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, b->qe - a->qb, query + a->qb, a->rb, b->re, &score, 0, 0, 0, 0, a->parent);
+  bis_bwa_gen_cigar2(a->parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, w, bns->l_pac, pac, b->qe - a->qb, query + a->qb, a->rb, b->re, &score, 0, 0, 0, 0, 0, a->parent);
 
   // predicted score from query
   int q_s = (int)((double)(b->qe - a->qb) / ((b->qe - b->qb) + (a->qe - a->qb)) * (b->score + a->score) + .499);

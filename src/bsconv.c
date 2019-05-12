@@ -35,17 +35,17 @@
 #include "encode.h"
 
 typedef struct {
-  int max_cph;
-  int max_cpa;
-  int max_cpc;
-  int max_cpt;
-  int show_filtered;
-  int print_in_tab;
+   int max_cph;
+   int max_cpa;
+   int max_cpc;
+   int max_cpt;
+   int show_filtered;
+   int print_in_tab;
 } bsconv_conf_t;
 
 typedef struct bsconv_data_t {
-  refcache_t *rs;
-  bsconv_conf_t *conf;
+   refcache_t *rs;
+   bsconv_conf_t *conf;
 } bsconv_data_t;
 
 static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {

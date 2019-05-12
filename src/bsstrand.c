@@ -267,7 +267,7 @@ int main_bsstrand(int argc, char *argv[]) {
   fprintf(stderr, "\n");
 
   /* confusion matrix of conversion counts */
-  fprintf(stderr, "\nConfusion counts:\n");
+  fprintf(stderr, "\nConfusion counts (single-end):\n");
   fprintf(stderr, "orig\\infer      BSW (f)      BSC (r)      Conflict (c) Unknown (u)\n");
   fprintf(stderr, "     BSW (f):   ");
   for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[i]); fprintf(stderr, "\n");

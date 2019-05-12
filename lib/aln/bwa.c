@@ -260,7 +260,7 @@ ret_gen_cigar:
  * 
  * @return cigar    uint32_t
  */
-uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM, uint32_t *ZC, uint32_t *ZR, uint8_t parent) {
+uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_ins, int e_ins, int w_, int64_t l_pac, const uint8_t *pac, int l_query, uint8_t *query, int64_t rb, int64_t re, int *score, int *n_cigar, int *NM, uint32_t *ZC, uint32_t *ZR, int *bss_u, uint8_t parent) {
 
   uint32_t *cigar = 0;
   uint8_t tmp, *rseq;
@@ -321,57 +321,62 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
   if (NM && n_cigar) {
     /* n_mm: number of mismatches, 
      * n_conv, n_ret: number of conversion and retention */
-    int k, x, y, u, n_mm = 0, n_gap = 0, n_conv = 0, n_ret = 0;
-    str.l = str.m = *n_cigar * 4; str.s = (char*)cigar; // append MD to CIGAR
-    int2base = rb < l_pac? "ACGTN" : "TGCAN";
-    for (k = 0, x = y = u = 0; k < *n_cigar; ++k) {
-      int op, len;
-      cigar = (uint32_t*)str.s;
-      op  = cigar[k]&0xf, len = cigar[k]>>4;
-      if (op == 0) { // match
-        for (i = 0; i < len; ++i) {
+     int k, x, y, u, n_mm = 0, n_gap = 0;
+     int n_conv_ct = 0, n_ret_c = 0;
+     int n_conv_ga = 0, n_ret_g = 0;
+    
+     str.l = str.m = *n_cigar * 4; str.s = (char*)cigar; // append MD to CIGAR
+     int2base = rb < l_pac? "ACGTN" : "TGCAN";
+     for (k = 0, x = y = u = 0; k < *n_cigar; ++k) {
+        int op, len;
+        cigar = (uint32_t*)str.s;
+        op  = cigar[k]&0xf, len = cigar[k]>>4;
+        if (op == 0) { // match
+           for (i = 0; i < len; ++i) {
 
-          /* to allow assymmetric CT and GA */
-          unsigned char _q = query[x+i];
-          unsigned char _r = rseq[y+i];
-          if (_q == _r) {
-            if (parent && _q == 1) ++n_ret;
-            if (!parent && _q == 2) ++n_ret;
-            ++u;
-          } else if (parent && _q == 3 && _r == 1) {
-            ++n_conv; ++u;
-          } else if (!parent && _q == 0 && _r == 2) {
-            ++n_conv; ++u;
-          } else {
-            kputw(u, &str);
-            kputc(int2base[_r], &str);
-            ++n_mm; u = 0;
-          }
+              /* to allow assymmetric CT and GA */
+              unsigned char _q = query[x+i];
+              unsigned char _r = rseq[y+i];
+              if (_q == _r) {
+                 if (_q == 1) ++n_ret_c;
+                 if (_q == 2) ++n_ret_g;
+                 ++u;
+              } else if (_q == 3 && _r == 1) {
+                 ++n_conv_ct; ++u;
+              } else if (!parent && _q == 0 && _r == 2) {
+                 ++n_conv_ga; ++u;
+              } else {
+                 kputw(u, &str);
+                 kputc(int2base[_r], &str);
+                 ++n_mm; u = 0;
+              }
 
-          /* if (query[x + i] != rseq[y + i]) { */
-          /* 	kputw(u, &str); */
-          /* 	kputc(int2base[rseq[y+i]], &str); */
-          /* 	++n_mm; u = 0; */
-          /* } else ++u; */
+              /* if (query[x + i] != rseq[y + i]) { */
+              /* 	kputw(u, &str); */
+              /* 	kputc(int2base[rseq[y+i]], &str); */
+              /* 	++n_mm; u = 0; */
+              /* } else ++u; */
+           }
+           x += len; y += len;
+        } else if (op == 2) { // deletion
+           if (k > 0 && k < *n_cigar - 1) { // don't do the following if D is the first or the last CIGAR
+              kputw(u, &str); kputc('^', &str);
+              for (i = 0; i < len; ++i)
+                 kputc(int2base[rseq[y+i]], &str);
+              u = 0; n_gap += len;
+           }
+           y += len;
+        } else if (op == 1) {	// insertion does not contribute to MD
+           x += len, n_gap += len;
         }
-        x += len; y += len;
-      } else if (op == 2) { // deletion
-        if (k > 0 && k < *n_cigar - 1) { // don't do the following if D is the first or the last CIGAR
-          kputw(u, &str); kputc('^', &str);
-          for (i = 0; i < len; ++i)
-            kputc(int2base[rseq[y+i]], &str);
-          u = 0; n_gap += len;
-        }
-        y += len;
-      } else if (op == 1) {	// insertion does not contribute to MD
-        x += len, n_gap += len;
-      }
     }
     kputw(u, &str); kputc(0, &str);
     /* NM contains both gap and mismatches, and every base in a gap counts */
-    *NM = n_mm + n_gap;	
-    *ZC = n_conv;		/* conversion counts */
-    *ZR = n_ret;		/* retention counts */
+    *NM = n_mm + n_gap;
+    *ZC = parent ? n_conv_ct : n_conv_ga;		/* conversion counts */
+    *ZR = parent ? n_ret_c : n_ret_g;       /* retention counts */
+    if (n_conv_ct == 0 && n_conv_ga == 0) *bss_u = 1;
+    else *bss_u = 0;
     cigar = (uint32_t*)str.s;
   } // compute NM and MD
 
