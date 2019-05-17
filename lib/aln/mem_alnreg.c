@@ -428,7 +428,9 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
    * 1   0    1 **/
   uint8_t parent = reg->bss ^ (reg->rb < l_pac);
   int xtra = KSW_XSUBO | KSW_XSTART | (l_ms * opt->a < 250? KSW_XBYTE : 0) | (opt->min_seed_len * opt->a);
-  kswr_t aln = ksw_align2(l_ms, mate_seq, re - rb, ref, 5, parent?opt->ctmat:opt->gamat, opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
+  kswr_t aln = ksw_align2(l_ms, mate_seq, re - rb, ref, 5,
+                          parent?opt->gamat:opt->ctmat, // note: parent is the mate read, need to flip here
+                          opt->o_del, opt->e_del, opt->o_ins, opt->e_ins, xtra, 0);
 
   if (bwa_verbose >= 4) {
     printf("[%s] Try adding matesw-ed region %"PRId64"-%"PRId64". score:%d\n", __func__, rb, re, aln.score);
@@ -457,6 +459,7 @@ static void mem_alnreg_matesw_core(const mem_opt_t *opt, const bntseq_t *bns, co
     b.secondary = -1;
     b.seedcov = min(b.re-b.rb, b.qe-b.qb) >> 1;
     b.bss = reg->bss;
+    b.parent = 1-parent; // need to flip here
 
     if (bwa_verbose >= 4) {
       printf("\n[%s] Add matesw-ed region:\n", __func__);
@@ -500,8 +503,8 @@ void mem_alnreg_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
 
   // rescue mate alignment of good alignment if necessary
   for (i = 0; i < 2; ++i)
-    for (j = 0; j < good_regs_pair[i].n && (int) j < opt->max_matesw; ++j)
-      mem_alnreg_matesw_core(opt, bns, pac, pes, &good_regs_pair[i].a[j], s[!i].l_seq, (uint8_t*) s[!i].seq, &regs_pair[!i]);
+     for (j = 0; j < good_regs_pair[i].n && (int) j < opt->max_matesw; ++j)
+        mem_alnreg_matesw_core(opt, bns, pac, pes, &good_regs_pair[i].a[j], s[!i].l_seq, (uint8_t*) s[!i].seq, &regs_pair[!i]);
 
   free(good_regs_pair[0].a); free(good_regs_pair[1].a);
 }

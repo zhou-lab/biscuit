@@ -122,9 +122,9 @@ static inline int region_depos(const bntseq_t *bns, const mem_alnreg_t *reg, int
 static inline void mem_print_region1(const bntseq_t *bns, const mem_alnreg_t *reg) {
   if (bns) {
     int pos = region_depos(bns, reg, NULL);
-    printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec: %d, bss: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, bns->anns[reg->rid].name, pos, reg->secondary, reg->bss);
+    printf("** %d, [%d,%d) <=> [%ld,%ld,%s,%d) sec: %d, bss: %d, parent: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, bns->anns[reg->rid].name, pos, reg->secondary, reg->bss, reg->parent);
   } else {
-    printf("** %d, [%d,%d) <=> [%ld,%ld) sec: %d, bss: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, reg->secondary, reg->bss);
+     printf("** %d, [%d,%d) <=> [%ld,%ld) sec: %d, bss: %d, parent: %d", reg->score, reg->qb, reg->qe, (long) reg->rb, (long) reg->re, reg->secondary, reg->bss, reg->parent);
   }
 }
 
