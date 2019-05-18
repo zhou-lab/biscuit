@@ -85,10 +85,13 @@ typedef struct {
   int8_t ctmat[25];       /* C>T matrix */
   int8_t gamat[25];       /* G>A matrix */
 
-  uint8_t *adaptor1;            /* adaptor for read 1 */
-  int l_adaptor1;               /* length of read 1 adaptor */
-  uint8_t *adaptor2;            /* adaptor for read 2 */
-  int l_adaptor2;               /* length of read 2 adaptor */
+   uint8_t *adaptor1;            /* adaptor for read 1 */
+   int l_adaptor1;               /* length of read 1 adaptor */
+   uint8_t *adaptor2;            /* adaptor for read 2 */
+   int l_adaptor2;               /* length of read 2 adaptor */
+   int clip5;                   /* extra clip from 5'-end */
+   int clip3;                   /* extra clip from 3'-end */
+   int min_base_qual;           /* minimum base quality */
 } mem_opt_t;
 
 typedef struct {

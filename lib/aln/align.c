@@ -110,7 +110,7 @@ static void *process(void *shared, int step, void *_data) {
     for (i = 0; i < data->n_seqs; ++i) {
       if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
       free(data->seqs[i].name); free(data->seqs[i].comment);
-      free(data->seqs[i].seq); free(data->seqs[i].qual); free(data->seqs[i].sam);
+      free(data->seqs[i].seq0); free(data->seqs[i].qual); free(data->seqs[i].sam);
       /* bisulfite free, the pointers can be NULL */
       free(data->seqs[i].bisseq[0]);
       free(data->seqs[i].bisseq[1]);
@@ -198,6 +198,9 @@ int usage(mem_opt_t *opt) {
   //		fprintf(stderr, "       -s INT        look for internal seeds inside a seed with less than INT occ [%d]\n", opt->split_width);
   fprintf(stderr, "       -J STR        adaptor of read 1 (fastq direction)\n");
   fprintf(stderr, "       -K STR        adaptor of read 2 (fastq direction)\n");
+  fprintf(stderr, "       -z INT        min base quality to keep from both ends of reads [%d]\n", opt->min_base_qual);
+  fprintf(stderr, "       -5 INT        number of extra bases to clip from 5'-end [%d]\n", opt->clip5);
+  fprintf(stderr, "       -3 INT        number of extra bases to clip from 3'-end [%d]\n", opt->clip3);
   fprintf(stderr, "       -c INT        skip seeds with more than INT occurrences [%d]\n", opt->max_occ);
   fprintf(stderr, "       -D FLOAT      drop chains shorter than FLOAT fraction of the longest\n");
   fprintf(stderr, "                     overlapping chain [%.2f]\n", opt->drop_ratio);
@@ -273,7 +276,7 @@ int main_align(int argc, char *argv[]) {
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
   memset(&opt0, 0, sizeof(mem_opt_t));
   int auto_infer_alt_chrom = 1;
-  while ((c = getopt(argc, argv, "1:2:epaiFMCSPVYjb:f:k:c:v:s:r:t:R:A:B:O:E:U:w:L:d:T:Q:D:m:I:N:W:x:G:h:y:J:K:X:H:")) >= 0) {
+  while ((c = getopt(argc, argv, "1:2:3:5:ab:c:d:ef:h:ijk:m:pr:s:t:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
     if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
     else if (c == '1') aux._seq1 = strdup(optarg);
     else if (c == '2') aux._seq2 = strdup(optarg);
@@ -321,7 +324,10 @@ int main_align(int argc, char *argv[]) {
       opt->adaptor2 = calloc(opt->l_adaptor2, sizeof(uint8_t));
       for (i=0; i<opt->l_adaptor2; ++i)
         opt->adaptor2[i] = nst_nt4_table[(int)optarg[i]];
-    } else if (c == 'X') opt->mask_level = atof(optarg);
+    } else if (c == 'z') opt->min_base_qual = atoi(optarg);
+    else if (c == '5') opt->clip5 = atoi(optarg);
+    else if (c == '3') opt->clip3 = atoi(optarg);
+    else if (c == 'X') opt->mask_level = atof(optarg);
     else if (c == 'h') {
       opt0.max_XA_hits = opt0.max_XA_hits_alt = 1;
       opt->max_XA_hits = opt->max_XA_hits_alt = strtol(optarg, &p, 10);

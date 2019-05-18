@@ -95,10 +95,10 @@ static void mem_alnreg_setSAM(const mem_opt_t *opt, const bntseq_t *bns, const u
   }
 
   // add clipping to CIGAR
-  if (reg->qb != 0 || reg->qe != s->l_seq || s->l_adaptor) {
+  if (reg->qb != 0 || reg->qe != s->l_seq || s->clip5 || s->clip3) {
     int clip5, clip3;
-    clip5 = reg->is_rev ? s->l_seq - reg->qe + s->l_adaptor : reg->qb;
-    clip3 = reg->is_rev ? reg->qb : s->l_seq - reg->qe + s->l_adaptor;
+    clip5 = reg->is_rev ? s->l_seq - reg->qe + s->clip3 : reg->qb + s->clip5;
+    clip3 = reg->is_rev ? reg->qb + s->clip5 : s->l_seq - reg->qe + s->clip3;
     cigar = realloc(cigar, 4 * (n_cigar + 2) + l_MD);
     if (clip5) {
       memmove(cigar+1, cigar, n_cigar * 4 + l_MD); // make room for 5'-end clipping
@@ -270,7 +270,7 @@ void mem_alnreg_formatSAM(
 
    // print up to CIGAR
    int l_name = strlen(s->name);
-   ks_resize(str, str->l + s->l_seq + s->l_adaptor + l_name + (s->qual ? s->l_seq + s->l_adaptor : 0) + 20);
+   ks_resize(str, str->l + s->l_seq0 + l_name + (s->qual ? s->l_seq0 : 0) + 20);
    kputsn(s->name, l_name, str); kputc('\t', str); // read name, QNAME
    kputw((p.flag & 0xffff) | (p.flag & 0x10000 ? 0x100 : 0), str); kputc('\t', str); // FLAG
    if (p.rid >= 0) { // with coordinate
@@ -321,13 +321,13 @@ void mem_alnreg_formatSAM(
    } else if (p.is_rev) { // the reverse strand
 
       // SEQ
-      int i, qb = 0, qe = s->l_seq + s->l_adaptor;
+      int i, qb = 0, qe = s->l_seq0;
       if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
          if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qe -= p.cigar[0]>>4;
          if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qb += p.cigar[p.n_cigar-1]>>4;
       }
       ks_resize(str, str->l + (qe - qb) + 1);
-      for (i = qe-1; i >= qb; --i) str->s[str->l++] = "TGCAN"[(int)s->seq[i]];
+      for (i = qe-1; i >= qb; --i) str->s[str->l++] = "TGCAN"[(int)s->seq0[i]];
       kputc('\t', str);
 
       // QUAL
@@ -340,13 +340,13 @@ void mem_alnreg_formatSAM(
    } else {                // the forward strand
 
       // SEQ
-      int i, qb = 0, qe = s->l_seq + s->l_adaptor;
+      int i, qb = 0, qe = s->l_seq0;
       if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
          if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qb += p.cigar[0]>>4;
          if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qe -= p.cigar[p.n_cigar-1]>>4;
       }
       ks_resize(str, str->l + (qe - qb) + 1);
-      for (i = qb; i < qe; ++i) str->s[str->l++] = "ACGTN"[(int)s->seq[i]];
+      for (i = qb; i < qe; ++i) str->s[str->l++] = "ACGTN"[(int)s->seq0[i]];
       kputc('\t', str);
 
       // QUAL

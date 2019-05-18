@@ -731,8 +731,10 @@ static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
   s->name = strdup(ks->name.s);
   s->comment = ks->comment.l? strdup(ks->comment.s) : 0;
   s->seq = (uint8_t*) strdup(ks->seq.s);
+  s->seq0 = s->seq;
   s->qual = ks->qual.l? strdup(ks->qual.s) : 0;
   s->l_seq = strlen((char*)s->seq);
+  s->l_seq0 = s->l_seq;
 
   /* bisulfite note: here I convert all base to nst_nt4 */
   /* s->bisseq = calloc(s->l_seq, sizeof(char)); /\* no sentinel \0 *\/ */

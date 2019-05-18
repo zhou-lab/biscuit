@@ -55,7 +55,11 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
   bsconv_conf_t *conf = d->conf;
 	const bam1_core_t *c = &b->core;
 
-  if (c->flag & BAM_FUNMAP) return 0; // skip unmapped
+  if (c->flag & BAM_FUNMAP) goto OUTPUT; // skip unmapped
+  if (c->flag & BAM_FSECONDARY) goto OUTPUT; // skip secondary
+  if (c->flag & BAM_FQCFAIL) goto OUTPUT; // skip qc fail
+  if (c->flag & BAM_FDUP) goto OUTPUT;    // skip duplicate
+  if (c->flag & BAM_FSUPPLEMENTARY) goto OUTPUT; // skip supplementary
 
   // TODO: this requires "-" input be input with "samtools view -h", drop this
   refcache_fetch(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
@@ -130,6 +134,7 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
       if (i) putchar('\t');
       printf("%d\t%d", retn[i], conv[i]);
     }
+    printf("\t%s", bam_get_qname(b));
     putchar('\n');
     return 0;
   }
@@ -143,6 +148,7 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
   bam_aux_append(b, "ZN", 'Z', s.l+1, (uint8_t*) s.s);
   free(s.s);
 
+OUTPUT:
   if (out) {
     if (sam_write1(out, hdr, b) < 0)
       wzfatal("Cannot write bam.\n");

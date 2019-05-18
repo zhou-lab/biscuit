@@ -23,10 +23,14 @@ typedef struct {
 } bwaidx_t;
 
 typedef struct {
-  int l_seq, id;                /* check if l_seq can be unsigned? */
-  char *name, *comment, *qual, *sam; /* sam stored the end output of sam record */
-  uint8_t *seq, *bisseq[2];
-  int l_adaptor;                /* length of adaptor sequence from the end */
+   int l_seq, id;                /* check if l_seq can be unsigned? */
+   char *name, *comment, *qual, *sam; /* sam stored the end output of sam record */
+   uint8_t *seq, *bisseq[2];
+   uint8_t *seq0;              /* pointer to sequence beginning before clipping */
+   int l_seq0;                 /* the original l_seq before clipping */
+   int l_adaptor;              /* length of adaptor sequence from the 3' end */
+   int clip5;                  /* actual length of sequence to clip from 5' */
+   int clip3; /* actual length of sequence to clip from 3', should include l_adaptor */
 } bseq1_t;
 
 extern int bwa_verbose;

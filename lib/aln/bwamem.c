@@ -87,6 +87,11 @@ mem_opt_t *mem_opt_init() {
    /* WZBS */
    bwa_fill_scmat_ct(o->a, o->b, o->ctmat);
    bwa_fill_scmat_ga(o->a, o->b, o->gamat);
+
+   // clipping
+   o->clip5 = 0;
+   o->clip3 = 0;
+   o->min_base_qual = 0;
    return o;
 }
 
@@ -240,7 +245,35 @@ static void read_identify_adaptor(bseq1_t *seq, uint8_t *adaptor, int l_adaptor)
       seq->l_adaptor = i;
     }
   }
-  seq->l_seq -= seq->l_adaptor; // shorten the read length.
+  // seq->l_seq -= seq->l_adaptor; // shorten the read length.
+}
+
+static void clip_read_by_quality(bseq1_t *seq, int min_base_qual) {
+   for (; seq->clip5 < seq->l_seq - seq->clip3; seq->clip5++) {
+      if (seq->qual[seq->clip5] >= min_base_qual + 33) break;
+   }
+   for (; seq->l_seq - seq->clip3 >= seq->clip5; seq->clip3++) {
+      if (seq->qual[seq->l_seq - seq->clip3 - 1] >= min_base_qual + 33) break;
+   }
+}
+
+static void read_clipping(bseq1_t *seq, uint8_t *adaptor, int l_adaptor, const mem_opt_t *opt) {
+   // clip adaptor
+   read_identify_adaptor(seq, adaptor, l_adaptor);
+
+   // clip extra base
+   seq->clip5 = opt->clip5;
+   seq->clip3 = opt->clip3 + seq->l_adaptor;
+
+   // clip by base quality
+   clip_read_by_quality(seq, opt->min_base_qual);
+
+   // adjust sequence
+   seq->seq0 = seq->seq; // the original sequence start
+   seq->l_seq0 = seq->l_seq; // original sequence length
+   seq->seq += seq->clip5;
+   seq->l_seq = seq->l_seq - seq->clip3 - seq->clip5;
+   if (seq->l_seq < 0) seq->l_seq = 0;
 }
 
 /***** bisulfite adaptation *****/
@@ -260,8 +293,7 @@ static void bis_worker1(void *data, int i, int tid) {
          printf("\n=====> [%s] Processing read '%s' <=====\n",
                 __func__, w->seqs[i].name);
 
-      read_identify_adaptor(
-         &w->seqs[i], opt->adaptor1, opt->l_adaptor1);
+      read_clipping(&w->seqs[i], opt->adaptor1, opt->l_adaptor1, opt);
     
       regs = &w->regs[i]; kv_init(*regs); regs->n_pri = 0;
       if (!(opt->parent&1) || // no restriction
@@ -281,12 +313,9 @@ static void bis_worker1(void *data, int i, int tid) {
       // sanity check the read names
       check_paired_read_names(
          w->seqs[i<<1|0].name, w->seqs[i<<1|1].name);
-      
-      read_identify_adaptor(
-         &w->seqs[i<<1|0], opt->adaptor1, opt->l_adaptor1);
-      
-      read_identify_adaptor(
-         &w->seqs[i<<1|1], opt->adaptor2, opt->l_adaptor2);
+
+      read_clipping(&w->seqs[i<<1|0], opt->adaptor1, opt->l_adaptor1, opt);
+      read_clipping(&w->seqs[i<<1|1], opt->adaptor2, opt->l_adaptor2, opt);
     
       if (bwa_verbose >= 4)
          printf("\n=====> [%s] Processing read '%s'/1 <=====\n",
