@@ -91,7 +91,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 	int i, k; unsigned j;
 	char rb, qb;
   char retention = 'N';
-  uint8_t bsstrand = get_bsstrand(d->rs, b, 0);
+  uint8_t bsstrand = get_bsstrand(d->rs, b, 0, 0);
   char fivenuc[5];
   int is_tgt = 0;
   int l_qseq = c->l_qseq;

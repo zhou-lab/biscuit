@@ -546,7 +546,7 @@ static void *process_func(void *data) {
       int ret;
 
       while ((ret = sam_itr_next(in, iter, b))>0) {
-         uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
+         uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual, 0);
 
          /* read-based filtering */
          bam1_core_t *c = &b->core;

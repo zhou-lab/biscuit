@@ -36,9 +36,11 @@
 
 typedef struct {
    int max_cph;
+   float max_cph_frac;
    int max_cpa;
    int max_cpc;
    int max_cpt;
+   int filter_u;
    int show_filtered;
    int print_in_tab;
 } bsconv_conf_t;
@@ -46,6 +48,8 @@ typedef struct {
 typedef struct bsconv_data_t {
    refcache_t *rs;
    bsconv_conf_t *conf;
+   int n;
+   int n_filtered;
 } bsconv_data_t;
 
 static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
@@ -55,21 +59,30 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
   bsconv_conf_t *conf = d->conf;
 	const bam1_core_t *c = &b->core;
 
-  if (c->flag & BAM_FUNMAP) goto OUTPUT; // skip unmapped
-  if (c->flag & BAM_FSECONDARY) goto OUTPUT; // skip secondary
-  if (c->flag & BAM_FQCFAIL) goto OUTPUT; // skip qc fail
-  if (c->flag & BAM_FDUP) goto OUTPUT;    // skip duplicate
-  if (c->flag & BAM_FSUPPLEMENTARY) goto OUTPUT; // skip supplementary
+  int retn[5] = {0};
+  int conv[5] = {0};
+
+  int tofilter = 0;
+  if (c->flag & BAM_FUNMAP ||
+      c->flag & BAM_FSECONDARY ||
+      c->flag & BAM_FQCFAIL ||
+      c->flag & BAM_FDUP ||
+      c->flag & BAM_FSUPPLEMENTARY) {
+     tofilter = 1;
+     goto OUTPUT;
+  }
 
   // TODO: this requires "-" input be input with "samtools view -h", drop this
   refcache_fetch(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
   uint32_t rpos=c->pos+1, qpos=0;
 	int i; unsigned j;
 	char rb, qb;
-  uint8_t bsstrand = get_bsstrand(d->rs, b, 0);
+  uint8_t bsstrand = get_bsstrand(d->rs, b, 0, conf->filter_u);
+  if (bsstrand == 2) {
+     tofilter = 1;
+     goto OUTPUT;
+  }
   char fivenuc[5];
-  int retn[5] = {0};
-  int conv[5] = {0};
 
 	for (i=0; i<c->n_cigar; ++i) {
 		uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
@@ -117,7 +130,6 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 		}
 	}
 
-  int tofilter = 0;
   if (conf->max_cpa >= 0 && retn[nt256char_to_nt256int8_table['A']] > conf->max_cpa) tofilter = 1;
   if (conf->max_cpc >= 0 && retn[nt256char_to_nt256int8_table['C']] > conf->max_cpc) tofilter = 1;
   if (conf->max_cpt >= 0 && retn[nt256char_to_nt256int8_table['T']] > conf->max_cpt) tofilter = 1;
@@ -125,6 +137,21 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
       retn[nt256char_to_nt256int8_table['A']] +
       retn[nt256char_to_nt256int8_table['C']] +
       retn[nt256char_to_nt256int8_table['T']] > conf->max_cph) tofilter = 1;
+
+  if (conf->max_cph_frac < 1.0) {
+     int cph_retn = retn[nt256char_to_nt256int8_table['A']] +
+        retn[nt256char_to_nt256int8_table['C']] +
+        retn[nt256char_to_nt256int8_table['T']];
+     int cph_conv = conv[nt256char_to_nt256int8_table['A']] +
+        conv[nt256char_to_nt256int8_table['C']] +
+        conv[nt256char_to_nt256int8_table['T']];
+     if (cph_retn + cph_conv > 0 &&
+         (float) cph_retn / (cph_retn + cph_conv) > conf->max_cph_frac) tofilter = 1;
+  }
+
+OUTPUT:
+  d->n++;
+  if (tofilter) d->n_filtered++;
   if (conf->show_filtered) tofilter = !tofilter;
   if (tofilter) return 0;
 
@@ -138,26 +165,26 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
     putchar('\n');
     return 0;
   }
-  
-  // bam output
-  kstring_t s; s.m = s.l = 0; s.s = 0;
-  for (i=0; i<4; ++i) {
-    if (i) kputc(',', &s);
-    ksprintf(&s, "C%c_R%dC%d", nt256int8_to_nt256char_table[i], retn[i], conv[i]);
-  }
-  bam_aux_append(b, "ZN", 'Z', s.l+1, (uint8_t*) s.s);
-  free(s.s);
 
-OUTPUT:
-  if (out) {
-    if (sam_write1(out, hdr, b) < 0)
-      wzfatal("Cannot write bam.\n");
-  } else {
-    s.m = s.l = 0; s.s = 0;
-    sam_format1(hdr, b, &s);
-    if (puts(s.s) < 0)
-      if (errno == EPIPE) exit(1);
-    free(s.s);
+  // bam output
+  if (!conf->print_in_tab && out) {
+     kstring_t s; s.m = s.l = 0; s.s = 0;
+     for (i=0; i<4; ++i) {
+        if (i) kputc(',', &s);
+        ksprintf(&s, "C%c_R%dC%d", nt256int8_to_nt256char_table[i], retn[i], conv[i]);
+     }
+     bam_aux_append(b, "ZN", 'Z', s.l+1, (uint8_t*) s.s);
+     free(s.s);
+
+     if (sam_write1(out, hdr, b) < 0) {
+        wzfatal("Cannot write bam.\n");
+     } else {
+        s.m = s.l = 0; s.s = 0;
+        sam_format1(hdr, b, &s);
+        if (puts(s.s) < 0)
+           if (errno == EPIPE) exit(1);
+        free(s.s);
+     }
   }
 	return 0;
 }
@@ -169,7 +196,9 @@ static void usage() {
   fprintf(stderr, "Usage: bsconv [options] ref.fa in.bam [out.bam]\n");
   fprintf(stderr, "Input options:\n");
   fprintf(stderr, "     -g        region.\n");
+  fprintf(stderr, "     -u        filter unclear bs-strand (YD:u) reads [OFF].\n");
   fprintf(stderr, "     -m        filter: maximum CpH retention [Inf]\n");
+  fprintf(stderr, "     -f        filter: maximum CpH retention fraction [1.0]\n");
   fprintf(stderr, "     -a        filter: maximum CpA retention [Inf]\n");
   fprintf(stderr, "     -c        filter: maximum CpC retention [Inf]\n");
   fprintf(stderr, "     -t        filter: maximum CpT retention [Inf]\n");
@@ -184,16 +213,19 @@ int main_bsconv(int argc, char *argv[]) {
 	char *reg = 0; // target region
   bsconv_conf_t conf = {0};
   conf.max_cph = conf.max_cpa = conf.max_cpc = conf.max_cpt = -1;
+  conf.max_cph_frac = 1.0;
   conf.print_in_tab = 0;
 
   if (argc < 2) { usage(); return 1; }
-  while ((c = getopt(argc, argv, "g:m:a:c:t:bvh")) >= 0) {
+  while ((c = getopt(argc, argv, "g:m:abc:f:t:uvh")) >= 0) {
     switch (c) {
 		case 'g': reg = optarg; break;
     case 'm': conf.max_cph = atoi(optarg); break;
+    case 'f': conf.max_cph_frac = atof(optarg); break;
     case 'a': conf.max_cpa = atoi(optarg); break;
     case 'c': conf.max_cpc = atoi(optarg); break;
     case 't': conf.max_cpt = atoi(optarg); break;
+    case 'u': conf.filter_u = 1; break;
     case 'b': conf.print_in_tab = 1; break;
     case 'v': conf.show_filtered = 1; break;
     case 'h': usage(); return 1;
@@ -216,6 +248,11 @@ int main_bsconv(int argc, char *argv[]) {
   d.rs = init_refcache(reffn, 100, 100000);
   d.conf = &conf;
 	bam_filter(infn, outfn, reg, &d, bsconv_func);
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "[%s:%d] Processed %d reads, %d (%f%%) remains.\n",
+          __func__, __LINE__, d.n, d.n - d.n_filtered, (double) (d.n - d.n_filtered) / d.n * 100);
+  fflush(stderr);
 
 	free_refcache(d.rs);
 	return 0;

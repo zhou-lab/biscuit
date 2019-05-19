@@ -307,7 +307,7 @@ uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
   else return 1;
 }
 
-uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
+uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allow_u) {
   uint8_t *s;
   
   /* bwa-meth flag has highest priority */
@@ -316,6 +316,7 @@ uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
     s++;
     if (*s == 'f') return 0;
     else if (*s == 'r') return 1;
+    else if (*s == 'u' && allow_u) return 2;
   }
 
   /* bsmap flag */
@@ -940,7 +941,7 @@ static void *process_func(void *_result) {
       // loop over reads
       while ((ret = sam_itr_next(in, iter, b))>0) {
 
-        uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual);
+         uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual, 0);
         
         /* read-based filtering */
         bam1_core_t *c = &b->core;

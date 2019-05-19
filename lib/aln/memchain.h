@@ -49,21 +49,22 @@ typedef struct {
   int score;
 } mem_seed_t; // unaligned memory
 
+typedef struct { size_t n, m; mem_seed_t *a;  } mem_seed_v;
 
 /***************
  * mem_chain_t *
  ***************/
 
 typedef struct {
-  int n, m;
-  int first;           /* for internal use in mem_chain_flt, index of the first chain in overlap, -1 for not overlapping with any other seeds */
-  int rid;
-  uint32_t w:29;       /* weight, for sorting in mem_chain_flt; */
-  uint32_t kept:2;     /* for internal book-keeping in mem_chain_flt. 0 (discard), 1 (be pointed by other seeds' first), 2 (large overlap), 3 (good) */
-  uint32_t is_alt:1;
-  float frac_rep;		   /* fraction of repeats */
-  int64_t pos;
-  mem_seed_t *seeds;
+   int first;           /* for internal use in mem_chain_flt, index of the first chain in overlap, -1 for not overlapping with any other seeds */
+   int rid;
+   uint32_t w:29;       /* weight, for sorting in mem_chain_flt; */
+   uint32_t kept:2;     /* for internal book-keeping in mem_chain_flt. 0 (discard), 1 (be pointed by other seeds' first), 2 (large overlap), 3 (good) */
+   uint32_t is_alt:1;
+   float frac_rep;		   /* fraction of repeats */
+   int64_t pos;
+   mem_seed_v seeds;
+   mem_seed_v seeds_extra;          // backup seeds
 } mem_chain_t;
 
 typedef struct { size_t n, m; mem_chain_t *a;  } mem_chain_v;
@@ -73,7 +74,9 @@ typedef struct { size_t n, m; mem_chain_t *a;  } mem_chain_v;
  * Cluster seeds into a chain (mem_chain_v).
  * Each chain contains one or more seeds
  ********************************************/
-mem_chain_v mem_chain(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *bseq, void *intv_cache, uint8_t parent);
+mem_chain_v mem_chain(
+   const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns,
+   bseq1_t *bseq, void *intv_cache, uint8_t parent);
 
 // filter whole chain by chain weight and overlap with existing chains
 void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns);
@@ -81,9 +84,18 @@ void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns);
 // filter seeds in each chain by seed extension score
 void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const bseq1_t *s, mem_chain_v *chns, uint8_t parent);
 
-void mem_print_chain(const bntseq_t *bns, mem_chain_v *chn);
+void mem_print_chain(const bntseq_t *bns, mem_chain_v *chns);
 
-void mem_chain2aln(
+void mem_chain2region(
    const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
-   int l_query, const uint8_t *query, const mem_chain_t *c,
-   mem_alnreg_v *regs, uint8_t parent, uint32_t reg0);
+   bseq1_t *bseq, uint8_t parent, mem_chain_v *chns, mem_alnreg_v *regs);
+
+static inline void free_mem_chain_v(mem_chain_v chns) {
+   unsigned i;
+   for (i = 0; i < chns.n; ++i) {
+      mem_chain_t *c = chns.a + i;
+      free(c->seeds.a);
+      free(c->seeds_extra.a);
+   }
+   free(chns.a);
+}

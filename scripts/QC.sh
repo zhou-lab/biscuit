@@ -224,7 +224,7 @@ function biscuitQC {
     biscuit vcf2bed -et c $input_vcf | awk '{beta_sum[$6]+=$8; beta_cnt[$6]+=1;} END{print "CA\tCC\tCG\tCT"; print beta_sum["CA"]/beta_cnt["CA"]"\t"beta_sum["CC"]/beta_cnt["CC"]"\t"beta_sum["CG"]/beta_cnt["CG"]"\t"beta_sum["CT"]/beta_cnt["CT"];}' >>$QCdir/${sname}_totalBaseConversionRate.txt
 
     echo -e "BISCUITqc Conversion Rate by Read Average Table" >$QCdir/${sname}_totalReadConversionRate.txt
-    samtools view -hq 40 $input_bam | biscuit bsconv -b $BISCUIT_REFERENCE - | awk '{for(i=1;i<=8;++i) a[i]+=$i;}END{print "CpA\tCpC\tCpG\tCpT"; print a[1]/(a[1]+a[2])"\t"a[3]/(a[3]+a[4])"\t"a[5]/(a[5]+a[6])"\t"a[7]/(a[7]+a[8]);}' >>$QCdir/${sname}_totalReadConversionRate.txt
+    samtools view -hq 40 -F 0x900 $input_bam | biscuit bsconv -b $BISCUIT_REFERENCE - | awk '{for(i=1;i<=8;++i) a[i]+=$i;}END{print "CpA\tCpC\tCpG\tCpT"; print a[1]/(a[1]+a[2])"\t"a[3]/(a[3]+a[4])"\t"a[5]/(a[5]+a[6])"\t"a[7]/(a[7]+a[8]);}' >>$QCdir/${sname}_totalReadConversionRate.txt
 
     echo -e "BISCUITqc CpH Retention by Read Position Table" >$QCdir/${sname}_CpHRetentionByReadPos.txt
     echo -e "ReadInPair\tPosition\tConversion/Retention\tCount" >>$QCdir/${sname}_CpHRetentionByReadPos.txt

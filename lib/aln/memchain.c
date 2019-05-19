@@ -110,27 +110,43 @@ static void mem_collect_intv(const mem_opt_t *opt, const bwt_t *bwt, const bwt_t
  **************/
 
 /* filtering seed if it violates asymmetric scoring */
+/* static int asymmetric_flt_seed( */
+/*    mem_seed_t *s, const uint8_t *pac, const bntseq_t *bns, bseq1_t *bseq) { */
+   
+/*    int is_rev; */
+/*    bwtint_t pos = bns_depos(bns, s->rbeg, &is_rev); */
+/*    if (is_rev) pos -= s->len - 1; */
+/*    int64_t rb = s->rbeg; */
+/*    int64_t re = rb + s->len; */
+/*    int rid; */
+/*    uint8_t *ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid); */
+/*    int i; */
+/*    for (i=0; i<s->len; ++i) { */
+/*       /\* filter seeds with T(ref)>C(read) or A(ref)>G(read) *\/ */
+/*       if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) || */
+/*           (ref[i]==0&&bseq->seq[s->qbeg+i]==2)) { */
+/*          free(ref); */
+/*          return 1; */
+/*       } */
+/*    } */
+/*    free(ref); */
+/*    return 0; */
+/* } */
+
+// filter seed with T(ref)>C(read) or A(ref)>G(read)
 static int asymmetric_flt_seed(
-   mem_seed_t *s, const uint8_t *pac, const bntseq_t *bns, bseq1_t *bseq) {
-   int is_rev;
-   bwtint_t pos = bns_depos(bns, s->rbeg, &is_rev);
-   if (is_rev) pos -= s->len - 1;
-   int64_t rb = s->rbeg;
-   int64_t re = rb + s->len;
-   int rid;
-   uint8_t *ref = bns_fetch_seq(bns, pac, &rb, (rb+re)>>1, &re, &rid);
+   const uint8_t *rseq, const uint8_t *query, const mem_seed_t *s, int64_t rbeg) {
+   
    int i;
-   for (i=0; i<s->len; ++i) {
-      /* filter seeds with T(ref)>C(read) or A(ref)>G(read) */
-      if ((ref[i]==3&&bseq->seq[s->qbeg+i]==1) ||
-          (ref[i]==0&&bseq->seq[s->qbeg+i]==2)) {
-         free(ref);
+   const uint8_t *r;
+   for (i=0, r=rseq + s->rbeg - rbeg; i<s->len; ++i, ++r) {
+      if ((*r == 3 && query[s->qbeg+i] == 1) ||
+          (*r == 0 && query[s->qbeg+i] == 2))
          return 1;
-      }
    }
-   free(ref);
    return 0;
 }
+   
 
 /***************
  * mem_chain_t *
@@ -140,18 +156,19 @@ static int asymmetric_flt_seed(
  * min(seeds_base_cov_ref, seeds_base_cov_query) */
 int mem_chain_weight(const mem_chain_t *c) {
   int64_t end;
-  int j, w = 0, tmp;
+  int w = 0, tmp;
+  unsigned j;
   /* base coverage in query */
-  for (j = 0, end = 0; j < c->n; ++j) {
-    const mem_seed_t *s = &c->seeds[j];
+  for (j = 0, end = 0; j < c->seeds.n; ++j) {
+    const mem_seed_t *s = c->seeds.a + j;
     if (s->qbeg >= end) w += s->len;
     else if (s->qbeg + s->len > end) w += s->qbeg + s->len - end;
     end = end > s->qbeg + s->len? end : s->qbeg + s->len;
   }
   tmp = w; w = 0;
   /* base coverage in reference */
-  for (j = 0, end = 0; j < c->n; ++j) {
-    const mem_seed_t *s = &c->seeds[j];
+  for (j = 0, end = 0; j < c->seeds.n; ++j) {
+    const mem_seed_t *s = c->seeds.a + j;
     if (s->rbeg >= end) w += s->len;
     else if (s->rbeg + s->len > end) w += s->rbeg + s->len - end;
     end = end > s->rbeg + s->len? end : s->rbeg + s->len;
@@ -162,19 +179,31 @@ int mem_chain_weight(const mem_chain_t *c) {
 }
 
 static void mem_print_chain1(const bntseq_t *bns, const mem_chain_t *c) {
-  printf("** CHAIN: n=%d, weight=%d", c->n, mem_chain_weight(c));
-  int j;
-   for (j = 0; j < c->n; ++j) {
-    bwtint_t pos;
-    int is_rev;
-    pos = bns_depos(bns, c->seeds[j].rbeg, &is_rev);
-    if (is_rev) pos -= c->seeds[j].len - 1;
-    printf("\t%d;%d;%d,%ld(%s:%c%ld)",
-           c->seeds[j].score, c->seeds[j].len, c->seeds[j].qbeg,
-           (long)c->seeds[j].rbeg, bns->anns[c->rid].name,
-           "+-"[is_rev], (long)(pos - bns->anns[c->rid].offset) + 1);
-  }
-  putchar('\n');
+   printf("** CHAIN: n=%zu, n_extra=%zu, weight=%d",
+          c->seeds.n, c->seeds_extra.n, mem_chain_weight(c));
+   unsigned k;
+   for (k = 0; k < c->seeds.n; ++k) {
+      bwtint_t pos;
+      int is_rev;
+      mem_seed_t s = c->seeds.a[k];
+      pos = bns_depos(bns, s.rbeg, &is_rev);
+      if (is_rev) pos -= s.len - 1;
+      printf("\t%d;%d;%d,%ld(%s:%c%ld)", s.score, s.len, s.qbeg,
+             (long)s.rbeg, bns->anns[c->rid].name,
+             "+-"[is_rev], (long)(pos - bns->anns[c->rid].offset) + 1);
+   }
+   printf("\tEXTRA");
+   for (k = 0; k < c->seeds_extra.n; ++k) {
+      bwtint_t pos;
+      int is_rev;
+      mem_seed_t s = c->seeds_extra.a[k];
+      pos = bns_depos(bns, s.rbeg, &is_rev);
+      if (is_rev) pos -= s.len - 1;
+      printf("\t%d;%d;%d,%ld(%s:%c%ld)", s.score, s.len, s.qbeg,
+             (long)s.rbeg, bns->anns[c->rid].name,
+             "+-"[is_rev], (long)(pos - bns->anns[c->rid].offset) + 1);
+   }
+   putchar('\n');
 }
 
 void mem_print_chains(const bntseq_t *bns, mem_chain_v *chns) {
@@ -194,37 +223,35 @@ void mem_print_chains(const bntseq_t *bns, mem_chain_v *chns) {
  * return 1 if the seed is merged into the chain
  *
  * Note that c->seeds were sorted by positions and lower than s. */
-static int test_and_merge(const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, const mem_seed_t *s, int seed_rid) {
+static int merge_seed_to_chain(
+   const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, const mem_seed_t *s, int seed_rid) {
 
-  const mem_seed_t *last = &c->seeds[c->n-1];
+   const mem_seed_t *last = c->seeds.a + c->seeds.n-1;
 
-  // different chr; request a new chain
-  if (seed_rid != c->rid) return 0;
+   // different chr; request a new chain
+   if (seed_rid != c->rid) return 0;
 
-  // contained seed (on both reference and query); do nothing, and report merged
-  if (s->qbeg >= c->seeds[0].qbeg && s->qbeg + s->len <= last->qbeg + last->len &&
-      s->rbeg >= c->seeds[0].rbeg && s->rbeg + s->len <= last->rbeg + last->len)
-    return 1;
+   // contained seed (on both reference and query); do nothing, and report merged
+   if (s->qbeg >= c->seeds.a[0].qbeg && s->qbeg + s->len <= last->qbeg + last->len &&
+       s->rbeg >= c->seeds.a[0].rbeg && s->rbeg + s->len <= last->rbeg + last->len) {
+      kv_push(mem_seed_t, c->seeds_extra, *s);
+      return 1; // added to backup
+   }
 
-  // don't chain if on different strand
-  if ((last->rbeg < l_pac || c->seeds[0].rbeg < l_pac) && s->rbeg >= l_pac) return 0;
+   // don't chain if on different strand
+   if ((last->rbeg < l_pac || c->seeds.a[0].rbeg < l_pac) && s->rbeg >= l_pac) return 0;
 
-  // grow the chain if
-  // 1) position on ref and query are both within opt->max_chain_gap away from last seed
-  // 2) the distances from last is similar (within opt->w) between on ref and on query
-  int64_t qdist = s->qbeg - last->qbeg; // always non-negtive
-  int64_t rdist = s->rbeg - last->rbeg;
-  if (rdist >= 0 && qdist - rdist <= opt->w && rdist - qdist <= opt->w
-      && qdist - last->len < opt->max_chain_gap && rdist - last->len < opt->max_chain_gap) {
-    // grow the chain
-    if (c->n == c->m) {
-      c->m <<= 1;
-      c->seeds = realloc(c->seeds, c->m * sizeof(mem_seed_t));
-    }
-    c->seeds[c->n++] = *s;
-    return 1; // merged
-  }
-  return 0; // not merged, request to add a new chain
+   // grow the chain if
+   // 1) position on ref and query are both within opt->max_chain_gap away from last seed
+   // 2) the distances from last is similar (within opt->w) between on ref and on query
+   int64_t qdist = s->qbeg - last->qbeg; // always non-negtive
+   int64_t rdist = s->rbeg - last->rbeg;
+   if (rdist >= 0 && qdist - rdist <= opt->w && rdist - qdist <= opt->w
+       && qdist - last->len < opt->max_chain_gap && rdist - last->len < opt->max_chain_gap) {
+      kv_push(mem_seed_t, c->seeds, *s);
+      return 1; // chain growed
+   }
+   return 0; // not merged, request to add a new chain
 }
 
 
@@ -239,7 +266,7 @@ static int test_and_merge(const mem_opt_t *opt, int64_t l_pac, mem_chain_t *c, c
 KBTREE_INIT(chn, mem_chain_t, chain_cmp)
 mem_chain_v mem_chain(
    const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns,
-   const uint8_t *pac, bseq1_t *bseq, void *intv_cache, uint8_t parent) {
+   bseq1_t *bseq, void *intv_cache, uint8_t parent) {
 
    /* aux->mem -> kbtree_t(chn) *tree -> mem_chain_v chain */
    uint32_t i;
@@ -251,7 +278,8 @@ mem_chain_v mem_chain(
    kv_init(chains);
    if (bseq->l_seq < opt->min_seed_len) return chains; // if the query is shorter than the seed length, no match
 
-   /* B-tree of mem_chain_t */
+   /* B-tree of mem_chain_t, the following build tree of
+    * mem_chain_t first and then recover the mem_chain_v */
    kbtree_t(chn) *tree;
    tree = kb_init(chn, KB_DEFAULT_SIZE);
 
@@ -293,8 +321,8 @@ mem_chain_v mem_chain(
       
       // when there are few hits, keep visiting to the end
       // when there are enough hits, then cap number of visits at opt->max_occ
-      for (k = count = 0; k < intv->x[2] && count < opt->max_occ && (
-              (count > 5 && k < opt->max_occ) || count <= 5); ++k) {
+      for (k = count = 0; k < intv->x[2] && count < opt->max_occ &&
+              ((count > 5 && k < opt->max_occ) || count <= 5); ++k) {
          
          mem_chain_t tmp;    // the chain that hold the key for query
          mem_chain_t *lower; // lower bound interval in B-tree
@@ -310,28 +338,30 @@ mem_chain_v mem_chain(
          int rid = bns_intv2rid(bns, s.rbeg, s.rbeg + s.len);
          if (rid < 0) continue;
 
-         /* filter seeds that do not conform to the assymetric scoring matrix */
-         if (asymmetric_flt_seed(&s, pac, bns, bseq)) continue;
-
          /* force to a certain strand */
          // Note that there are marginal cases where the seed span the boundary
          // of the two converted references. Now these are discarded.
          if ((opt->bsstrand & 1) &&
              mem_getbss(parent, bns, s.rbeg) != opt->bsstrand>>1) continue;
 
+         /* filter seeds that do not conform to the assymetric scoring matrix
+          * This turns out to be a very time-consuming step. 
+          * I am going to filter the chain instead of filtering seeds */
+         /* if (asymmetric_flt_seed(&s, pac, bns, bseq)) continue; */
+         
          int to_add = 0;
          if (kb_size(tree)) {
             kb_intervalp(chn, tree, &tmp, &lower, &upper); // find the closest chain
             // merge with the chain in the lower side, because bwtintv_v is sorted by position
-            if (!lower || !test_and_merge(opt, l_pac, lower, &s, rid)) to_add = 1;
+            if (!lower || !merge_seed_to_chain(opt, l_pac, lower, &s, rid)) to_add = 1;
          } else to_add = 1;
 
          /* new chain with one seed */
          if (to_add) {
             ++count;
-            tmp.n = 1; tmp.m = 4;
-            tmp.seeds = calloc(tmp.m, sizeof(mem_seed_t));
-            tmp.seeds[0] = s;
+            kv_init(tmp.seeds);
+            kv_push(mem_seed_t, tmp.seeds, s);
+            kv_init(tmp.seeds_extra);
             tmp.rid = rid;
             tmp.is_alt = !!bns->anns[rid].is_alt;
             kb_putp(chn, tree, &tmp);
@@ -363,8 +393,8 @@ mem_chain_v mem_chain(
  * Chain Filtering *
  *******************/
 
-#define chn_beg(ch) ((ch).seeds->qbeg)
-#define chn_end(ch) ((ch).seeds[(ch).n-1].qbeg + (ch).seeds[(ch).n-1].len)
+#define chn_beg(ch) ((ch).seeds.a[0].qbeg)
+#define chn_end(ch) ((ch).seeds.a[(ch).seeds.n-1].qbeg + (ch).seeds.a[(ch).seeds.n-1].len)
 
 #define flt_lt(a, b) ((a).w > (b).w)
 KSORT_INIT(mem_flt, mem_chain_t, flt_lt) /* sort by chain weight */
@@ -382,10 +412,13 @@ void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns) {
     mem_chain_t *c = chns->a+i;
     c->first = -1; c->kept = 0;
     c->w = mem_chain_weight(c);
-    if (c->w < opt->min_chain_weight) free(c->seeds);
-    else chns->a[k++] = *c;
+    if (c->w < opt->min_chain_weight) {
+       free(c->seeds.a);
+       free(c->seeds_extra.a);
+    } else chns->a[k++] = *c;
   }
   chns->n = k;
+
   ks_introsort(mem_flt, chns->n, chns->a); /* sort by chain weight */
 
   /* pairwise chain comparisons, decide which chain to discard by overlap */
@@ -440,8 +473,10 @@ void mem_chain_flt(const mem_opt_t *opt, mem_chain_v *chns) {
   /* actual filtering of chains */
   for (i = k = 0; i < chns->n; ++i) {
     mem_chain_t *c = chns->a+i;
-    if (c->kept == 0) free(c->seeds);
-    else chns->a[k++] = *c;
+    if (c->kept == 0) {
+       free(c->seeds.a);
+       free(c->seeds_extra.a);
+    } else chns->a[k++] = *c;
   }
 
   chns->n = k;
@@ -486,7 +521,7 @@ static int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
   if (qe - qb >= MEM_SHORT_LEN || re - rb >= MEM_SHORT_LEN) return -1; 
 
   rseq = bns_fetch_seq(bns, pac, &rb, mid, &re, &rid);
-  // the assymmetric Smith-Waterman
+  // the asymmetric Smith-Waterman
   x = ksw_align2(
       qe - qb, (uint8_t*) query + qb, 
       re - rb, rseq, 
@@ -497,34 +532,36 @@ static int mem_seed_sw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t 
 }
 
 /* filter seeds in each chain by seed extension score */
-void mem_flt_chained_seeds(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const bseq1_t *s, mem_chain_v *chns, uint8_t parent) {
+/* This function is rarely used for short reads */
+void mem_flt_chained_seeds(
+   const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
+   const bseq1_t *s, mem_chain_v *chns, uint8_t parent) {
   
-  int l_query = s->l_seq; uint8_t *query = s->seq;
-  double min_l = opt->min_chain_weight ? MEM_HSP_COEF * opt->min_chain_weight : MEM_MINSC_COEF * log(l_query);
-  if (min_l > MEM_SEEDSW_COEF * l_query) 
-    goto END_CHAIN_FLT; // don't run the following for short reads
+   int l_query = s->l_seq; uint8_t *query = s->seq;
+   double min_l = opt->min_chain_weight ? MEM_HSP_COEF * opt->min_chain_weight : MEM_MINSC_COEF * log(l_query);
+   if (min_l > MEM_SEEDSW_COEF * l_query)
+      goto END_CHAIN_FLT; // don't run the following for short reads
   
-  int min_HSP_score = (int)(opt->a * min_l + .499);
-  unsigned u;
-  int j, k;
-  for (u = 0; u < chns->n; ++u) {
-    mem_chain_t *c = chns->a+u;
-    for (j = k = 0; j < c->n; ++j) {
-      mem_seed_t *s = c->seeds+j;
-      s->score = mem_seed_sw(opt, bns, pac, l_query, query, s, parent);
-      if (s->score < 0 || s->score >= min_HSP_score) {
-        s->score = s->score < 0 ? s->len * opt->a : s->score;
-        c->seeds[k++] = *s;
+   int min_HSP_score = (int)(opt->a * min_l + .499);
+   unsigned u, j, k;
+   for (u = 0; u < chns->n; ++u) {
+      mem_chain_t *c = chns->a+u;
+      for (j = k = 0; j < c->seeds.n; ++j) {
+         mem_seed_t *s = c->seeds.a + j;
+         s->score = mem_seed_sw(opt, bns, pac, l_query, query, s, parent);
+         if (s->score < 0 || s->score >= min_HSP_score) {
+            s->score = s->score < 0 ? s->len * opt->a : s->score;
+            c->seeds.a[k++] = *s;
+         }
       }
-    }
-    c->n = k;
-  }
+      c->seeds.n = k;
+   }
 
- END_CHAIN_FLT:
-  if (bwa_verbose >= 4) {
-    printf("[%s] %zu chains remained.\n", __func__, chns->n);
-    mem_print_chains(bns, chns);
-  }
+END_CHAIN_FLT:
+   if (bwa_verbose >= 4) {
+      printf("[%s] %zu chains remained.\n", __func__, chns->n);
+      mem_print_chains(bns, chns);
+   }
 }
 
 /*********************************
@@ -546,9 +583,9 @@ static void mem_chain_reference_span(const mem_opt_t *opt, int l_query, int64_t 
   rmax[0] = l_pac<<1;
   rmax[1] = 0;
 
-  int i;
-  for (i=0; i<c->n; ++i) {
-    const mem_seed_t *s = &c->seeds[i];
+  unsigned i;
+  for (i=0; i<c->seeds.n; ++i) {
+    const mem_seed_t *s = c->seeds.a + i;
     // reference span for seed s: [b,e]
     int64_t b = s->rbeg - (s->qbeg + cal_max_gap(opt, s->qbeg));
     int64_t e = s->rbeg + s->len + ((l_query - s->qbeg - s->len) + cal_max_gap(opt, l_query - s->qbeg - s->len));
@@ -559,7 +596,7 @@ static void mem_chain_reference_span(const mem_opt_t *opt, int l_query, int64_t 
   rmax[0] = rmax[0] > 0 ? rmax[0] : 0;
   rmax[1] = rmax[1] < l_pac<<1 ? rmax[1] : l_pac<<1;
   if (rmax[0] < l_pac && l_pac < rmax[1]) { // crossing the forward-reverse boundary; then choose one side
-    if (c->seeds[0].rbeg < l_pac) rmax[1] = l_pac; // this works because all seeds are guaranteed to be on the same strand
+    if (c->seeds.a[0].rbeg < l_pac) rmax[1] = l_pac; // this works because all seeds are guaranteed to be on the same strand
     else rmax[0] = l_pac;
   }
 }
@@ -698,41 +735,25 @@ static void right_extend_seed_set_align_end(
  * @param bns reference meta
  * @param pac reference
  * @param l_query length of query
- * @param query query sequence, raw WITHOUT bisulfite conversion
- * @return mem_alnreg_v *av / reg, (the newly formed chain is pushed to av)
- */
-void mem_chain2aln(
-   const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, int l_query,
-   const uint8_t *query, const mem_chain_t *c, mem_alnreg_v *regs,
-   uint8_t parent, uint32_t reg0) {
+ * @param query query sequence, raw WITHOUT bisulfite conversion */
+void mem_chain2region1(
+   const mem_opt_t *opt, const bntseq_t *bns, uint8_t *rseq, int64_t rmax[], int rid,
+   int l_query, const uint8_t *query, mem_seed_v *seeds, mem_alnreg_v *regs,
+   uint8_t parent, uint32_t reg0, float frac_rep) {
 
-   if (bwa_verbose >= 4) {
-      err_printf("[%s] ---> Convert following chain to region <---\n", __func__);
-      mem_print_chain1(bns, c);
-   }
-
-   if (c->n == 0) return;
-
-   // get reference sequence that alignment can happen: [rmax[0], rmax[1]]
-   int64_t rmax[2];
-   mem_chain_reference_span(opt, l_query, bns->l_pac, c, rmax);
-
-   // retrieve the reference sequence
-   int rid;
-   uint8_t *rseq = bns_fetch_seq(bns, pac, &rmax[0], c->seeds[0].rbeg, &rmax[1], &rid);
-   assert(c->rid == rid);
-
-   // sort seeds by score by score
-   uint64_t *srt = calloc(c->n, sizeof(uint64_t));
-   int i;
-   for (i = 0; i < c->n; ++i)
-      srt[i] = (uint64_t)c->seeds[i].score<<32 | i;
-   ks_introsort_64(c->n, srt);
+   // sort seeds by score
+   uint64_t *srt = calloc(seeds->n, sizeof(uint64_t));
+   unsigned i;
+   for (i = 0; i < seeds->n; ++i)
+      srt[i] = (uint64_t)seeds->a[i].score<<32 | i;
+   ks_introsort_64(seeds->n, srt);
 
    int k; unsigned u;
-   for (k = c->n - 1; k >= 0; --k) { // loop from best scored seed to least
-      const mem_seed_t *s = c->seeds + (uint32_t)srt[k];
+   for (k = seeds->n - 1; k >= 0; --k) { // loop from best scored seed to least
+      const mem_seed_t *s = seeds->a + (uint32_t)srt[k];
 
+      if (asymmetric_flt_seed(rseq, query, s, rmax[0])) continue;
+      
       // test whether extension has been made before
       for (u = reg0; u < regs->n; ++u) {
          mem_alnreg_t *reg = regs->a+u;
@@ -740,7 +761,10 @@ void mem_chain2aln(
          int qd, w, max_gap;
 
          // not fully contained
-         if (s->rbeg < reg->rb || s->rbeg + s->len > reg->re || s->qbeg < reg->qb || s->qbeg + s->len > reg->qe) continue;
+         if (s->rbeg < reg->rb ||
+             s->rbeg + s->len > reg->re ||
+             s->qbeg < reg->qb ||
+             s->qbeg + s->len > reg->qe) continue;
 
          // this seed may give a better alignment
          if (s->len - reg->seedlen0 > .1 * l_query) continue;
@@ -765,23 +789,28 @@ void mem_chain2aln(
       // further testing is needed to confirm it is not leading to a different aln
       if (u < regs->n) {
 
-         if (bwa_verbose >= 4)
+         if (bwa_verbose >= 4) {
             printf(
                "** [%s] Seed(%d) [%ld;%ld,%ld] is almost contained in an existing alignment [%d,%d) <=> [%ld,%ld)\n",
                __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg,
                regs->a[u].qb, regs->a[u].qe,
                (long)regs->a[u].rb, (long)regs->a[u].re);
-
-         for (i = k + 1; i < c->n; ++i) { // check overlapping seeds in the same chain
-            const mem_seed_t *t;
-            if (srt[i] == 0) continue;
-            t = &c->seeds[(uint32_t)srt[i]];
-            if (t->len < s->len * .95) continue; // only check overlapping if t is long enough; TODO: more efficient by early stopping
-            if (s->qbeg <= t->qbeg && s->qbeg + s->len - t->qbeg >= s->len>>2 && t->qbeg - s->qbeg != t->rbeg - s->rbeg) break;
-            if (t->qbeg <= s->qbeg && t->qbeg + t->len - s->qbeg >= s->len>>2 && s->qbeg - t->qbeg != s->rbeg - t->rbeg) break;
          }
 
-         if (i == c->n) { // no overlapping seeds; then skip extension
+         for (i = k + 1; i < seeds->n; ++i) { // check overlapping seeds in the same chain
+            if (srt[i] == 0) continue;
+            const mem_seed_t *t = seeds->a + (uint32_t)srt[i];
+            if (t->len < s->len * .95) continue; // only check overlapping if t is long enough; TODO: more efficient by early stopping
+            if (s->qbeg <= t->qbeg &&
+                s->qbeg + s->len - t->qbeg >= s->len>>2 &&
+                t->qbeg - s->qbeg != t->rbeg - s->rbeg) break;
+            
+            if (t->qbeg <= s->qbeg &&
+                t->qbeg + t->len - s->qbeg >= s->len>>2 &&
+                s->qbeg - t->qbeg != s->rbeg - t->rbeg) break;
+         }
+
+         if (i == seeds->n) { // no overlapping seeds; then skip extension
             srt[k] = 0; // mark that seed extension has not been performed
             continue;
          }
@@ -796,13 +825,13 @@ void mem_chain2aln(
       memset(reg, 0, sizeof(mem_alnreg_t)); // reset every new mem_alnreg_t
       reg->w = aw[0] = aw[1] = opt->w;
       reg->score = reg->truesc = -1;
-      reg->rid = c->rid;
+      reg->rid = rid;
 
       if (bwa_verbose >= 4)
          err_printf(
             "** ---> [%s] Extending from seed(%d) [%ld;%ld,%ld] @ %s <---\n",
             __func__, k, (long)s->len, (long)s->qbeg, (long)s->rbeg,
-            bns->anns[c->rid].name);
+            bns->anns[rid].name);
 
       left_extend_seed_set_align_beg(opt, s, query, rseq, rmax, &aw[0], parent, reg);
       right_extend_seed_set_align_end(opt, s, query, l_query, rseq, rmax, &aw[1], parent, reg);
@@ -810,7 +839,7 @@ void mem_chain2aln(
       reg->bss = mem_getbss(parent, bns, reg->rb); /* set bisulfite strand */
       reg->parent = parent;
 
-      // skip cross-boundary regions
+      // skip cross-boundary regions, very rare
       if (mem_getbss(parent, bns, reg->re) != reg->bss) { /* cross boundary */
          regs->n--;
          continue;
@@ -823,18 +852,50 @@ void mem_chain2aln(
             reg->score, aw[0], aw[1]);
  
       /* compute seedcov */
-      for (i = 0, reg->seedcov = 0; i < c->n; ++i) {
-         const mem_seed_t *t = &c->seeds[i];
-         if (t->qbeg >= reg->qb && t->qbeg + t->len <= reg->qe && t->rbeg >= reg->rb && t->rbeg + t->len <= reg->re) // seed fully contained
+      for (i = 0, reg->seedcov = 0; i < seeds->n; ++i) {
+         const mem_seed_t *t = seeds->a + i;
+         if (t->qbeg >= reg->qb &&
+             t->qbeg + t->len <= reg->qe &&
+             t->rbeg >= reg->rb &&
+             t->rbeg + t->len <= reg->re) // seed fully contained
             reg->seedcov += t->len; // this is not very accurate, but for approx. mapQ, this is good enough
       }
       reg->w = aw[0] > aw[1]? aw[0] : aw[1];
       reg->seedlen0 = s->len; // length of best scored seed
-
-      reg->frac_rep = c->frac_rep;
+      reg->frac_rep = frac_rep;
    }
-   free(srt); free(rseq);
+   free(srt);
 }
 
+void mem_chain2region(
+   const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
+   bseq1_t *bseq, uint8_t parent, mem_chain_v *chns, mem_alnreg_v *regs) {
 
+   uint32_t reg0 = regs->n;
+   uint32_t i;
+   for (i = 0; i < chns->n; ++i) {
+      mem_chain_t *c = chns->a + i;
+      if (c->seeds.n == 0) continue;
 
+      if (bwa_verbose >= 4) {
+         err_printf("[%s] ---> Convert following chain to region <---\n", __func__);
+         mem_print_chain1(bns, c);
+      }
+
+      // get reference sequence that alignment can happen: [rmax[0], rmax[1]]
+      int64_t rmax[2]; int rid;
+      mem_chain_reference_span(opt, bseq->l_seq, bns->l_pac, c, rmax);
+      uint8_t *rseq = bns_fetch_seq(bns, pac, &rmax[0], c->seeds.a[0].rbeg, &rmax[1], &rid);
+      // assert(c->rid == rid);
+      
+      /* convert chain to region */
+      uint32_t n0 = regs->n;
+      mem_chain2region1(opt, bns, rseq, rmax, rid, bseq->l_seq, bseq->seq, &c->seeds, regs, parent, reg0, c->frac_rep);
+
+      // no region is generated, try the backup seeds
+      if (regs->n == n0 && c->seeds_extra.n > 0) {
+         mem_chain2region1(opt, bns, rseq, rmax, rid, bseq->l_seq, bseq->seq, &c->seeds_extra, regs, parent, reg0, c->frac_rep);
+      }
+      free(rseq);
+   }
+}

@@ -156,7 +156,6 @@ static void mem_align1_core(
    if (bwa_verbose >= 4) 
       printf("[%s] === Seeding %s against (parent: %u)\n", __func__, bseq->name, parent);
 
-   int l_seq = bseq->l_seq;
    bseq_bsconvert(bseq, parent); // set bseq->bisseq
 
    /* WZ: I think it's always 2-bit encoding */
@@ -164,22 +163,16 @@ static void mem_align1_core(
    /* 	seq[i] = seq[i] < 4? seq[i] : nst_nt4_table[(int)seq[i]]; */
 
    /* use both bisseq and unconverted sequence here */
-   mem_chain_v chn = mem_chain(opt, bwt, bns, pac, bseq, buf, parent);
+   mem_chain_v chns = mem_chain(opt, bwt, bns, bseq, buf, parent);
    /* filter whole chains */
-   mem_chain_flt(opt, &chn);
+   mem_chain_flt(opt, &chns);
    /* filter seeds in the chain by seed score */
-   mem_flt_chained_seeds(opt, bns, pac, bseq, &chn, parent);
+   /* this is not so important for short reads */
+   mem_flt_chained_seeds(opt, bns, pac, bseq, &chns, parent);
 
    // make sure different bisulfite strand does not interfere
-   uint32_t reg0 = regs->n;
-   uint32_t i;
-   for (i = 0; i < chn.n; ++i) {
-      mem_chain_t *p = &chn.a[i];
-      /* add mem_chain_t *p to mem_alnreg_v *regs */
-      mem_chain2aln(opt, bns, pac, l_seq, bseq->seq, p, regs, parent, reg0);
-      free(chn.a[i].seeds);
-   }
-   free(chn.a);
+   mem_chain2region(opt, bns, pac, bseq, parent, &chns, regs);
+   free_mem_chain_v(chns);
 }
 
 static void check_paired_read_names(const char *name1, const char *name2) {
@@ -249,6 +242,7 @@ static void read_identify_adaptor(bseq1_t *seq, uint8_t *adaptor, int l_adaptor)
 }
 
 static void clip_read_by_quality(bseq1_t *seq, int min_base_qual) {
+   if (seq->qual == NULL) return;
    for (; seq->clip5 < seq->l_seq - seq->clip3; seq->clip5++) {
       if (seq->qual[seq->clip5] >= min_base_qual + 33) break;
    }
