@@ -167,8 +167,9 @@ OUTPUT:
   }
 
   // bam output
+  kstring_t s;
   if (!conf->print_in_tab && out) {
-     kstring_t s; s.m = s.l = 0; s.s = 0;
+     s.m = s.l = 0; s.s = 0;
      for (i=0; i<4; ++i) {
         if (i) kputc(',', &s);
         ksprintf(&s, "C%c_R%dC%d", nt256int8_to_nt256char_table[i], retn[i], conv[i]);
@@ -178,13 +179,13 @@ OUTPUT:
 
      if (sam_write1(out, hdr, b) < 0) {
         wzfatal("Cannot write bam.\n");
-     } else {
-        s.m = s.l = 0; s.s = 0;
-        sam_format1(hdr, b, &s);
-        if (puts(s.s) < 0)
-           if (errno == EPIPE) exit(1);
-        free(s.s);
      }
+  } else {
+     s.m = s.l = 0; s.s = 0;
+     sam_format1(hdr, b, &s);
+     if (puts(s.s) < 0)
+        if (errno == EPIPE) exit(1);
+     free(s.s);
   }
 	return 0;
 }
