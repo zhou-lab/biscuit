@@ -57,9 +57,9 @@ typedef enum {
   TP_CQBASE,        // base called on read
   TP_CRETENTION} __tp_name_t; // retention (R) or conversion (C)
 
-const char *tgt_names[] = {"c", "cg", "ch", "hcg", "gch"};
+const char *tgt_names[] = {"c", "cg", "ch", "hcg", "gch", "hch"};
 
-typedef enum {SL_C, SL_CG, SL_CH, SL_HCG, SL_GCH} __tgt_name_t; // SL_ select target
+typedef enum {SL_C, SL_CG, SL_CH, SL_HCG, SL_GCH, SL_HCH} __tgt_name_t; // SL_ select target
 
 typedef struct {
   int n_tp_names;
@@ -117,6 +117,7 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
         case SL_CH: if (fivenuc[3] != 'G') is_tgt=1; break;
         case SL_HCG: if (fivenuc[3] == 'G' && fivenuc[1] != 'G') is_tgt=1; break;
         case SL_GCH: if (fivenuc[3] != 'G' && fivenuc[1] == 'G') is_tgt=1; break;
+        case SL_HCH: if (fivenuc[3] != 'G' && fivenuc[1] != 'G') is_tgt=1; break;
         default: wzfatal("Unknown target name: %u\n", conf->tgt);
         }
         if (!is_tgt) continue;
