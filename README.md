@@ -9,15 +9,16 @@ All releases are available [here](https://github.com/zwdzwd/biscuit/releases/). 
 
 You can also download with Curl using
 ```bash
-$ curl -O $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep release-source.zip | cut -d '"' -f 4)
+$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep release-source.zip | cut -d '"' -f 4)
 ```
 
 ## The precompiled
 ```bash
 $ # macOS
-$ curl -O $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep macOS | cut -d '"' -f 4)
+$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep darwin | cut -d '"' -f 4)
 $ # Linux
-$ curl -O $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep x86_64 | cut -d '"' -f 4)
+$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep linux_amd64 | cut -d '"' -f 4)
+chmod +x biscuit_*
 ```
 
 ## Compile
