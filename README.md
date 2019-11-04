@@ -1,23 +1,55 @@
-# BISCUIT [![Travis-CI Build Status](https://travis-ci.org/zwdzwd/biscuit.svg?branch=master)](https://travis-ci.org/zwdzwd/biscuit) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.48262.svg)](http://dx.doi.org/10.5281/zenodo.48262) [![Downloads](https://img.shields.io/github/downloads/zwdzwd/biscuit/latest/total.svg)](https://github.com/zwdzwd/biscuit/releases)
+# BISCUIT [![Travis-CI Build Status](https://travis-ci.org/huishenlab/biscuit.svg?branch=master)](https://travis-ci.org/huishenlab/biscuit) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.48262.svg)](http://dx.doi.org/10.5281/zenodo.48262)
+<!-- [![Downloads](https://img.shields.io/github/downloads/zwdzwd/biscuit/latest/total.svg)](https://github.com/zwdzwd/biscuit/releases) -->
 
-BISulfite-seq CUI Toolkit (BISCUIT) is a utility suite for analyzing sodium bisulfite conversion-based DNA methylation/modification data. It was written to perform alignment, DNA methylation and mutation calling, allele specific methylation from bisulfite sequencing data.
+BISulfite-seq CUI Toolkit (BISCUIT) is a utility for analyzing sodium bisulfite
+conversion-based DNA methylation/modification data. It was written to perform
+alignment, DNA methylation and mutation calling, and allele specific methylation
+from bisulfite sequencing data.
+
+User Guide is available [https://huishenlab.github.io/biscuit/](https://huishenlab.github.io/biscuit/).
 
 # Download
 
-## Source code
-All releases are available [here](https://github.com/zwdzwd/biscuit/releases/). Note after v0.2.0, if you choose to use Git, make sure use `git clone --recursive` to get the submodules.
+All releases are available [here](https://github.com/huishenlab/biscuit/releases).
 
-You can also download with Curl using
+### Download Source Code and Compile
+
+You can compile from source code using either `git` or `curl`.
+
+Using `git`,
 ```bash
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep release-source.zip | cut -d '"' -f 4)
+git clone --recursive git@github.com:huishenlab/biscuit.git
+cd biscuit
+make
+```
+Note, after v0.2.0, if you choose to download via Git, make sure to use
+`git clone --recursive` to get the submodules.
+
+Using `curl`,
+```bash
+$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | 
+    grep browser_download_url | grep release-source.zip | cut -d '"' -f 4)
+$ unzip release.zip
+$ cd biscuit-release
+$ make
 ```
 
-## The precompiled
+### Download Precompiled Binaries
+The precompiled binaries can be found on the [latest release page](https://github.com/zwdzwd/biscuit/releases/latest)
+on Github (currently only supports latest versions of Linux and MacOSX). You can
+also do this in terminal using the following one-liner:
+One can do this in terminal using the following one-liner:
+
+For mac OS,
 ```bash
-$ # macOS
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep darwin | cut -d '"' -f 4)
-$ # Linux
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | grep browser_download_url | grep linux_amd64 | cut -d '"' -f 4)
+$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest |
+    grep browser_download_url | grep darwin | cut -d '"' -f 4)
+```
+
+For linux,
+```bash
+$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest |
+    grep browser_download_url | grep linux_amd64 | cut -d '"' -f 4)
 $ chmod +x biscuit_*
 ```
 
@@ -32,8 +64,6 @@ $ make
 ```
 
 The created `biscuit` binary is the main entry point.
-
-<!-- User Guide is available [here](https://github.com/zwdzwd/biscuit/wiki). -->
 
 # Usage
 
