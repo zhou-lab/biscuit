@@ -67,6 +67,7 @@ Unlike samtools, in this subroutine, a reference fasta file is mandatory so that
 
 ## Mark duplicate reads
 
+This functionality is DEPRECATED and will be removed in the next release!!!! We suggest using samblaster and the [biscuitBlaster](https://huishenlab.github.io/biscuit/bamoperation/) pipeline for duplicate marking.
 This step is optional. The mark duplicate of BISCUIT is bisulfite strand aware.
 ```bash
 $ biscuit markdup input.bam output.bam

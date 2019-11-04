@@ -516,6 +516,10 @@ int mark_dup(char *bam_in_fn, char *bam_out_fn, mkconf_t *conf) {
 
 static int usage(mkconf_t *conf) {
   fprintf(stderr, "\n");
+  fprintf(stderr, "biscuit markdup is DEPRECATED!!\n");
+  fprintf(stderr, "It will be removed in the next release of biscuit.\n");
+  fprintf(stderr, "Use samblaster to mark duplicates instead.\n\n");
+  fprintf(stderr, "USE AT YOUR OWN RISK!!\n");
   fprintf(stderr, "Usage: biscuit markdup [options] <in.bam> <out.bam>\n");
   fprintf(stderr, "       <in.bam> must be sorted and indexed.\n");
   fprintf(stderr, "       <out.bam> is default to <in.bam.mkdup> if not provided.\n");
