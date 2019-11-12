@@ -28,7 +28,7 @@ Note, after v0.2.0, if you choose to download via Git, make sure to use
 
 Using `curl`,
 ```bash
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest | 
+$ curl -OL $(curl -s https://api.github.com/repos/huishenlab/biscuit/releases/latest | 
     grep browser_download_url | grep release-source.zip | cut -d '"' -f 4)
 ```
 
@@ -59,13 +59,13 @@ also do this in terminal using the following one-liner:
 
 For macOS,
 ```bash
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest |
+$ curl -OL $(curl -s https://api.github.com/repos/huishenlab/biscuit/releases/latest |
     grep browser_download_url | grep darwin | cut -d '"' -f 4)
 ```
 
 For linux,
 ```bash
-$ curl -OL $(curl -s https://api.github.com/repos/zwdzwd/biscuit/releases/latest |
+$ curl -OL $(curl -s https://api.github.com/repos/huishenlab/biscuit/releases/latest |
     grep browser_download_url | grep linux_amd64 | cut -d '"' -f 4)
 $ chmod +x biscuit_*
 ```
