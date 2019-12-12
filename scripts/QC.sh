@@ -270,7 +270,7 @@ input_vcf="<unset>"
 QCdir="BISCUITqc"
 
 function usage {
-  >&2 echo "Usage: QC.sh [options] setup_file sample_name input_bam"
+  >&2 echo "Usage: QC.sh [options] assets_directory genome sample_name input_bam"
   >&2 echo "Input options:"
   >&2 echo "   -v|--vcf     vcf outupt from BISCUIT"
   >&2 echo "   -o|--output  output directory [$QCdir]"
@@ -278,20 +278,23 @@ function usage {
   exit 1;
 }
 
-[[ "$#" -lt 3 ]] && usage;
+[[ "$#" -lt 4 ]] && usage;
 input_bam="${@: -1}"
 set -- "${@:1:$(($#-1))}"
 sname="${@: -1}"
 set -- "${@:1:$(($#-1))}"
-setup_file="${@: -1}"
+genome="${@: -1}"
+set -- "${@:1:$(($#-1))}"
+#setup_file="${@: -1}"
+assets_directory="${@: -1}"
 set -- "${@:1:$(($#-1))}"
 
-if [[ ! -f "$setup_file" ]]; then
-  echo "Setup file missing: $setup_file.";
+if [[ ! -d "$assets_directory" ]]; then
+  echo "Assets directory missing: $assets_directory.";
   exit 1;
 fi
 
-source "$setup_file"
+source $(dirname ${BASH_SOURCE[0]})/setup.sh $genome $assets_directory 
 
 if [[ ! -f "${BISCUIT_REFERENCE}.fai" ]]; then
   >&2 echo "Cannot locate fai-indexed reference: ${BISCUIT_REFERENCE}.fai"
