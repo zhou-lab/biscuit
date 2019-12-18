@@ -473,7 +473,7 @@ function biscuitQC {
         echo -e "ReadInPair\tPosition\tConversion/Retention\tCount" >> $QCdir/${sname}_CpHRetentionByReadPos.txt
         samtools view -hq 40 $input_bam | \
             biscuit cinread $BISCUIT_REFERENCE - -t ch -p QPAIR,CQPOS,CRETENTION | \
-            sort | uniq -c | \
+            sort -T ${QCdir} | uniq -c | \
             awk -F" " '$4!="N"{print $2"\t"$3"\t"$4"\t"$1}' | \
             sort -k1,1 -k2,2n -T $QCdir >> $QCdir/${sname}_CpHRetentionByReadPos.txt
 
