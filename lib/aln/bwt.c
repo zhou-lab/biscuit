@@ -39,6 +39,7 @@
 #  include "malloc_wrap.h"
 #endif
 
+// generate table mapping 4-base/8-bit word to character counts
 void bwt_gen_cnt_table(bwt_t *bwt) {
 	int i, j;
 	for (i = 0; i != 256; ++i) {
@@ -161,10 +162,13 @@ void bwt_2occ(const bwt_t *bwt, bwtint_t k, bwtint_t l, ubyte_t c, bwtint_t *ok,
 	}
 }
 
+// count 8 bits/4 bases at a time
 #define __occ_aux4(bwt, b)											\
 	((bwt)->cnt_table[(b)&0xff] + (bwt)->cnt_table[(b)>>8&0xff]		\
 	 + (bwt)->cnt_table[(b)>>16&0xff] + (bwt)->cnt_table[(b)>>24])
 
+// k is the BWT position
+// cnt is the occurrence for each alphabet
 void bwt_occ4(const bwt_t *bwt, bwtint_t k, bwtint_t cnt[4])
 {
 	bwtint_t x;
@@ -175,15 +179,26 @@ void bwt_occ4(const bwt_t *bwt, bwtint_t k, bwtint_t cnt[4])
 	}
 	k -= (k >= bwt->primary); // because $ is not in bwt
 	p = bwt_occ_intv(bwt, k);
+  // first 256 bits are the occurrence counts for the chunk
 	memcpy(cnt, p, 4 * sizeof(bwtint_t));
+  // last 256 bits are the bwt sequence, need to shift 256 first
 	p += sizeof(bwtint_t); // sizeof(bwtint_t) = 4*(sizeof(bwtint_t)/sizeof(uint32_t))
+  // every uint32_t there are 16(2^4) bases
+  // (k>>4) is the 32-bit-unit index for k
+  // (k&~OCC_INTV_MASK)>>4 == (k>>7<<3) is index for the first 32-bit-unit index for 128-base-chunk start
 	end = p + ((k>>4) - ((k&~OCC_INTV_MASK)>>4)); // this is the end point of the following loop
+  // count by chunks
 	for (x = 0; p < end; ++p) x += __occ_aux4(bwt, *p);
+  // final adjust by subtracting over-counts inside 32-bit-unit (containing 16 bases)
+  // ~k&15 == 16 - (k mod 16)
+  // ((-k&15)<<1) - every base takes two bit
+  // ~((1U<<((~k&15)<<1)) - 1) - mask of the remainder
 	tmp = *p & ~((1U<<((~k&15)<<1)) - 1);
 	x += __occ_aux4(bwt, tmp) - (~k&15);
 	cnt[0] += x&0xff; cnt[1] += x>>8&0xff; cnt[2] += x>>16&0xff; cnt[3] += x>>24;
 }
 
+// when k and l are in the same shift, we don't need to reposition p
 // an analogy to bwt_occ4() but more efficient, requiring k <= l
 void bwt_2occ4(const bwt_t *bwt, bwtint_t k, bwtint_t l, bwtint_t cntk[4], bwtint_t cntl[4])
 {
@@ -208,6 +223,7 @@ void bwt_2occ4(const bwt_t *bwt, bwtint_t k, bwtint_t l, bwtint_t cntk[4], bwtin
 		y = x;
 		tmp = *p & ~((1U<<((~k&15)<<1)) - 1);
 		x += __occ_aux4(bwt, tmp) - (~k&15);
+    
 		// calculate cntl[] and finalize cntk[]
 		for (; p < endl; ++p) y += __occ_aux4(bwt, *p);
 		tmp = *p & ~((1U<<((~l&15)<<1)) - 1);
@@ -267,7 +283,9 @@ void bwt_extend(const bwt_t *bwt, const bwtintv_t *ik, bwtintv_t ok[4], int is_b
 		ok[i].x[!is_back] = bwt->L2[i] + 1 + tk[i];
 		ok[i].x[2] = tl[i] - tk[i];
 	}
-	ok[3].x[is_back] = ik->x[is_back] + (ik->x[!is_back] <= bwt->primary && ik->x[!is_back] + ik->x[2] - 1 >= bwt->primary);
+  
+	ok[3].x[is_back] = ik->x[is_back] + (
+     ik->x[!is_back] <= bwt->primary && ik->x[!is_back] + ik->x[2] - 1 >= bwt->primary);
 	ok[2].x[is_back] = ok[3].x[is_back] + ok[3].x[2];
 	ok[1].x[is_back] = ok[2].x[is_back] + ok[2].x[2];
 	ok[0].x[is_back] = ok[1].x[is_back] + ok[1].x[2];
@@ -283,6 +301,7 @@ static void bwt_reverse_intvs(bwtintv_v *p) {
     }
   }
 }
+
 // NOTE: $max_intv is not currently used in BWA-MEM
 int bwt_smem1a(const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *q, int x, int min_intv, uint64_t max_intv, bwtintv_v *mem, bwtintv_v *tmpvec[2]) {
 
@@ -300,7 +319,7 @@ int bwt_smem1a(const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *q, i
   ik.info = x + 1;
 
   for (i = x + 1, curr->n = 0; i < len; ++i) { // forward search
-    if (ik.x[2] < max_intv) { // an interval small enough
+    if (ik.x[2] < max_intv) { // an interval small enough, currently won't come here
       kv_push(bwtintv_t, *curr, ik);
       break;
     } else if (q[i] < 4) { // an A/C/G/T base
@@ -308,6 +327,7 @@ int bwt_smem1a(const bwt_t *bwt, const bwt_t *bwtc, int len, const uint8_t *q, i
       bwt_extend(bwtc, &ik, ok, 0);
       if (ok[c].x[2] != ik.x[2]) { // change of the interval size
         kv_push(bwtintv_t, *curr, ik);
+        // no more matches
         if (ok[c].x[2] < (unsigned) min_intv) break; // the interval size is too small to be extended further
       }
       ik = ok[c]; ik.info = i + 1;

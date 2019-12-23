@@ -439,7 +439,8 @@ static int_v mem_alnreg_select_format(
       // set mapQ for primary mapping
       p->mapq = p->secondary < 0 ? mem_approx_mapq_se(opt, p) : 0;
       // mapq of secondary/supplementary alignment is capped by the primary mapping
-      if (l && !p->is_alt) p->mapq = min(p->mapq, regs->a[0].mapq);
+      if (!(opt->flag & MEM_F_KEEP_SUPP_MAPQ) && l && !p->is_alt)
+         p->mapq = min(p->mapq, regs->a[0].mapq);
 
       mem_alnreg_setSAM(opt, bns, pac, s, p);
       kv_push(int, to_output, k);

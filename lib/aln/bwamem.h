@@ -22,6 +22,7 @@ typedef struct __smem_i smem_i;
 #define MEM_F_REF_HDR	0x100
 #define MEM_F_SOFTCLIP  0x200 // softclip all, by default will hardclip secondary/supplementary mapping
 #define MEM_F_SMARTPE   0x400
+#define MEM_F_KEEP_SUPP_MAPQ 0x1000 // don't modify mapQ of supplementary alignments
 
 typedef struct {
   int a, b;               // match score and mismatch penalty

@@ -33,6 +33,7 @@
 
 // requirement: (OCC_INTERVAL%16 == 0); please DO NOT change this line because some part of the code assume OCC_INTERVAL=0x80
 #define OCC_INTV_SHIFT 7
+// 2^7 == 128 bases per chunk
 #define OCC_INTERVAL   (1LL<<OCC_INTV_SHIFT)
 #define OCC_INTV_MASK  (OCC_INTERVAL - 1)
 
@@ -43,19 +44,29 @@ typedef unsigned char ubyte_t;
 
 typedef uint64_t bwtint_t;
 
+/**************************************************
+ * bwt structure
+ * every 128 bases in BWT
+ * [256 bits for occurrence][256 bits for BWT seq]
+ **************************************************/
+
 typedef struct {
-	bwtint_t primary; // S^{-1}(0), or the primary index of BWT
-	bwtint_t L2[5]; // C(), cumulative count
-	bwtint_t seq_len; // sequence length
-	bwtint_t bwt_size; // size of bwt, about seq_len/4
-	uint32_t *bwt; // BWT
-	// occurance array, separated to two parts
-	uint32_t cnt_table[256];
-	// suffix array
-	int sa_intv;
-	bwtint_t n_sa;
-	bwtint_t *sa;
-  uint8_t parent;               /* parent or daughter */
+   bwtint_t primary; // S^{-1}(0), or the primary index of BWT
+   bwtint_t L2[5]; // C(), cumulative count
+   bwtint_t seq_len; // sequence length
+   bwtint_t bwt_size; // size of bwt, about seq_len/4
+   // bwt_t->bwt has both bwt and occ
+   // every 128 bases in bwt, we store 512 bits (a unit)
+   // top 256 bits are for the actual bwt sequence
+   // lower 256 bits are for the occurrences
+   uint32_t *bwt;
+   // look up table for counting bases in 4-base/8-bit word
+   uint32_t cnt_table[256];
+   // suffix array
+   int sa_intv;
+   bwtint_t n_sa;
+   bwtint_t *sa;
+   uint8_t parent;               /* parent or daughter */
 } bwt_t;
 
 /**
@@ -75,9 +86,12 @@ typedef struct { size_t n, m; bwtintv_t *a; } bwtintv_v;
 #define bwt_bwt(b, k) ((b)->bwt[(k)/OCC_INTERVAL * (OCC_INTERVAL/(sizeof(uint32_t)*8/2) + sizeof(bwtint_t)/4*4) + sizeof(bwtint_t)/4*4 + (k)%OCC_INTERVAL/16])
 #define bwt_occ_intv(b, k) ((b)->bwt + (k)/OCC_INTERVAL * (OCC_INTERVAL/(sizeof(uint32_t)*8/2) + sizeof(bwtint_t)/4*4)
 */
+// for each 512 bit block, first 256 bits are occurrence of 4 characters, second 256 bits are BWTs of 128 bases
 
 // The following two lines are ONLY correct when OCC_INTERVAL==0x80
 #define bwt_bwt(b, k) ((b)->bwt[((k)>>7<<4) + sizeof(bwtint_t) + (((k)&0x7f)>>4)])
+// 7 is 2^7 == 128 bases for each unit of bwt
+// 4 is 2^4 * 2^5 (uint32_t) == 2^9 == 512 bits for a unit
 #define bwt_occ_intv(b, k) ((b)->bwt + ((k)>>7<<4))
 
 /* retrieve a character from the $-removed BWT string. Note that

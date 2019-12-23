@@ -235,6 +235,7 @@ int usage(mem_opt_t *opt) {
   fprintf(stderr, "                     in FILE [null]\n");
   fprintf(stderr, "       -j            treat ALT contigs as part of the primary assembly (i.e.\n");
   fprintf(stderr, "                     ignore <idxbase>.alt file)\n");
+  fprintf(stderr, "       -q            don't modify mapQ of supplementary alignments.\n");
   fprintf(stderr, "       -v INT        verbose level: \n");
   fprintf(stderr, "                     1=error, 2=warning, 3=message, 4+=debugging [%d]\n", bwa_verbose);
   fprintf(stderr, "       -T INT        minimum score to output [%d]\n", opt->T);
@@ -276,7 +277,7 @@ int main_align(int argc, char *argv[]) {
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
   memset(&opt0, 0, sizeof(mem_opt_t));
   int auto_infer_alt_chrom = 1;
-  while ((c = getopt(argc, argv, "1:2:3:5:ab:c:d:ef:h:ijk:m:pr:s:t:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
+  while ((c = getopt(argc, argv, "1:2:3:5:ab:c:d:ef:h:ijk:m:pqr:s:t:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
     if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
     else if (c == '1') aux._seq1 = strdup(optarg);
     else if (c == '2') aux._seq2 = strdup(optarg);
@@ -293,6 +294,7 @@ int main_align(int argc, char *argv[]) {
     else if (c == 'P') opt->flag |= MEM_F_NOPAIRING;
     else if (c == 'a') opt->flag |= MEM_F_ALL;
     else if (c == 'p') opt->flag |= MEM_F_PE | MEM_F_SMARTPE;
+    else if (c == 'q') opt->flag |= MEM_F_KEEP_SUPP_MAPQ;
     else if (c == 'M') opt->flag |= MEM_F_NO_MULTI; // mark shorter split as secondary
     else if (c == 'S') opt->flag |= MEM_F_NO_RESCUE;
     else if (c == 'e') opt->flag |= MEM_F_SELF_OVLP;
