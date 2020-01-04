@@ -216,8 +216,8 @@ function biscuitQC {
     >&2 echo "`date`---- BISCUIT_QC_BASECOV ----"
    # bedtools genomecov -bga -split -ibam $input_bam -g ${BISCUIT_REFERENCE}.fai | bedtools sort >$QCdir/${sname}_bga.bed
    # samtools view -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g ${BISCUIT_REFERENCE}.fai -bga -split | bedtools sort  >$QCdir/${sname}_bga_q40.bed
-    bedtools genomecov -bga -split -ibam $input_bam -g ${BISCUIT_REFERENCE}.fai | LC_ALL=C sort --parallel=$processes  -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga.bed
-    samtools view -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g ${BISCUIT_REFERENCE}.fai -bga -split | LC_ALL=C sort --parallel=$processes   -k1,1 -k2,2n -T $QCdir  >$QCdir/${sname}_bga_q40.bed
+    bedtools genomecov -bga -split -ibam $input_bam | LC_ALL=C sort --parallel=$processes  -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga.bed
+    samtools view -q 40 -b $input_bam | bedtools genomecov -ibam stdin -bga -split | LC_ALL=C sort --parallel=$processes   -k1,1 -k2,2n -T $QCdir  >$QCdir/${sname}_bga_q40.bed
 
     echo -e "BISCUITqc Depth Distribution (All)" >$QCdir/${sname}_covdist_table.txt
     echo -e "depth\tcount" >>$QCdir/${sname}_covdist_table.txt
