@@ -216,8 +216,8 @@ function biscuitQC {
     >&2 echo "`date`---- BISCUIT_QC_BASECOV ----"
    # bedtools genomecov -bga -split -ibam $input_bam -g ${BISCUIT_REFERENCE}.fai | bedtools sort >$QCdir/${sname}_bga.bed
    # samtools view -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g ${BISCUIT_REFERENCE}.fai -bga -split | bedtools sort  >$QCdir/${sname}_bga_q40.bed
-    bedtools genomecov -bga -split -ibam $input_bam -g ${BISCUIT_REFERENCE}.fai | LC_ALL=C sort --parallel=$processes  -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga.bed
-    samtools view -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g ${BISCUIT_REFERENCE}.fai -bga -split | LC_ALL=C sort --parallel=$processes   -k1,1 -k2,2n -T $QCdir  >$QCdir/${sname}_bga_q40.bed
+    bedtools genomecov -bga -split -ibam $input_bam | LC_ALL=C sort --parallel=$processes  -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga.bed
+    samtools view -q 40 -b $input_bam | bedtools genomecov -ibam stdin -bga -split | LC_ALL=C sort --parallel=$processes   -k1,1 -k2,2n -T $QCdir  >$QCdir/${sname}_bga_q40.bed
 
     echo -e "BISCUITqc Depth Distribution (All)" >$QCdir/${sname}_covdist_table.txt
     echo -e "depth\tcount" >>$QCdir/${sname}_covdist_table.txt
@@ -237,52 +237,56 @@ function biscuitQC {
     >&2 echo "`date`---- BISCUIT_QC_DUPLICATE ----"
     # duplicate
     #samtools view -f 0x400 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split | bedtools sort >$QCdir/${sname}_bga_dup.bed
-    samtools view -f 0x400 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split | LC_ALL=C sort --parallel=$processes -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga_dup.bed
+    samtools view -f 0x400 -b $input_bam >${sname}_dup_tmp.bam
+    if [[ $(samtools view ${sname}_dup_tmp.bam | wc -l) -ge 2 ]]; then
+      bedtools genomecov -ibam ${sname}_dup_tmp.bam -bga -split | LC_ALL=C sort --parallel=$processes -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga_dup.bed
+      rm -f ${sname}_dup_tmp.bam
 
-    # duplication rate
-    echo -e "BISCUITqc Read Duplication Table" >$QCdir/${sname}_dup_report.txt
-    echo -ne "#bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
-    awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga.bed >>$QCdir/${sname}_dup_report.txt
-    echo -ne "#bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
-    awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_dup.bed >>$QCdir/${sname}_dup_report.txt
+      # duplication rate
+      echo -e "BISCUITqc Read Duplication Table" >$QCdir/${sname}_dup_report.txt
+      echo -ne "#bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
+      awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga.bed >>$QCdir/${sname}_dup_report.txt
+      echo -ne "#bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
+      awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_dup.bed >>$QCdir/${sname}_dup_report.txt
 
-    if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
-      # high GC content
-      echo -ne "#high-GC bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_TOPGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
-      echo -ne "#high-GC bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_TOPGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
+        # high GC content
+        echo -ne "#high-GC bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_TOPGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+        echo -ne "#high-GC bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_TOPGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
 
-      # low GC content
-      echo -ne "#low-GC bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_BOTGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
-      echo -ne "#low-GC bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_BOTGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
-    fi
-    
-    ## Q40
-    # duplicate
-   # samtools view -f 0x400 -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split | bedtools sort >$QCdir/${sname}_bga_dup_q40.bed
-    samtools view -f 0x400 -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split | LC_ALL=C sort --parallel=$processes -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga_dup_q40.bed
+        # low GC content
+        echo -ne "#low-GC bases covered by all reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga.bed -b $BISCUIT_BOTGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+        echo -ne "#low-GC bases covered by duplicate reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga_dup.bed -b $BISCUIT_BOTGC_BED -sorted | awk 'BEGIN{a=0}$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      fi
+      
+      ## Q40
+      # duplicate
+      # samtools view -f 0x400 -q 40 -b $input_bam | bedtools genomecov -ibam stdin -g $BISCUIT_REFERENCE.fai -bga -split | bedtools sort >$QCdir/${sname}_bga_dup_q40.bed
+      samtools view -f 0x400 -q 40 -b $input_bam | bedtools genomecov -ibam stdin -bga -split | LC_ALL=C sort --parallel=$processes -k1,1 -k2,2n -T $QCdir >$QCdir/${sname}_bga_dup_q40.bed
 
-    # duplication rate
-    echo -ne "#bases covered by all q40-reads: " >>$QCdir/${sname}_dup_report.txt
-    awk '$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_q40.bed >>$QCdir/${sname}_dup_report.txt
-    echo -ne "#bases covered by duplicate q40-reads: " >>$QCdir/${sname}_dup_report.txt
-    awk '$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_dup_q40.bed >>$QCdir/${sname}_dup_report.txt
+      # duplication rate
+      echo -ne "#bases covered by all q40-reads: " >>$QCdir/${sname}_dup_report.txt
+      awk '$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_q40.bed >>$QCdir/${sname}_dup_report.txt
+      echo -ne "#bases covered by duplicate q40-reads: " >>$QCdir/${sname}_dup_report.txt
+      awk '$4>0{a+=$3-$2}END{print a}' $QCdir/${sname}_bga_dup_q40.bed >>$QCdir/${sname}_dup_report.txt
 
-    if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
-      # high GC content
-      echo -ne "#high-GC bases covered by all q40-reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
-      echo -ne "#high-GC bases covered by duplicate q40-reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_dup_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      if [[ -f "$BISCUIT_TOPGC_BED" && -f "$BISCUIT_BOTGC_BED" ]]; then
+        # high GC content
+        echo -ne "#high-GC bases covered by all q40-reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+        echo -ne "#high-GC bases covered by duplicate q40-reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga_dup_q40.bed -b $BISCUIT_TOPGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
 
-      # low GC content
-      echo -ne "#low-GC bases covered by all q40-reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
-      echo -ne "#low-GC bases covered by duplicate q40-reads: " >>$QCdir/${sname}_dup_report.txt
-      bedtools intersect -a $QCdir/${sname}_bga_dup_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+        # low GC content
+        echo -ne "#low-GC bases covered by all q40-reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+        echo -ne "#low-GC bases covered by duplicate q40-reads: " >>$QCdir/${sname}_dup_report.txt
+        bedtools intersect -a $QCdir/${sname}_bga_dup_q40.bed -b $BISCUIT_BOTGC_BED -sorted | awk '$4>0{a+=$3-$2}END{print a}' >>$QCdir/${sname}_dup_report.txt
+      fi
     fi
   fi
   
@@ -420,7 +424,7 @@ function biscuitQC {
 	samtools view -h -q 40 $input_bam | biscuit bsconv $BISCUIT_REFERENCE - |  grep -E -o --color "ZN:Z:[^ ].*" | awk -F '[^0-9]*' -v OFS="\t" '{ra[$2]+=1;rc[$4]+=1;rg[$6]+=1;rt[$8]+=1;}END{for(k in ra) {print "CA", k, ra[k]} for(k in rc) {print "CC", k, rc[k]} for(k in rg) {print "CG", k, rg[k]} for(k in rt) {print "CT", k, rt[k]}}' | sort -k1,1 -k2,2n  >>$QCdir/${sname}_freqOfTotalRetentionPerRead.txt
     
 	echo -e "BISCUITqc Conversion Rate by Base Average Table" >$QCdir/${sname}_totalBaseConversionRate.txt
-    biscuit vcf2bed -et c $input_vcf | awk '{beta_sum[$6]+=$8; beta_cnt[$6]+=1;} END{print "CA\tCC\tCG\tCT"; print beta_sum["CA"]/beta_cnt["CA"]"\t"beta_sum["CC"]/beta_cnt["CC"]"\t"beta_sum["CG"]/beta_cnt["CG"]"\t"beta_sum["CT"]/beta_cnt["CT"];}' >>$QCdir/${sname}_totalBaseConversionRate.txt
+    biscuit vcf2bed -et c $input_vcf | awk '{beta_sum[$6]+=$8; beta_cnt[$6]+=1;} END{print "CA\tCC\tCG\tCT"; if(beta_cnt["CA"] < 20 || beta_cnt["CC"] < 20 || beta_cnt["CG"] < 20 || beta_cnt["CT"] < 20) print "-1\t-1\t-1\t-1"; else print beta_sum["CA"]/beta_cnt["CA"]"\t"beta_sum["CC"]/beta_cnt["CC"]"\t"beta_sum["CG"]/beta_cnt["CG"]"\t"beta_sum["CT"]/beta_cnt["CT"];}' >>$QCdir/${sname}_totalBaseConversionRate.txt
 
     echo -e "BISCUITqc Conversion Rate by Read Average Table" >$QCdir/${sname}_totalReadConversionRate.txt
     samtools view -hq 40 -F 0x900 $input_bam | biscuit bsconv -b $BISCUIT_REFERENCE - | awk '{for(i=1;i<=8;++i) a[i]+=$i;}END{print "CpA\tCpC\tCpG\tCpT"; print a[1]/(a[1]+a[2])"\t"a[3]/(a[3]+a[4])"\t"a[5]/(a[5]+a[6])"\t"a[7]/(a[7]+a[8]);}' >>$QCdir/${sname}_totalReadConversionRate.txt
@@ -474,10 +478,10 @@ function biscuitQC {
     rm $QCdir/*.bed
   fi
   
-    ########################################
-    ## Running check on output files
-    ########################################
-    basic_check_output_filled 
+  ########################################
+  ## Running check on output files
+  ########################################
+  basic_check_output_filled 
 }
 
 
