@@ -70,7 +70,7 @@ static int usage()
   fprintf(stderr, "     align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "\n  -- BAM operation\n");
   fprintf(stderr, "     tview         text alignment viewer with bisulfite coloring\n");
-  fprintf(stderr, "     markdup       mark duplicates on the same bisulfite strand\n");
+  // fprintf(stderr, "     markdup       mark duplicates on the same bisulfite strand\n");
   fprintf(stderr, "     bsstrand      validate/correct bisulfite conversion strand label (YD tag)\n");
   fprintf(stderr, "     bsconv        summarize/filter reads by bisulfite conversion (ZN tag)\n");
   fprintf(stderr, "     cinread       print cytosine-read pair in a long form.\n");
