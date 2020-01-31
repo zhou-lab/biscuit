@@ -64,10 +64,11 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
   int tofilter = 0;
   if (c->flag & BAM_FUNMAP ||
-      c->flag & BAM_FSECONDARY ||
-      c->flag & BAM_FQCFAIL ||
-      c->flag & BAM_FDUP ||
-      c->flag & BAM_FSUPPLEMENTARY) {
+      c->flag & BAM_FQCFAIL)
+     /* c->flag & BAM_FSECONDARY || */
+     /* c->flag & BAM_FDUP || */
+     /* c->flag & BAM_FSUPPLEMENTARY */
+  {
      tofilter = 1;
      goto OUTPUT;
   }
