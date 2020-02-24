@@ -1198,13 +1198,16 @@ void conf_init(conf_t *conf) {
 static int usage(conf_t *conf) {
   fprintf(stderr, "\n");
   fprintf(stderr, "Usage: pileup [options] [-o out.pileup] <ref.fa> <in.bam ..>\n");
+  fprintf(stderr, "Somatic Mode Usage: pileup [options] [-o out.pileup] <-S -T tumor.bam -I normal.bam> <ref.fa>\n");
   fprintf(stderr, "Input options:\n\n");
   /* fprintf(stderr, "     -i        input bams (can be multiple, separate by space).\n"); */
   /* fprintf(stderr, "     -r        reference in fasta.\n"); */
   fprintf(stderr, "     -g        region (optional, if not specified the whole bam will be processed).\n");
   fprintf(stderr, "     -q        number of threads [%d].\n", conf->n_threads);
   fprintf(stderr, "     -N        NOMe-seq mode [off]\n");
-  fprintf(stderr, "     -T        somatic mode, treat sample 1 as tumor and sample 2 as normal [off]\n");
+  fprintf(stderr, "     -S        somatic mode, must also provide -T (tumor BAM) and -I (normal BAM) arguments [off]\n");
+  fprintf(stderr, "     -T        somatic mode, tumor BAM\n");
+  fprintf(stderr, "     -I        somatic mode, normal BAM\n");
   fprintf(stderr, "\nOutputing format:\n\n");
   fprintf(stderr, "     -o        pileup output file [stdout]\n");
   fprintf(stderr, "     -w        pileup statistics output prefix [same as output]\n");
@@ -1242,13 +1245,15 @@ int main_pileup(int argc, char *argv[]) {
 
   int c, i; unsigned j;
   char *reg = 0;
+  char *tum = 0;
+  char *nor = 0;
   char *outfn = 0;
   char *statsfn = 0;
   conf_t conf;
   conf_init(&conf);
 
   if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "o:w:g:q:e:b:E:M:x:C:P:Q:t:n:m:a:l:TNrcdupv:h"))>=0) {
+  while ((c=getopt(argc, argv, "o:w:g:q:e:b:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
     switch (c) {
     /* case 'i': */
     /*   for(--optind; optind < argc && *argv[optind] != '-'; optind++){ */
@@ -1261,7 +1266,9 @@ int main_pileup(int argc, char *argv[]) {
     case 'g': reg = optarg; break;
     case 'q': conf.n_threads = atoi(optarg); break;
     case 'N': conf.is_nome = 1; break;
-    case 'T': conf.somatic = 1; break;
+    case 'S': conf.somatic = 1; break;
+    case 'T': tum = optarg; break;
+    case 'I': nor = optarg; break;
       
     case 'o': outfn = optarg; break;
     case 'w': statsfn = strdup(optarg); break;
@@ -1298,23 +1305,48 @@ int main_pileup(int argc, char *argv[]) {
     }
   }
 
-  if (optind + 2 > argc) {
+  if (optind + 2 > argc && !conf.somatic) {
     fprintf(stderr, "Reference or bam input is missing\n");
+    usage(&conf);
+    exit(1);
+  } else if (optind + 1 > argc && conf.somatic) {
+    fprintf(stderr, "Reference input is missing\n");
     usage(&conf);
     exit(1);
   }
 
   char *reffn = argv[optind++];
   char **in_fns = 0; int n_fns = 0;
-  for (; optind < argc; ++optind) {
-    in_fns = realloc(in_fns, (n_fns+1)*sizeof(char*));
-    in_fns[n_fns++] = argv[optind];
-  }
+  if (conf.somatic) {
+    if (!tum) {
+      fprintf(stderr, "[%s:%d] To call somatic events (-S), we need to specify the tumor BAM (-T).\nAbort.\n", __func__, __LINE__);
+      fflush(stderr);
+      exit(1);
+    } else if (!nor) {
+      fprintf(stderr, "[%s:%d] To call somatic events (-S), we need to specify the normal BAM (-I).\nAbort.\n", __func__, __LINE__);
+      fflush(stderr);
+      exit(1);
+    }
 
-  if (conf.somatic && n_fns<2) {
-    fprintf(stderr, "[%s:%d] To call somatic events (-T), we need input of 2 bams.\nAbort.\n", __func__, __LINE__);
-    fflush(stderr);
-    exit(1);
+    n_fns = 2;
+    in_fns = realloc(in_fns, (n_fns)*sizeof(char*));
+    in_fns[0] = tum;
+    in_fns[1] = nor;
+  } else {
+    if (tum) {
+      fprintf(stderr, "[%s:%d] You have specified a tumor BAM (-T) for somatic mode, but -S was not supplied.\nAbort.\n", __func__, __LINE__);
+      fflush(stderr);
+      exit(1);
+    } else if (nor) {
+      fprintf(stderr, "[%s:%d] You have specified a normal BAM (-I) for somatic mode, but -S was not supplied.\nAbort.\n", __func__, __LINE__);
+      fflush(stderr);
+      exit(1);
+    }
+
+    for (; optind < argc; ++optind) {
+      in_fns = realloc(in_fns, (n_fns+1)*sizeof(char*));
+      in_fns[n_fns++] = argv[optind];
+    }
   }
 
   if (conf.verbose > 5) {
