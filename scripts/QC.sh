@@ -233,6 +233,14 @@ function basic_check_output_filled {
             rm -f ${FILE}
         fi
     done
+
+    TOTALBASE=${prepend_path}_totalBaseConversionRate.txt
+    if [[ `tail -n 1 ${TOTALBASE} | awk '{print $1}'` == -1 ]]; then
+        >&2 echo "--- ${TOTALBASE} --- had less than 20 of either CA's, CC's, CG's, or CT's!"
+        >&2 echo "Deleting ${prepend_path}_totalBaseConversionRate.txt and ${prepend_path}_totalReadConversionRate.txt to help with debugging."
+        rm -f ${prepend_path}_totalBaseConversionRate.txt
+        rm -f ${prepend_path}_totalReadConversionRate.txt
+    fi
 }
 
 # Workhorse function for processing BISCUIT QC
