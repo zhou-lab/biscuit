@@ -495,30 +495,37 @@ int main_align(int argc, char *argv[]) {
       }
     }
   } else if (pbat && !aux._seq1) {
-    if (optind + 2 >= argc) {
-      if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] PBAT mode requires FASTQ files for reads 1 and 2.\n", __func__);
-      return usage(opt);
-    }
     if (opt->flag&MEM_F_PE) {
       if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] PBAT mode cannot run when '-p' is in use as the second query file would be ignored.\n", __func__);
       return usage(opt);
     }
     /* setup fastq input under PBAT assumption */
-    ko = kopen(argv[optind + 2], &fd);
-    if (ko == 0) {
-      if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
-      return 1;
-    }
-    fp = gzdopen(fd, "r");
-    aux.ks = kseq_init(fp);
-    ko2 = kopen(argv[optind + 1], &fd2);
-    if (ko2 == 0) {
-        if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
+    if (optind + 2 >= argc) {
+      ko = kopen(argv[optind + 1], &fd);
+      if (ko == 0) {
+        if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
         return 1;
+      }
+      fp = gzdopen(fd, "r");
+      aux.ks = kseq_init(fp);
+      opt->parent = 3;
+    } else {
+      ko = kopen(argv[optind + 2], &fd);
+      if (ko == 0) {
+        if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
+        return 1;
+      }
+      fp = gzdopen(fd, "r");
+      aux.ks = kseq_init(fp);
+      ko2 = kopen(argv[optind + 1], &fd2);
+      if (ko2 == 0) {
+          if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
+          return 1;
+      }
+      fp2 = gzdopen(fd2, "r");
+      aux.ks2 = kseq_init(fp2);
+      opt->flag |= MEM_F_PE;
     }
-    fp2 = gzdopen(fd2, "r");
-    aux.ks2 = kseq_init(fp2);
-    opt->flag |= MEM_F_PE;
   } else {fp = fp2 = NULL; ko = ko2 = NULL;}
 
   /* print header */
