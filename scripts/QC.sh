@@ -886,7 +886,7 @@ function biscuitQC {
 
 # Print helpful usage information
 function usage {
-    >&2 echo -e "\nUsage: QC.sh [-h,--help] [-v,--vcf] [-o,--outdir] [-t,--threads] [-k,--keep-tmp-files] assets_directory genome sample_name in_bam\n"
+    >&2 echo -e "\nUsage: QC.sh [-h,--help] [-v,--vcf] [-o,--outdir] [-t,--threads] [-q,--quick] [-k,--keep-tmp-files] assets_directory genome sample_name in_bam\n"
     >&2 echo -e "Required inputs:"
     >&2 echo -e "\tassets_directory    : Path to assets directory"
     >&2 echo -e "\tgenome              : Path to reference FASTA file used in alignment"
@@ -897,6 +897,7 @@ function usage {
     >&2 echo -e "\t-v,--vcf            : Path to VCF output from BISCUIT [DEFAULT: <unused>]"
     >&2 echo -e "\t-o,--outdir         : Output directory [DEFAULT: BISCUITqc]"
     >&2 echo -e "\t-t,--threads        : Number of threads to use [DEFAULT: 1]"
+    >&2 echo -e "\t-q,--quick          : Run quick QC (only runs BISCUIT_QC_BSCONV and BISCUIT_QC_MAPPING) [DEFAULT: off]"
     >&2 echo -e "\t-k,--keep-tmp-files : Flag to keep temporary files for debugging [DEFAULT: Remove files]\n"
 }
 
@@ -904,12 +905,13 @@ function usage {
 in_vcf="<unused>"
 outdir="BISCUITqc"
 thread=1
+quickq=false
 keep_tmp=false
 
 # Process command line arguments
 OPTS=$(getopt \
-    --options hv:o:t:k \
-    --long help,vcf:,outdir:,threads:,keep-bed-files \
+    --options hv:o:t:qk \
+    --long help,vcf:,outdir:,threads:,quick,keep-bed-files \
     --name "$(basename "$0")" \
     -- "$@"
 )
@@ -932,6 +934,10 @@ while true; do
         -t|--threads )
             thread="$2"
             shift 2
+            ;;
+        -q|--quick )
+            quickq=true
+            shift
             ;;
         -k|--keep-tmp-files )
             keep_tmp=true
@@ -982,6 +988,18 @@ fi
 
 source $(dirname ${BASH_SOURCE[0]})/setup.sh $assets
 
+if [[ "${quickq}" == true ]]; then
+    BISCUIT_QC_BASECOV=false
+    BISCUIT_QC_DUPLICATE=false
+    BISCUIT_QC_CPGCOV=false
+    BISCUIT_QC_CPGDIST=false
+    BISCUIT_QC_UNIFORMITY=false
+    BISCUIT_QC_CPGUNIF=false
+    BISCUIT_QC_BSCONV=true
+    BISCUIT_QC_MAPPING=true
+    BISCUIT_QC_BETAS=false
+fi
+
 >&2 echo "## Running BISCUIT QC script with following configuration ##"
 >&2 echo "=============="
 >&2 echo "Sample Name        : ${sample}"
@@ -991,6 +1009,7 @@ source $(dirname ${BASH_SOURCE[0]})/setup.sh $assets
 >&2 echo "# sort threads     : ${thread}"
 >&2 echo "Assets Directory   : ${assets}"
 >&2 echo "Reference          : ${genome}"
+>&2 echo "Quick QC mode      : ${quickq}"
 >&2 echo "Keep *.tmp.* files : ${keep_tmp}"
 >&2 echo "CPGBED             : ${BISCUIT_CPGBED}"
 >&2 echo "CGIBED             : ${BISCUIT_CGIBED}"
@@ -1000,4 +1019,7 @@ source $(dirname ${BASH_SOURCE[0]})/setup.sh $assets
 >&2 echo "TOPGC_BED          : ${BISCUIT_TOPGC_BED}"
 >&2 echo "BOTGC_BED          : ${BISCUIT_BOTGC_BED}"
 >&2 echo "=============="
+if [[ "${quickq}" == true ]]; then
+    >&2 echo "Running in quick QC mode"
+fi
 biscuitQC
