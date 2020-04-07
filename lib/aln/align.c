@@ -189,8 +189,6 @@ int usage(mem_opt_t *opt) {
   fprintf(stderr, "                     treated strand), daughter (synthesized strand)\n");
   fprintf(stderr, "       -f INT        1: BSW strand; 3: BSC strand; 0 (default): both; (libraries\n");
   fprintf(stderr, "                     targeting either BSW or BSC are unseen so far!)\n");
-  fprintf(stderr, "       -Z            PBAT mode. Flips <in1.fq> and <in2.fq> for alignment. Requires\n");
-  fprintf(stderr, "                     two input FASTQ files and is incompatible with smart pairing (-p)\n");
   fprintf(stderr, "       -k INT        minimum seed length [%d]\n", opt->min_seed_len);
   fprintf(stderr, "       -w INT        band width for banded alignment [%d]\n", opt->w);
   fprintf(stderr, "       -d INT        off-diagonal X-dropoff [%d]\n", opt->zdrop);
@@ -262,7 +260,7 @@ int usage(mem_opt_t *opt) {
 /* the old main_mem */
 int main_align(int argc, char *argv[]) {
   mem_opt_t *opt, opt0;
-  int fd, fd2, i, c, ignore_alt = 0, no_mt_io = 0, pbat = 0;
+  int fd, fd2, i, c, ignore_alt = 0, no_mt_io = 0;
   int fixed_chunk_size = -1;
   char *p, *rg_line = 0, *hdr_line = 0;
   const char *mode = 0;
@@ -279,7 +277,7 @@ int main_align(int argc, char *argv[]) {
   opt->flag |= MEM_F_NO_MULTI;  /* WZBS */
   memset(&opt0, 0, sizeof(mem_opt_t));
   int auto_infer_alt_chrom = 1;
-  while ((c = getopt(argc, argv, "1:2:3:5:ab:c:d:ef:h:ijk:m:pqr:s:t:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:YZ")) >= 0) {
+  while ((c = getopt(argc, argv, "1:2:3:5:ab:c:d:ef:h:ijk:m:pqr:s:t:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
     if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
     else if (c == '1') aux._seq1 = strdup(optarg);
     else if (c == '2') aux._seq2 = strdup(optarg);
@@ -316,7 +314,6 @@ int main_align(int argc, char *argv[]) {
     else if (c == 'W') opt->min_chain_weight = atoi(optarg), opt0.min_chain_weight = 1;
     else if (c == 'y') opt->max_mem_intv = atol(optarg), opt0.max_mem_intv = 1;
     else if (c == 'C') aux.copy_comment = 1;
-    else if (c == 'Z') pbat = 1;
     /* I updated -K to take adaptor sequence for read 2 */
     /* else if (c == 'K') fixed_chunk_size = atoi(optarg); */
     else if (c == 'J') {
@@ -465,12 +462,9 @@ int main_align(int argc, char *argv[]) {
     for (i = 0; i < aux.idx->bns->n_seqs; ++i)
       aux.idx->bns->anns[i].is_alt = 0;
 
-  /* TODO: Add in PBAT mode (-Z|pbat) */
-  /* TODO: Should produce error if less than 2 FASTQ files or if flag&MEM_F_PE (-p) is set */
-  /* TODO: Only difference from regular is that it should flip the r1 and r2 files when loading */
   gzFile fp, fp2 = 0;
   void *ko = 0, *ko2 = 0;
-  if  (!pbat && !aux._seq1) {
+  if  (!aux._seq1) {
     /* setup fastq input */
     ko = kopen(argv[optind + 1], &fd);
     if (ko == 0) {
@@ -493,38 +487,6 @@ int main_align(int argc, char *argv[]) {
         aux.ks2 = kseq_init(fp2);
         opt->flag |= MEM_F_PE;
       }
-    }
-  } else if (pbat && !aux._seq1) {
-    if (opt->flag&MEM_F_PE) {
-      if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] PBAT mode cannot run when '-p' is in use as the second query file would be ignored.\n", __func__);
-      return usage(opt);
-    }
-    /* setup fastq input under PBAT assumption */
-    if (optind + 2 >= argc) {
-      ko = kopen(argv[optind + 1], &fd);
-      if (ko == 0) {
-        if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
-        return 1;
-      }
-      fp = gzdopen(fd, "r");
-      aux.ks = kseq_init(fp);
-      opt->parent = 3;
-    } else {
-      ko = kopen(argv[optind + 2], &fd);
-      if (ko == 0) {
-        if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
-        return 1;
-      }
-      fp = gzdopen(fd, "r");
-      aux.ks = kseq_init(fp);
-      ko2 = kopen(argv[optind + 1], &fd2);
-      if (ko2 == 0) {
-          if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
-          return 1;
-      }
-      fp2 = gzdopen(fd2, "r");
-      aux.ks2 = kseq_init(fp2);
-      opt->flag |= MEM_F_PE;
     }
   } else {fp = fp2 = NULL; ko = ko2 = NULL;}
 
