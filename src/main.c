@@ -62,7 +62,7 @@ static int usage()
   fprintf(stderr, "\n");
   fprintf(stderr, "Program: BISCUIT (BISulfite-seq CUI Toolkit)\n");
   fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
-  fprintf(stderr, "Contact: Wanding Zhou <wanding.zhou@vai.org>\n\n");
+  fprintf(stderr, "Contact: Jacob Morrison <jacob.morrison@vai.org>\n\n");
   fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
   fprintf(stderr, "Command:\n");
   fprintf(stderr, "  -- Read mapping\n");
