@@ -45,7 +45,6 @@ static double realtime() {
 int main_biscuit_index(int argc, char *argv[]);
 int main_align(int argc, char *argv[]);
 int main_pileup(int argc, char *argv[]);
-int main_markdup(int argc, char *argv[]);
 int main_ndr(int argc, char *argv[]);
 int main_vcf2bed(int argc, char *argv[]);
 int main_epiread(int argc, char *argv[]);
@@ -70,7 +69,6 @@ static int usage()
   fprintf(stderr, "     align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "\n  -- BAM operation\n");
   fprintf(stderr, "     tview         text alignment viewer with bisulfite coloring\n");
-  // fprintf(stderr, "     markdup       mark duplicates on the same bisulfite strand\n");
   fprintf(stderr, "     bsstrand      validate/correct bisulfite conversion strand label (YD tag)\n");
   fprintf(stderr, "     bsconv        summarize/filter reads by bisulfite conversion (ZN tag)\n");
   fprintf(stderr, "     cinread       print cytosine-read pair in a long form.\n");
@@ -101,7 +99,6 @@ int main(int argc, char *argv[]) {
   if (strcmp(argv[1], "index") == 0) ret = main_biscuit_index(argc-1, argv+1);
   else if (strcmp(argv[1], "align") == 0) ret = main_align(argc-1, argv+1);
   else if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
-  else if (strcmp(argv[1], "markdup") == 0) ret = main_markdup(argc-1, argv+1);
   else if (strcmp(argv[1], "ndr") == 0) ret = main_ndr(argc-1, argv+1);
   else if (strcmp(argv[1], "vcf2bed") == 0) ret = main_vcf2bed(argc-1, argv+1);
   else if (strcmp(argv[1], "epiread") == 0) ret = main_epiread(argc-1, argv+1);
