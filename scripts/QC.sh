@@ -31,6 +31,8 @@
 ##     - Bug fix in Coefficient of Variantion calculation
 ##   Apr 2020 -
 ##     - Refactoring QC script to reduce time spent running
+##   May 2020 -
+##     - Changing flags as necessary for updates to subcommand flags
 ##
 ################################################################################
 # TODO: For releasing QC assets - create zip file to be released with each new BISCUIT release
@@ -113,7 +115,7 @@ function biscuitQC {
         "samtools view -q 40 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40.tmp.bed" \
         "samtools view -f 0x400 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all_dup.tmp.bed" \
         "samtools view -f 0x400 -q 40 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40_dup.tmp.bed" \
-        "samtools view -F 0x500 -f 0x3 -q 40 -h | biscuit bsconv -b ${genome} - > ${outdir}/${sample}_bsconv.tmp.tsv" \
+        "samtools view -F 0x500 -f 0x3 -q 40 -h | biscuit bsconv -p ${genome} - > ${outdir}/${sample}_bsconv.tmp.tsv" \
         "samtools view -q 40 -h | biscuit cinread ${genome} - -t ch -p QPAIR,CQPOS,CRETENTION | sort -T ${outdir} | uniq -c > ${outdir}/${sample}_cph_ret.tmp.txt" \
         "samtools view -q 40 -h | biscuit cinread ${genome} - -t cg -p QPAIR,CQPOS,CRETENTION | sort -T ${outdir} | uniq -c > ${outdir}/${sample}_cpg_ret.tmp.txt"
 
