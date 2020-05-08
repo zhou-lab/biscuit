@@ -28,6 +28,7 @@
 #include <inttypes.h>
 #include <libgen.h>
 #include "wqueue.h"
+#include "wzmisc.h"
 #include "encode.h"
 #include "sam.h"
 #include "hts.h"

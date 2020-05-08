@@ -204,24 +204,25 @@ static void usage() {
 
     unsigned i;
     fprintf(stderr, "\n");
-    fprintf(stderr, "Usage: cinread [options] ref.fa in.bam\n");
-    fprintf(stderr, "Input options:\n");
-    fprintf(stderr, "     -g        region.\n");
-    fprintf(stderr, "     -t        target (");
+    fprintf(stderr, "Usage: biscuit cinread [options] <ref.fa> <in.bam>\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -g STR    Region (optional, will process the whole bam if not specified)\n");
+    fprintf(stderr, "    -t STR    Target (");
     for (i=0; i<sizeof(tgt_names)/sizeof(tgt_names[0]); ++i) {
         if (i) fputs(", ", stderr);
         fputs(tgt_names[i], stderr);
     } fputs(") [cg]\n", stderr);
-    fprintf(stderr, "     -p        content to print, \",\"-delimited:\n");
+    fprintf(stderr, "    -p STR    Content to print, \",\"-delimited:");
     for(i=0; i<sizeof(tp_names)/sizeof(tp_names[0]); ++i) {
-        if (i%5 == 0) fputs("\n               ", stderr);
+        if (i%5 == 0) fputs("\n                  ", stderr);
         else fputs(", ", stderr);
         fputs(tp_names[i], stderr);
-    } fputs("\n\n", stderr);
-    fputs("               [QNAME,QPAIR,BSSTRAND,CRBASE,CQBASE]\n\n", stderr);
-    fprintf(stderr, "     -s        consider secondary mapping.\n");
-    fprintf(stderr, "     -o        output.\n");
-    fprintf(stderr, "     -h        this help.\n");
+    } fputs("\n", stderr);
+    fputs("                      [QNAME,QPAIR,BSSTRAND,CRBASE,CQBASE]\n", stderr);
+    fprintf(stderr, "    -s        Consider secondary mapping [off]\n");
+    fprintf(stderr, "    -o STR    Output file [stdout]\n");
+    fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
 }
 
@@ -234,7 +235,7 @@ int main_cinread(int argc, char *argv[]) {
 
     char *tgt_str = 0; char *tp_str = 0;
     if (argc < 2) { usage(); return 1; }
-    while ((c = getopt(argc, argv, "g:o:t:p:sh")) >= 0) {
+    while ((c = getopt(argc, argv, ":g:o:t:p:sh")) >= 0) {
         switch (c) {
             case 'g': reg = optarg; break;
             case 'o': outfn = optarg; break;
@@ -242,10 +243,9 @@ int main_cinread(int argc, char *argv[]) {
             case 'p': tp_str = optarg; break;
             case 's': conf.skip_secondary = 0; break;
             case 'h': usage(); return 1;
-            default:
-                fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
-                exit(1);
-                break;
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            default: usage(); return 1;
         }
     }
 

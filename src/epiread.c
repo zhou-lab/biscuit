@@ -589,34 +589,6 @@ static void *process_func(void *data) {
    return 0;
 }
 
-static int usage(conf_t *conf) {
-   fprintf(stderr, "\n");
-   fprintf(stderr, "Convert BAM to epiread output.\n");
-   fprintf(stderr, "Usage: epiread [options] [ref.fa] [in.bam]\n");
-   fprintf(stderr, "Options:\n\n");
-   fprintf(stderr, "     -B        bed input for SNP display in epiread output [no SNP]\n");
-   fprintf(stderr, "     -g        region (optional, if not specified the whole bam will be processed).\n");
-   fprintf(stderr, "     -s        step of window dispatching [%d].\n", conf->step);
-   fprintf(stderr, "     -q        number of threads [%d].\n", conf->n_threads);
-   fprintf(stderr, "\nOutputing format:\n\n");
-   fprintf(stderr, "     -o        output file [stdout]\n");
-   fprintf(stderr, "     -P        pairwise mode [off]\n");
-   fprintf(stderr, "     -N        NOMe-seq mode [off]\n");
-   fprintf(stderr, "     -v        verbose (print additional info for diagnosis).\n");
-   fprintf(stderr, "\nFiltering:\n\n");
-   fprintf(stderr, "     -m        minimum mapping quality [%u].\n", conf->min_mapq);
-   fprintf(stderr, "     -t        max cytosine retention in a read [%u].\n", conf->max_retention);
-   fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
-   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
-   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
-   fprintf(stderr, "     -p        NO filtering of improper pair (!BAM_FPROPER_PAIR).\n");
-   fprintf(stderr, "     -n        maximum NM tag [%d].\n", conf->max_nm);
-   fprintf(stderr, "     -h        this help.\n");
-   fprintf(stderr, "\n");
-
-   return 1;
-}
-
 episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
 
    episnp_chrom1_v *episnp = init_episnp_chrom1_v(2);
@@ -656,6 +628,36 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
    return episnp;
 }
 
+static int usage(conf_t *conf) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Usage: biscuit epiread [options] <ref.fa> <in.bam>\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -B STR    Bed input for SNP display in epiread output\n");
+    fprintf(stderr, "    -g STR    Region (optional, will process the whole bam if not specified)\n");
+    fprintf(stderr, "    -s STR    Step of window dispatching [%d]\n", conf->step);
+    fprintf(stderr, "    -@ INT    Number of threads [%d]\n", conf->n_threads);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Output options:\n");
+    fprintf(stderr, "    -o STR    Output file [stdout]\n");
+    fprintf(stderr, "    -P        Pairwise mode [off]\n");
+    fprintf(stderr, "    -N        NOMe-seq mode [off]\n");
+    fprintf(stderr, "    -v        Verbose (print additional info for diagnostics) [off]\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Filter options:\n");
+    fprintf(stderr, "    -m INT    Minimum mapping quality [%u]\n", conf->min_mapq);
+    fprintf(stderr, "    -t INT    Max cytosine retention in a read [%u]\n", conf->max_retention);
+    fprintf(stderr, "    -l INT    Minimum read length [%u]\n", conf->min_read_len);
+    fprintf(stderr, "    -c        NO filtering secondary mapping\n");
+    fprintf(stderr, "    -u        NO filtering of duplicate\n");
+    fprintf(stderr, "    -p        NO filtering of improper pair\n");
+    fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf->max_nm);
+    fprintf(stderr, "    -h        This help\n");
+    fprintf(stderr, "\n");
+
+    return 1;
+}
+
 int main_epiread(int argc, char *argv[]) {
 
    int c;
@@ -681,12 +683,12 @@ int main_epiread(int argc, char *argv[]) {
    conf.epiread_pair = 0;
 
    if (argc<2) return usage(&conf);
-   while ((c=getopt(argc, argv, "B:o:r:g:q:s:t:l:n:m:NcuPpvh"))>=0) {
+   while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:n:m:NcuPpvh"))>=0) {
       switch (c) {
       case 'B': snp_bed_fn = optarg; break;
       case 'o': outfn = optarg; break;
       case 'g': reg = optarg; break;
-      case 'q': conf.n_threads = atoi(optarg); break;
+      case '@': conf.n_threads = atoi(optarg); break;
       case 's': conf.step = atoi(optarg); break;
       case 't': conf.max_retention = atoi(optarg); break;
       case 'l': conf.min_read_len = atoi(optarg); break;
@@ -699,18 +701,15 @@ int main_epiread(int argc, char *argv[]) {
       case 'P': conf.epiread_pair = 1; break;
       case 'v': conf.verbose = 1; break;
       case 'h': return usage(&conf);
-      default:
-         fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n",
-                 __func__, __LINE__, c);
-         exit(1);
-         break;
+      case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt);
+      case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt);
+      default: return usage(&conf);
       }
    }
 
    if (optind + 2 > argc) {
-      fprintf(stderr, "Reference or bam input is missing\n");
       usage(&conf);
-      exit(1);
+      wzfatal("Reference or bam input is missing\n");
    }
    char *reffn = argv[optind++];
    char *infn = argv[optind++];

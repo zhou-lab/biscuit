@@ -95,16 +95,30 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
   }
 }
 
+static void usage() {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Usage: biscuit asm [options] <in.epiread>\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -h    This help\n");
+    fprintf(stderr, "\n");
+}
+
 int main_asm(int argc, char *argv[]) {
 
+    int c;
+    if (argc<2) { usage(); return 1; }
+    while ((c = getopt(argc, argv, ":h")) >= 0) {
+        switch(c) {
+            case 'h': usage(); return 1;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            default: usage(); return 1;
+        }
+    }
+
   if (optind >= argc) {
-    fprintf(stderr, "Please provide input epiread.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Usage: biscuit asm [options] <input.epiread>\n");
-    fprintf(stderr, "     -h        this help.\n");
-    fprintf(stderr, "\n");
-    fflush(stderr);
-    exit(1);
+    usage();
+    wzfatal("Missing in.epiread");
   }
 
   char *input_fn = argv[optind];

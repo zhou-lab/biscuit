@@ -1191,277 +1191,269 @@ void conf_init(conf_t *conf) {
   if (conf->prior1 < 0) { fprintf(stderr, "[Error] genotype prior1 (%1.3f) must be from 0 to 1. \n", conf->prior1); exit(1); }
   if (conf->prior2 < 0) { fprintf(stderr, "[Error] genotype prior2 (%1.3f) must be from 0 to 1. \n", conf->prior2); exit(1); }
 
-  conf->min_cov = 3;            /* min coverage in computing methlevelaverages */
+  /* conf->min_cov = 3;            * min coverage in computing methlevelaverages * */
   conf->step = 100000;          /* step of window dispatching */
 }
 
 static int usage(conf_t *conf) {
-  fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: pileup [options] [-o out.pileup] <ref.fa> <in.bam ..>\n");
-  fprintf(stderr, "Somatic Mode Usage: pileup [options] [-o out.pileup] <-S -T tumor.bam -I normal.bam> <ref.fa>\n");
-  fprintf(stderr, "Input options:\n\n");
-  /* fprintf(stderr, "     -i        input bams (can be multiple, separate by space).\n"); */
-  /* fprintf(stderr, "     -r        reference in fasta.\n"); */
-  fprintf(stderr, "     -g        region (optional, if not specified the whole bam will be processed).\n");
-  fprintf(stderr, "     -q        number of threads [%d].\n", conf->n_threads);
-  fprintf(stderr, "     -N        NOMe-seq mode [off]\n");
-  fprintf(stderr, "     -S        somatic mode, must also provide -T (tumor BAM) and -I (normal BAM) arguments [off]\n");
-  fprintf(stderr, "     -T        somatic mode, tumor BAM\n");
-  fprintf(stderr, "     -I        somatic mode, normal BAM\n");
-  fprintf(stderr, "\nOutputing format:\n\n");
-  fprintf(stderr, "     -o        pileup output file [stdout]\n");
-  fprintf(stderr, "     -w        pileup statistics output prefix [same as output]\n");
-  fprintf(stderr, "     -v        verbose (<5 print additional info for diagnosis, >5 debug).\n");
-  fprintf(stderr, "\nPileup filtering:\n\n");
-  fprintf(stderr, "     -b        min base quality [%u].\n", conf->min_base_qual);
-  fprintf(stderr, "     -m        minimum mapping quality [%u].\n", conf->min_mapq);
-  fprintf(stderr, "     -a        minimum alignment score (from AS-tag) [%u].\n", conf->min_score);
-  fprintf(stderr, "     -t        max cytosine retention in a read [%u].\n", conf->max_retention);
-  fprintf(stderr, "     -l        minimum read length [%u].\n", conf->min_read_len);
-  // TODO: we should distinguish 5'-end and 3'-end. On the 3'-end, it should be before
-  // the end of mapping instead of end of read since adaptor sequences are soft-clipped.
-  fprintf(stderr, "     -e        minimum distance to end of a read [%u].\n", conf->min_dist_end);
-  fprintf(stderr, "     -r        NO redistribution of ambiguous (Y/R) calls in SNP genotyping.\n");
-  fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
-  fprintf(stderr, "     -d        NO double counting cytosine in overlapping mate reads.\n");
-  fprintf(stderr, "     -u        NO filtering of duplicate.\n");
-  fprintf(stderr, "     -p        NO filtering of improper pair.\n");
-  fprintf(stderr, "     -n        maximum NM tag [%d].\n", conf->max_nm);
-  fprintf(stderr, "\nGenotyping parameters:\n\n");
-  fprintf(stderr, "     -E        error rate [%1.3f].\n", conf->error);
-  fprintf(stderr, "     -M        mutation rate [%1.3f].\n", conf->mu);
-  fprintf(stderr, "     -x        somatic mutation rate [%1.3f].\n", conf->mu_somatic);
-  fprintf(stderr, "     -C        contamination rate [%1.3f].\n", conf->contam);
-  fprintf(stderr, "     -P        prior probability for heterozygous variant [%1.3f].\n", conf->prior1);
-  fprintf(stderr, "     -Q        prior probability for homozygous variant [%1.3f].\n", conf->prior2);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Usage: biscuit pileup [options] <ref.fa> <in1.bam> [in2.bam in3.bam ...]\n");
+    fprintf(stderr, "Som. Mode Usage: biscuit pileup [options] <-S -T tum.bam -I norm.bam> <ref.fa>\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -g STR      Region (optional, will process the whole bam if not specified)\n");
+    fprintf(stderr, "    -@ INT      Number of threads [%d]\n", conf->n_threads);
+    fprintf(stderr, "    -s INT      Step of window dispatching [%d]\n", conf->step);
+    fprintf(stderr, "    -N          NOMe-seq mode [off]\n");
+    fprintf(stderr, "    -S          Somatic mode, must provide -T and -I arguments [off]\n");
+    fprintf(stderr, "    -T STR      Somatic mode, tumor BAM\n");
+    fprintf(stderr, "    -I STR      Somatic mode, normal BAM\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Output options:\n");
+    fprintf(stderr, "    -o STR      Output file [stdout]\n");
+    fprintf(stderr, "    -w STR      Pileup statistics output prefix [same as output]\n");
+    fprintf(stderr, "    -v INT      Verbosity level (0: no added info printed, 0<INT<=5: print\n");
+    fprintf(stderr, "                    diagnostic info, INT>5: print diagnostic and debug info) [0]\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Filter options:\n");
+    fprintf(stderr, "    -b INT      Minimum base quality [%u]\n", conf->min_base_qual);
+    fprintf(stderr, "    -m INT      Minimum mapping quality [%u]\n", conf->min_mapq);
+    fprintf(stderr, "    -a INT      Minimum alignment score (from AS-tag) [%u]\n", conf->min_score);
+    fprintf(stderr, "    -t INT      Maximum cytosine retention in a read [%u]\n", conf->max_retention);
+    fprintf(stderr, "    -l INT      Minimum read length [%u]\n", conf->min_read_len);
+    // TODO: we should distinguish 5'-end and 3'-end. On the 3'-end, it should be before
+    // the end of mapping instead of end of read since adaptor sequences are soft-clipped.
+    fprintf(stderr, "    -e INT      Minimum distance to end of a read [%u]\n", conf->min_dist_end);
+    fprintf(stderr, "    -r          NO redistribution of ambiguous (Y/R) calls in SNP genotyping\n");
+    fprintf(stderr, "    -c          NO filtering secondary mapping\n");
+    fprintf(stderr, "    -d          NO double counting cytosine in overlapping mate reads\n");
+    fprintf(stderr, "    -u          NO filtering of duplicate flagged reads\n");
+    fprintf(stderr, "    -p          NO filtering of improper pair flagged reads\n");
+    fprintf(stderr, "    -n INT      Maximum NM tag [%d]\n", conf->max_nm);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Genotyping options:\n");
+    fprintf(stderr, "    -E FLOAT    Error rate [%1.3f]\n", conf->error);
+    fprintf(stderr, "    -M FLOAT    Mutation rate [%1.3f]\n", conf->mu);
+    fprintf(stderr, "    -x FLOAT    Somatic mutation rate [%1.3f]\n", conf->mu_somatic);
+    fprintf(stderr, "    -C FLOAT    Contamination rate [%1.3f]\n", conf->contam);
+    fprintf(stderr, "    -P FLOAT    Prior probability for heterozygous variant [%1.3f]\n", conf->prior1);
+    fprintf(stderr, "    -Q FLOAT    Prior probability for homozygous variant [%1.3f]\n", conf->prior2);
+    fprintf(stderr, "    -h          This help\n");
+    fprintf(stderr, "\n");
 
-  fprintf(stderr, "     -h        this help.\n");
-  fprintf(stderr, "\n");
-
-  return 1;
+    return 1;
 }
 
 int main_pileup(int argc, char *argv[]) {
 
-  int c, i; unsigned j;
-  char *reg = 0;
-  char *tum = 0;
-  char *nor = 0;
-  char *outfn = 0;
-  char *statsfn = 0;
-  conf_t conf;
-  conf_init(&conf);
+    int c, i; unsigned j;
+    char *reg = 0;
+    char *tum = 0;
+    char *nor = 0;
+    char *outfn = 0;
+    char *statsfn = 0;
+    conf_t conf;
+    conf_init(&conf);
 
-  if (argc<2) return usage(&conf);
-  while ((c=getopt(argc, argv, "o:w:g:q:e:b:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
-    switch (c) {
-    /* case 'i': */
-    /*   for(--optind; optind < argc && *argv[optind] != '-'; optind++){ */
-    /*     in_fns = realloc(in_fns, (n_fns+1)*sizeof(char*)); */
-    /*     in_fns[n_fns] = argv[optind]; */
-    /*     n_fns++; */
-    /*   } */
-    /*   break; */
-    /* case 'r': reffn = optarg; break; */
-    case 'g': reg = optarg; break;
-    case 'q': conf.n_threads = atoi(optarg); break;
-    case 'N': conf.is_nome = 1; break;
-    case 'S': conf.somatic = 1; break;
-    case 'T': tum = optarg; break;
-    case 'I': nor = optarg; break;
-      
-    case 'o': outfn = optarg; break;
-    case 'w': statsfn = strdup(optarg); break;
-    case 'v': conf.verbose = atoi(optarg); break;
-      
-    case 'b': conf.min_base_qual = atoi(optarg); break;
-    case 'm': conf.min_mapq = atoi(optarg); break;
-    case 'a': conf.min_score = atoi(optarg); break;
-    case 't': conf.max_retention = atoi(optarg); break;
-    case 'l': conf.min_read_len = atoi(optarg); break;
-    case 'e': conf.min_dist_end = atoi(optarg); break;
-    case 'r': conf.ambi_redist = 0; break;
-    case 'c': conf.filter_secondary = 0; break;
-    case 'd': conf.filter_doublecnt = 0; break;
-    case 'u': conf.filter_duplicate = 0; break;
-    case 'p': conf.filter_ppair = 0; break;
-    case 'n': conf.max_nm = atoi(optarg); break;
+    if (argc<2) return usage(&conf);
+    while ((c=getopt(argc, argv, ":o:w:g:@:e:b:s:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
+        switch (c) {
+            case 'g': reg = optarg; break;
+            case '@': conf.n_threads = atoi(optarg); break;
+            case 's': conf.step = atoi(optarg); break;
+            case 'N': conf.is_nome = 1; break;
+            case 'S': conf.somatic = 1; break;
+            case 'T': tum = optarg; break;
+            case 'I': nor = optarg; break;
 
-    case 'E': conf.error = atof(optarg); break;
-    case 'M': conf.mu = atof(optarg); break;
-    case 'x': conf.mu_somatic = atof(optarg); break;
-    case 'C': conf.contam = atof(optarg); break;
-    case 'P': conf.prior1 = atof(optarg); break;
-    case 'Q': conf.prior2 = atof(optarg); break;
-      
-    /* case 'k': conf.min_cov = atoi(optarg); break; */
-    /* case 'S': conf.bsrate_max_pos = atoi(optarg); break; */
-    /* case 's': conf.step = atoi(optarg); break; */
-    case 'h': return usage(&conf);
-    default:
-      fprintf(stderr, "[%s:%d] Unrecognized command/option: %c.\n", __func__, __LINE__, c);
-      exit(1);
-      break;
-    }
-  }
+            case 'o': outfn = optarg; break;
+            case 'w': statsfn = strdup(optarg); break;
+            case 'v': conf.verbose = atoi(optarg); break;
 
-  if (optind + 2 > argc && !conf.somatic) {
-    fprintf(stderr, "Reference or bam input is missing\n");
-    usage(&conf);
-    exit(1);
-  } else if (optind + 1 > argc && conf.somatic) {
-    fprintf(stderr, "Reference input is missing\n");
-    usage(&conf);
-    exit(1);
-  }
+            case 'b': conf.min_base_qual = atoi(optarg); break;
+            case 'm': conf.min_mapq = atoi(optarg); break;
+            case 'a': conf.min_score = atoi(optarg); break;
+            case 't': conf.max_retention = atoi(optarg); break;
+            case 'l': conf.min_read_len = atoi(optarg); break;
+            case 'e': conf.min_dist_end = atoi(optarg); break;
+            case 'r': conf.ambi_redist = 0; break;
+            case 'c': conf.filter_secondary = 0; break;
+            case 'd': conf.filter_doublecnt = 0; break;
+            case 'u': conf.filter_duplicate = 0; break;
+            case 'p': conf.filter_ppair = 0; break;
+            case 'n': conf.max_nm = atoi(optarg); break;
+            /* case 'k': conf.min_cov = atoi(optarg); break; */
 
-  char *reffn = argv[optind++];
-  char **in_fns = 0; int n_fns = 0;
-  if (conf.somatic) {
-    if (!tum) {
-      fprintf(stderr, "[%s:%d] To call somatic events (-S), we need to specify the tumor BAM (-T).\nAbort.\n", __func__, __LINE__);
-      fflush(stderr);
-      exit(1);
-    } else if (!nor) {
-      fprintf(stderr, "[%s:%d] To call somatic events (-S), we need to specify the normal BAM (-I).\nAbort.\n", __func__, __LINE__);
-      fflush(stderr);
-      exit(1);
+            case 'E': conf.error = atof(optarg); break;
+            case 'M': conf.mu = atof(optarg); break;
+            case 'x': conf.mu_somatic = atof(optarg); break;
+            case 'C': conf.contam = atof(optarg); break;
+            case 'P': conf.prior1 = atof(optarg); break;
+            case 'Q': conf.prior2 = atof(optarg); break;
+
+            case 'h': return usage(&conf);
+            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt);
+            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt);
+            default:
+                return usage(&conf);
+        }
     }
 
-    n_fns = 2;
-    in_fns = realloc(in_fns, (n_fns)*sizeof(char*));
-    in_fns[0] = tum;
-    in_fns[1] = nor;
-  } else {
-    if (tum) {
-      fprintf(stderr, "[%s:%d] You have specified a tumor BAM (-T) for somatic mode, but -S was not supplied.\nAbort.\n", __func__, __LINE__);
-      fflush(stderr);
-      exit(1);
-    } else if (nor) {
-      fprintf(stderr, "[%s:%d] You have specified a normal BAM (-I) for somatic mode, but -S was not supplied.\nAbort.\n", __func__, __LINE__);
-      fflush(stderr);
-      exit(1);
+    if (optind + 2 > argc && !conf.somatic) {
+        usage(&conf);
+        wzfatal("Reference or bam input is missing\n");
+    } else if (optind + 1 > argc && conf.somatic) {
+        usage(&conf);
+        wzfatal("Reference input is missing\n");
     }
 
-    for (; optind < argc; ++optind) {
-      in_fns = realloc(in_fns, (n_fns+1)*sizeof(char*));
-      in_fns[n_fns++] = argv[optind];
+    char *reffn = argv[optind++];
+    char **in_fns = 0; int n_fns = 0;
+    if (conf.somatic) {
+        if (!tum) {
+            fprintf(stderr, "[%s:%d] To call somatic events (-S), we need to specify the tumor BAM (-T).\nAbort.\n", __func__, __LINE__);
+            fflush(stderr);
+            exit(1);
+        } else if (!nor) {
+            fprintf(stderr, "[%s:%d] To call somatic events (-S), we need to specify the normal BAM (-I).\nAbort.\n", __func__, __LINE__);
+            fflush(stderr);
+            exit(1);
+        }
+
+        n_fns = 2;
+        in_fns = realloc(in_fns, (n_fns)*sizeof(char*));
+        in_fns[0] = tum;
+        in_fns[1] = nor;
+    } else {
+        if (tum) {
+            fprintf(stderr, "[%s:%d] You have specified a tumor BAM (-T) for somatic mode, but -S was not supplied.\nAbort.\n", __func__, __LINE__);
+            fflush(stderr);
+            exit(1);
+        } else if (nor) {
+            fprintf(stderr, "[%s:%d] You have specified a normal BAM (-I) for somatic mode, but -S was not supplied.\nAbort.\n", __func__, __LINE__);
+            fflush(stderr);
+            exit(1);
+        }
+
+        for (; optind < argc; ++optind) {
+            in_fns = realloc(in_fns, (n_fns+1)*sizeof(char*));
+            in_fns[n_fns++] = argv[optind];
+        }
     }
-  }
 
-  if (conf.verbose > 5) {
-    for (i=0; i<n_fns; ++i)
-      fprintf(stderr, "[%s:%d] in bams: %s\n", __func__, __LINE__, in_fns[i]);
-    fflush(stderr);
-  }
-
-  /* read header in the 1st bam, assume all bams are equal in header */
-  htsFile *in = hts_open(in_fns[0], "rb");
-  if (!in) {
-    fprintf(stderr, "[%s:%d] Cannot open %s\nAbort.\n", __func__, __LINE__, in_fns[0]);
-    fflush(stderr);
-    exit(1);
-  }
-
-  // sort sequence name by alphabetic order, chr1, chr10, chr11
-  bam_hdr_t *hdr = sam_hdr_read(in);
-  target_v *targets = init_target_v(50);
-  target_t *t;
-  for (i=0; i<hdr->n_targets; ++i) {
-    t = next_ref_target_v(targets);
-    t->tid = i;
-    t->name = hdr->target_name[i];
-    t->len = hdr->target_len[i];
-  }
-  qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
-  
-  char *vcf_hdr = print_vcf_header(reffn, targets, argv, argc, &conf, in_fns, n_fns);
-
-  // setup writer
-  pthread_t writer;
-  writer_conf_t writer_conf = {
-    .q = wqueue_init(record, 100000),
-    .bam_fns = in_fns,
-    .n_bams = n_fns,
-    .outfn = outfn,
-    .statsfn = statsfn,
-    .header = vcf_hdr,
-    .targets = targets,
-    .conf = &conf,
-  };
-  pthread_create(&writer, NULL, write_func, &writer_conf);
-
-  // send out work
-  wqueue_t(window) *wq = wqueue_init(window, 100000);
-  pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
-  result_t *results = calloc(conf.n_threads, sizeof(result_t));
-  for (i=0; i<conf.n_threads; ++i) {
-    results[i].q = wq;
-    results[i].rq = writer_conf.q;
-    results[i].ref_fn = reffn;
-    results[i].bam_fns = in_fns;
-    results[i].n_bams = n_fns;
-    results[i].conf = &conf;
-    pthread_create(&processors[i], NULL, process_func, &results[i]);
-  }
-
-  window_t w; memset(&w, 0, sizeof(window_t));
-  uint32_t wbeg;
-  int64_t block_id=0;
-
-  /* process bam */
-  if (reg) {                    /* regional */
-    int tid;
-    uint32_t beg, end;
-    pileup_parse_region(reg, hdr, &tid, (int*) &beg, (int*) &end);
-    /* chromosome are assumed to be less than 2**29 */
-    beg++; end++;
-    if (beg<=0) beg = 1;
-    if (end>hdr->target_len[tid]) end = hdr->target_len[tid];
-    for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
-      w.tid = tid;
-      w.block_id = block_id;
-      w.beg = wbeg;
-      w.end = wbeg + conf.step;
-      if (w.end > end) w.end = end;
-      wqueue_put(window, wq, &w);
+    if (conf.verbose > 5) {
+        for (i=0; i<n_fns; ++i)
+            fprintf(stderr, "[%s:%d] in bams: %s\n", __func__, __LINE__, in_fns[i]);
+        fflush(stderr);
     }
-  } else {                      /* entire bam */
-    for (j=0; j<targets->size; ++j) {
-      t = ref_target_v(targets, j);
-      for (wbeg = 1; wbeg < t->len; wbeg += conf.step, block_id++) {
-        w.tid = t->tid;
-        w.block_id = block_id;
-        w.beg = wbeg;
-        w.end = wbeg+conf.step;
-        if (w.end > t->len) w.end = t->len;
+
+    /* read header in the 1st bam, assume all bams are equal in header */
+    htsFile *in = hts_open(in_fns[0], "rb");
+    if (!in) {
+        fprintf(stderr, "[%s:%d] Cannot open %s\nAbort.\n", __func__, __LINE__, in_fns[0]);
+        fflush(stderr);
+        exit(1);
+    }
+
+    // sort sequence name by alphabetic order, chr1, chr10, chr11
+    bam_hdr_t *hdr = sam_hdr_read(in);
+    target_v *targets = init_target_v(50);
+    target_t *t;
+    for (i=0; i<hdr->n_targets; ++i) {
+        t = next_ref_target_v(targets);
+        t->tid = i;
+        t->name = hdr->target_name[i];
+        t->len = hdr->target_len[i];
+    }
+    qsort(targets->buffer, targets->size, sizeof(target_t), compare_targets);
+
+    char *vcf_hdr = print_vcf_header(reffn, targets, argv, argc, &conf, in_fns, n_fns);
+
+    // setup writer
+    pthread_t writer;
+    writer_conf_t writer_conf = {
+        .q = wqueue_init(record, 100000),
+        .bam_fns = in_fns,
+        .n_bams = n_fns,
+        .outfn = outfn,
+        .statsfn = statsfn,
+        .header = vcf_hdr,
+        .targets = targets,
+        .conf = &conf,
+    };
+    pthread_create(&writer, NULL, write_func, &writer_conf);
+
+    // send out work
+    wqueue_t(window) *wq = wqueue_init(window, 100000);
+    pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
+    result_t *results = calloc(conf.n_threads, sizeof(result_t));
+    for (i=0; i<conf.n_threads; ++i) {
+        results[i].q = wq;
+        results[i].rq = writer_conf.q;
+        results[i].ref_fn = reffn;
+        results[i].bam_fns = in_fns;
+        results[i].n_bams = n_fns;
+        results[i].conf = &conf;
+        pthread_create(&processors[i], NULL, process_func, &results[i]);
+    }
+
+    window_t w; memset(&w, 0, sizeof(window_t));
+    uint32_t wbeg;
+    int64_t block_id=0;
+
+    /* process bam */
+    if (reg) {                    /* regional */
+        int tid;
+        uint32_t beg, end;
+        pileup_parse_region(reg, hdr, &tid, (int*) &beg, (int*) &end);
+        /* chromosome are assumed to be less than 2**29 */
+        beg++; end++;
+        if (beg<=0) beg = 1;
+        if (end>hdr->target_len[tid]) end = hdr->target_len[tid];
+        for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
+            w.tid = tid;
+            w.block_id = block_id;
+            w.beg = wbeg;
+            w.end = wbeg + conf.step;
+            if (w.end > end) w.end = end;
+            wqueue_put(window, wq, &w);
+        }
+    } else {                      /* entire bam */
+        for (j=0; j<targets->size; ++j) {
+            t = ref_target_v(targets, j);
+            for (wbeg = 1; wbeg < t->len; wbeg += conf.step, block_id++) {
+                w.tid = t->tid;
+                w.block_id = block_id;
+                w.beg = wbeg;
+                w.end = wbeg+conf.step;
+                if (w.end > t->len) w.end = t->len;
+                wqueue_put(window, wq, &w);
+            }
+        }
+    }
+    for (i=0; i<conf.n_threads; ++i) {
+        w.tid = -1;
         wqueue_put(window, wq, &w);
-      }
     }
-  }
-  for (i=0; i<conf.n_threads; ++i) {
-    w.tid = -1;
-    wqueue_put(window, wq, &w);
-  }
 
-  for (i=0; i<conf.n_threads; ++i) {
-    pthread_join(processors[i], NULL);
-  }
+    for (i=0; i<conf.n_threads; ++i) {
+        pthread_join(processors[i], NULL);
+    }
 
-  record_t rec = { .block_id = RECORD_QUEUE_END };
-  wqueue_put2(record, writer_conf.q, rec);
-  pthread_join(writer, NULL);
-  wqueue_destroy(record, writer_conf.q);
+    record_t rec = { .block_id = RECORD_QUEUE_END };
+    wqueue_put2(record, writer_conf.q, rec);
+    pthread_join(writer, NULL);
+    wqueue_destroy(record, writer_conf.q);
 
-  free_target_v(targets);
-  free(results);
-  free(processors);
-  free(vcf_hdr);
-  wqueue_destroy(window, wq);
-  hts_close(in);
-  bam_hdr_destroy(hdr);
-  free(in_fns);
+    free_target_v(targets);
+    free(results);
+    free(processors);
+    free(vcf_hdr);
+    wqueue_destroy(window, wq);
+    hts_close(in);
+    bam_hdr_destroy(hdr);
+    free(in_fns);
 
-  return 0;
+    return 0;
 }
 

@@ -28,6 +28,7 @@
 #include <sys/resource.h>
 #include "kstring.h"
 #include "biscuit.h"
+#include "wzmisc.h"
 
 static double cputime() {
   struct rusage r;
@@ -61,26 +62,32 @@ static int usage()
   fprintf(stderr, "\n");
   fprintf(stderr, "Program: BISCUIT (BISulfite-seq CUI Toolkit)\n");
   fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
-  fprintf(stderr, "Contact: Jacob Morrison <jacob.morrison@vai.org>\n\n");
-  fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
+  fprintf(stderr, "Contact: Jacob Morrison <jacob.morrison@vai.org>\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Usage: biscuit <command> [options]\n");
+  fprintf(stderr, "\n");
   fprintf(stderr, "Command:\n");
-  fprintf(stderr, "  -- Read mapping\n");
-  fprintf(stderr, "     index         index reference genome sequences in the FASTA format\n");
-  fprintf(stderr, "     align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
-  fprintf(stderr, "\n  -- BAM operation\n");
-  fprintf(stderr, "     tview         text alignment viewer with bisulfite coloring\n");
-  fprintf(stderr, "     bsstrand      validate/correct bisulfite conversion strand label (YD tag)\n");
-  fprintf(stderr, "     bsconv        summarize/filter reads by bisulfite conversion (ZN tag)\n");
-  fprintf(stderr, "     cinread       print cytosine-read pair in a long form.\n");
-  fprintf(stderr, "\n  -- Base summary\n");
-  fprintf(stderr, "     pileup        pileup cytosine and mutations.\n");
-  fprintf(stderr, "     vcf2bed       convert VCF to bed graph.\n");
-  fprintf(stderr, "     mergecg       merge C and G in CpG context.\n");
-  fprintf(stderr, "\n  -- Epireads\n");
-  fprintf(stderr, "     epiread       convert bam to epiread format\n");
-  fprintf(stderr, "     rectangle     convert epiread to rectangle format\n");
-  fprintf(stderr, "     asm           test allele specific methylation\n");
-  // fprintf(stderr, "         ndr           call nucleosome depletion region (NDR) from NOMe-seq\n");
+  fprintf(stderr, " -- Read mapping\n");
+  fprintf(stderr, "    index        Index reference genome sequences in the FASTA format\n");
+  fprintf(stderr, "    align        Align bisulfite treated short reads using adapted BWA-mem\n");
+  fprintf(stderr, "                     algorithm\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, " -- BAM operation\n");
+  fprintf(stderr, "    tview        Text alignment viewer with bisulfite coloring\n");
+  fprintf(stderr, "    bsstrand     Validate/correct bisulfite conversion strand label (YD tag)\n");
+  fprintf(stderr, "    bsconv       Summarize/filter reads by bisulfite conversion (ZN tag)\n");
+  fprintf(stderr, "    cinread      Print cytosine-read pair in a long form\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, " -- Base summary\n");
+  fprintf(stderr, "    pileup       Pileup cytosine and mutations\n");
+  fprintf(stderr, "    vcf2bed      Convert VCF to BED file\n");
+  fprintf(stderr, "    mergecg      Merge C and G in CpG context\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, " -- Epireads\n");
+  fprintf(stderr, "    epiread      Convert BAM to epiread format\n");
+  fprintf(stderr, "    rectangle    Convert epiread to rectangle format\n");
+  fprintf(stderr, "    asm          Test allele specific methylation\n");
+  /* fprintf(stderr, "    ndr          Call nucleosome depletion region (NDR) from NOMe-seq\n"); */
   fprintf(stderr, "\n");
 
   return 1;
@@ -110,8 +117,8 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "bsconv") == 0) ret = main_bsconv(argc-1, argv+1);
   else if (strcmp(argv[1], "rectangle") == 0) ret = main_rectangle(argc-1, argv+1);
   else {
-    fprintf(stderr, "[main] unrecognized command '%s'\n", argv[1]);
-    return 1;
+    usage();
+    wzfatal("Unrecognized subcommand: %s\n", argv[1]);
   }
 
   fflush(stdout);             /* not enough for remote file systems */
