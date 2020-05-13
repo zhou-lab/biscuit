@@ -62,7 +62,7 @@ static int usage()
   fprintf(stderr, "\n");
   fprintf(stderr, "Program: BISCUIT (BISulfite-seq CUI Toolkit)\n");
   fprintf(stderr, "Version: %s\n", PACKAGE_VERSION);
-  fprintf(stderr, "Contact: Wanding Zhou <wanding.zhou@vai.org>\n\n");
+  fprintf(stderr, "Contact: Jacob Morrison <jacob.morrison@vai.org>\n\n");
   fprintf(stderr, "Usage:   biscuit <command> [options]\n\n");
   fprintf(stderr, "Command:\n");
   fprintf(stderr, "  -- Read mapping\n");
@@ -70,7 +70,7 @@ static int usage()
   fprintf(stderr, "     align         align bisulfite treated short reads using adapted BWA-mem algorithm\n");
   fprintf(stderr, "\n  -- BAM operation\n");
   fprintf(stderr, "     tview         text alignment viewer with bisulfite coloring\n");
-  fprintf(stderr, "     markdup       mark duplicates on the same bisulfite strand\n");
+  // fprintf(stderr, "     markdup       mark duplicates on the same bisulfite strand\n");
   fprintf(stderr, "     bsstrand      validate/correct bisulfite conversion strand label (YD tag)\n");
   fprintf(stderr, "     bsconv        summarize/filter reads by bisulfite conversion (ZN tag)\n");
   fprintf(stderr, "     cinread       print cytosine-read pair in a long form.\n");
