@@ -1223,7 +1223,7 @@ static int usage(conf_t *conf) {
   fprintf(stderr, "     -e        minimum distance to end of a read [%u].\n", conf->min_dist_end);
   fprintf(stderr, "     -r        NO redistribution of ambiguous (Y/R) calls in SNP genotyping.\n");
   fprintf(stderr, "     -c        NO filtering secondary mapping.\n");
-  fprintf(stderr, "     -d        NO double counting cytosine in overlapping mate reads.\n");
+  fprintf(stderr, "     -d        double counting cytosines in overlapping mate reads (avoided by default)).\n");
   fprintf(stderr, "     -u        NO filtering of duplicate.\n");
   fprintf(stderr, "     -p        NO filtering of improper pair.\n");
   fprintf(stderr, "     -n        maximum NM tag [%d].\n", conf->max_nm);
