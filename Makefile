@@ -71,7 +71,7 @@ $(LSGSL):
 BISCUITSRCS := $(wildcard src/*.c)
 BISCUITLIBS := $(BISCUITSRCS:.c=.o)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/ndr.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/cinread.o src/mergecg.o src/bsconv.o src/bamfilter.o src/epiread_rectangle.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
+LIBS=lib/aln/libaln.a src/pileup.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/cinread.o src/mergecg.o src/bsconv.o src/bamfilter.o src/epiread_rectangle.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
 biscuit: $(LIBS) src/main.o
 	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 
@@ -87,7 +87,7 @@ src/main.o: src/main.c
 
 LALND = lib/aln
 LALNOBJ=$(patsubst %.c,%.o,$(wildcard $(LALND)/*.c))
-# LALNOBJ = $(LALND)/bntseq.o $(LALND)/bwamem.o $(LALND)/bwashm.o $(LALND)/bwt_gen.o $(LALND)/bwtsw2_chain.o $(LALND)/bwtsw2_pair.o $(LALND)/malloc_wrap.o $(LALND)/bwamem_extra.o $(LALND)/bwt.o $(LALND)/bwtindex.o $(LALND)/bwtsw2_core.o $(LALND)/align.o  $(LALND)/QSufSort.o $(LALND)/bwa.o $(LALND)/bwamem_pair.o $(LALND)/bwtgap.o $(LALND)/bwtsw2_aux.o $(LALND)/bwtsw2_main.o $(LALND)/is.o $(LALND)/utils.o $(LALND)/ksw.o $(LALND)/mem_pair.o
+
 lib/aln/libaln.a: $(LALNOBJ)
 	ar -csru $@ $(LALNOBJ)
 $(LALND)/%.o: $(LALND)/%.c
@@ -100,9 +100,6 @@ src/pileup.o: src/pileup.c
 
 src/tview.o: src/tview.c
 	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
-
-src/ndr.o: src/ndr.c
-	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
 
 src/vcf2bed.o: src/vcf2bed.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
