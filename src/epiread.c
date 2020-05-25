@@ -555,7 +555,7 @@ static void *process_func(void *data) {
          if (c->flag > 0){         /* only when any flag is set */
             if (conf->filter_secondary && c->flag & BAM_FSECONDARY) continue;
             if (conf->filter_duplicate && c->flag & BAM_FDUP) continue;
-            if (conf->filter_ppair && !(c->flag & BAM_FPROPER_PAIR)) continue;
+            if (conf->filter_ppair && c->flag & BAM_FPAIRED && !(c->flag & BAM_FPROPER_PAIR)) continue;
             if (conf->filter_qcfail && c->flag & BAM_FQCFAIL) continue;
          }
 
