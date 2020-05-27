@@ -7,8 +7,8 @@
 ## showing the different BISCUIT QC metrics
 ##
 ## Notes:
-##   1.) biscuit, samtools, bedtools, and awk all must be in PATH for script to
-##       work
+##   1.) biscuit, samtools, bedtools, awk, and parallel all must be in PATH for
+##       script to work
 ##
 ## Created by:
 ##   Wanding Zhou
@@ -33,9 +33,9 @@
 ##     - Refactoring QC script to reduce time spent running
 ##   May 2020 -
 ##     - Changing flags as necessary for updates to subcommand flags
+##     - Adding PATH check for GNU parallel
 ##
 ################################################################################
-# TODO: For releasing QC assets - create zip file to be released with each new BISCUIT release
 
 set -euo pipefail
 
@@ -64,6 +64,12 @@ function check_path {
       exit 1
   else
       >&2 echo "Using awk found at: `which awk`"
+  fi
+  if [[ `which parallel 2>&1 > /dev/null` ]]; then
+      >&2 echo "parallel does not exist in PATH"
+      exit 1
+  else
+      >&2 echo "Using parallel found at: `which parallel`"
   fi
 }
 
