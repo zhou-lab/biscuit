@@ -11,7 +11,7 @@ Instructions for downloading and installing BISCUIT can be found in the User
 Guide [Download and Install](https://huishenlab.github.io/biscuit/#download-and-install)
 page.
 
-All releases of BISUCIT are available on
+All releases of BISCUIT are available on
 [GitHub](https://github.com/huishenlab/biscuit/releases).
 
 Note, to use the BISCUIT QC script, the following tools must be installed and in
