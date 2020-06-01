@@ -67,9 +67,16 @@ function check_path {
   fi
   if [[ `which parallel 2>&1 > /dev/null` ]]; then
       >&2 echo "parallel does not exist in PATH"
+      >&2 echo "Make sure to add GNU parallel to PATH"
       exit 1
   else
-      >&2 echo "Using parallel found at: `which parallel`"
+      if parallel --version | grep -q GNU; then
+          >&2 echo "Using GNU parallel found at: `which parallel`"
+      else
+          >&2 echo "It doesn't appear you are using GNU parallel."
+          >&2 echo "Try adding GNU parallel at the front of PATH"
+          exit 1
+      fi
   fi
 }
 
@@ -121,7 +128,7 @@ function biscuitQC {
         "samtools view -q 40 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40.tmp.bed" \
         "samtools view -f 0x400 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all_dup.tmp.bed" \
         "samtools view -f 0x400 -q 40 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40_dup.tmp.bed" \
-        "samtools view -F 0x500 -f 0x3 -q 40 -h | biscuit bsconv -p ${genome} - > ${outdir}/${sample}_bsconv.tmp.tsv" \
+        "samtools view -F 0x500 -q 40 -h | biscuit bsconv -p ${genome} - > ${outdir}/${sample}_bsconv.tmp.tsv" \
         "samtools view -q 40 -h | biscuit cinread ${genome} - -t ch -p QPAIR,CQPOS,CRETENTION | sort -T ${outdir} | uniq -c > ${outdir}/${sample}_cph_ret.tmp.txt" \
         "samtools view -q 40 -h | biscuit cinread ${genome} - -t cg -p QPAIR,CQPOS,CRETENTION | sort -T ${outdir} | uniq -c > ${outdir}/${sample}_cpg_ret.tmp.txt"
 
@@ -156,11 +163,18 @@ function biscuitQC {
     cat ${outdir}/${sample}_mapq_table.tmp.txt | \
         sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_mapq_table.txt
 
-    echo -e "BISCUITqc Insert Size Table" > ${outdir}/${sample}_isize_table.txt
-    echo -e "InsertSize\tFraction\tReadCount" \
-        >> ${outdir}/${sample}_isize_table.txt
-    cat ${outdir}/${sample}_isize_table.tmp.txt | \
-        sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_isize_table.txt
+    # Single-end reads don't have insert size, so skip if file doesn't exist
+    if [[ -f ${outdir}/${sample}_isize_table.tmp.txt ]]; then
+        echo -e "BISCUITqc Insert Size Table" > ${outdir}/${sample}_isize_table.txt
+        echo -e "InsertSize\tFraction\tReadCount" \
+            >> ${outdir}/${sample}_isize_table.txt
+        cat ${outdir}/${sample}_isize_table.tmp.txt | \
+            sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_isize_table.txt
+    else
+        >&2 echo -ne "${outdir}/${sample}_isize_table.tmp.txt does not exist. "
+        >&2 echo -ne "Insert size table QC file will not be created. "
+        >&2 echo -ne "If using a BAM from single-end reads, this is expected."
+    fi
 
     echo -e "BISCUITqc Strand Table" > ${outdir}/${sample}_strand_table.txt
     biscuit bsstrand ${genome} ${in_bam} \
