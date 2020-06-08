@@ -29,6 +29,7 @@
 #include "kstring.h"
 #include "biscuit.h"
 #include "wzmisc.h"
+//#include "../lib/htslib/version.h"
 
 static double cputime() {
   struct rusage r;
@@ -87,6 +88,9 @@ static int usage()
   fprintf(stderr, "    epiread      Convert BAM to epiread format\n");
   fprintf(stderr, "    rectangle    Convert epiread to rectangle format\n");
   fprintf(stderr, "    asm          Test allele specific methylation\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, " -- Other\n");
+  fprintf(stderr, "    version      Print BISCUIT and library versions\n");
   /* fprintf(stderr, "    ndr          Call nucleosome depletion region (NDR) from NOMe-seq\n"); */
   fprintf(stderr, "\n");
 
@@ -116,6 +120,16 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "mergecg") == 0) ret = main_mergecg(argc-1, argv+1);
   else if (strcmp(argv[1], "bsconv") == 0) ret = main_bsconv(argc-1, argv+1);
   else if (strcmp(argv[1], "rectangle") == 0) ret = main_rectangle(argc-1, argv+1);
+  else if (strcmp(argv[1], "version") == 0) {
+      fprintf(stderr, "BISCUIT Version: %s\n\n", PACKAGE_VERSION);
+      fprintf(stderr, "Using:\n");
+      fprintf(stderr, "\thtslib version: zwdzwd/htslib at commit f29fa32\n");
+      fprintf(stderr, "\tklib   version: zwdzwd/klib   at commit ca862f8\n");
+      fprintf(stderr, "\tsgsl   version: zwdzwd/sgsl   at commit a0ddc77\n");
+      fprintf(stderr, "\tutils  version: zwdzwd/utils  at commit 332459b\n");
+      fprintf(stderr, "\nLibraries found at: https://github.com/huishenlab/biscuit/tree/master/lib\n");
+      return 0;
+  }
   else {
     usage();
     wzfatal("Unrecognized subcommand: %s\n", argv[1]);
