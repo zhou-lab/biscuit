@@ -28,12 +28,14 @@
 ##         -- Consistent tmp file naming scheme
 ##         -- <unset> is now <unused>
 ##         -- Assorted other changes
-##     - Bug fix in Coefficient of Variantion calculation
+##     - Bug fix in Coefficient of Variation calculation
 ##   Apr 2020 -
 ##     - Refactoring QC script to reduce time spent running
 ##   May 2020 -
 ##     - Changing flags as necessary for updates to subcommand flags
 ##     - Adding PATH check for GNU parallel
+##   Jun 2020 -
+##     - Adding PATH check for GNU awk
 ##
 ################################################################################
 
@@ -63,7 +65,13 @@ function check_path {
       >&2 echo "awk does not exist in PATH"
       exit 1
   else
-      >&2 echo "Using awk found at: `which awk`"
+      if awk --version | grep -q GNU; then
+          >&2 echo "Using GNU awk found at: `which awk`"
+      else
+          >&2 echo "It doesn't appear you are using GNU awk"
+          >&2 echo "Try adding GNU awk at the front of PATH"
+          exit 1
+      fi
   fi
   if [[ `which parallel 2>&1 > /dev/null` ]]; then
       >&2 echo "parallel does not exist in PATH"

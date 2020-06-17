@@ -20,7 +20,7 @@ the user's `PATH` environment variable:
   - BISCUIT
   - [samtools](http://www.htslib.org/)
   - [bedtools](https://bedtools.readthedocs.io/en/latest/index.html)
-  - [awk](https://www.gnu.org/software/gawk/manual/gawk.html)
+  - [GNU awk](https://www.gnu.org/software/gawk/manual/gawk.html)
   - [GNU parallel](https://www.gnu.org/software/parallel/)
 
 It is also useful to have [samblaster](https://github.com/GregoryFaust/samblaster)
