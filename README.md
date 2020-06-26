@@ -32,6 +32,11 @@ A User Guide has been created to provide useful documentation regarding the
 usage of BISCUIT. The guide can be found at:
 [https://huishenlab.github.io/biscuit/](https://huishenlab.github.io/biscuit/).
 
+# Issues
+
+Any issues with BISCUIT can be submitted on the Issues page:
+[https://github.com/huishenlab/biscuit/issues](https://github.com/huishenlab/biscuit/issues).
+
 <!-- # Links -->
 
 <!--   - BISCUIT Publication -->
