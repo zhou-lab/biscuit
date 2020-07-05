@@ -2,7 +2,7 @@
  * 
  * The MIT License (MIT)
  *
- * Copyright (c) 2016-2017 Wanding.Zhou@vai.org
+ * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -689,13 +689,14 @@ static int btv_loop(btview_t *tv) {
 
 static void usage() {
   fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: biscuit tview [options] in.bam ref.fa \n");
-  fprintf(stderr, "Input options:\n");
-  fprintf(stderr, "     -g chr:pos     go directly to this position\n");
-  fprintf(stderr, "     -m INT         max number of reads to load per position [50]\n");
-  fprintf(stderr, "     -n name        highlight the read(s) with the read name\n");
-  fprintf(stderr, "     -f INT         flanking sequence length [10]\n");
-  fprintf(stderr, "     -h             this help.\n");
+  fprintf(stderr, "Usage: biscuit tview [options] <in.bam> <ref.fa>\n");
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Options:\n");
+  fprintf(stderr, "    -g STR    Go directly to this position\n");
+  fprintf(stderr, "    -m INT    Max number of reads to load per position [50]\n");
+  fprintf(stderr, "    -n STR    Highlight the read(s) with STR as the read name\n");
+  fprintf(stderr, "    -f INT    Flanking sequence length [100]\n");
+  fprintf(stderr, "    -h        This help\n");
   fprintf(stderr, "\n");
 }
 
@@ -707,18 +708,18 @@ int main_tview(int argc, char *argv[]) {
   int buf_flank = 100;
   char *read_name = NULL; /* target read name */
   int c;
-  while ((c = getopt(argc, argv, "g:m:n:h")) >= 0) {
-    switch (c) {
-    case 'g': position = optarg; break;
-    case 'm': max_reads_per_pos = atoi(optarg); break;
-    case 'n': read_name = strdup(optarg); break;
-    case 'h': usage(); return 1;
-    default:
-      fprintf(stderr, "[%s:%d] Unrecognized command: %c.\n", __func__, __LINE__, c);
-      fflush(stderr);
-      exit(1);
-      break;
-    }
+  if (argc<2) { usage(); return 1; }
+  while ((c = getopt(argc, argv, ":g:m:n:f:h")) >= 0) {
+      switch (c) {
+          case 'g': position = optarg; break;
+          case 'm': max_reads_per_pos = atoi(optarg); break;
+          case 'n': read_name = strdup(optarg); break;
+          case 'f': buf_flank = atoi(optarg); break;
+          case 'h': usage(); return 1;
+          case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
+          case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+          default: usage(); return 1;
+      }
   }
 
   char *bam_fn; bam_fn = (optind < argc) ? argv[optind++] : NULL;

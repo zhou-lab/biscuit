@@ -1,7 +1,7 @@
 /**
  * The MIT License (MIT)
  *
- * Copyright (c) 2016 Wanding.Zhou@vai.org
+ * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <inttypes.h>
 #include <libgen.h>
 #include "wqueue.h"
+#include "wzmisc.h"
 #include "encode.h"
 #include "sam.h"
 #include "hts.h"

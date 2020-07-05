@@ -2,7 +2,7 @@
  * 
  * The MIT License (MIT)
  *
- * Copyright (c) 2016-2017 Wanding.Zhou@vai.org
+ * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -289,16 +289,21 @@ END:
 }
 
 static int usage(conf_t *conf) {
-  fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: biscuit vcf2bed [options] vcf \n");
-  fprintf(stderr, "Input options:\n");
-  fprintf(stderr, "     -t STRING extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf->target);
-  fprintf(stderr, "     -k INT    minimum coverage [%d]\n", conf->mincov);
-  fprintf(stderr, "     -s STRING sample, (takes \"FIRST\", \"LAST\", \"ALL\", or specific sample names separated by \",\")[FIRST]\n");
-  fprintf(stderr, "     -e        show context (reference base, context group {CG,CHG,CHH}, 2-base {CA,CC,CG,CT} and 5-base context) before beta value and coverage column\n");
-  fprintf(stderr, "     -h        this help.\n");
-  fprintf(stderr, "\n");
-  return 1;
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Usage: biscuit vcf2bed [options] <in.vcf>\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -t STR    Extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf->target);
+    fprintf(stderr, "    -k INT    Minimum coverage [%d]\n", conf->mincov);
+    fprintf(stderr, "    -s STR    Sample, (takes \"FIRST\", \"LAST\", \"ALL\", or specific\n");
+    fprintf(stderr, "                  sample names separated by \",\") [FIRST]\n");
+    fprintf(stderr, "    -e        Show context (reference base, context group {CG,CHG,CHH},\n");
+    fprintf(stderr, "                  2-base {CA,CC,CG,CT} and 5-base context) before beta\n");
+    fprintf(stderr, "                  value and coverage column\n");
+    fprintf(stderr, "    -h        This help\n");
+    fprintf(stderr, "\n");
+
+    return 1;
 }
 
 int main_vcf2bed(int argc, char *argv[]) { 
@@ -307,19 +312,22 @@ int main_vcf2bed(int argc, char *argv[]) {
   char *target_samples = NULL;
 
   int c;
-  while ((c = getopt(argc, argv, "t:k:s:ceh")) >= 0) {
-    switch (c) {
-    case 'k': conf.mincov = atoi(optarg); break;
-    case 't': {
-      if (strlen(optarg) > 4) wzfatal("Invalid option for -t: %s.\n", optarg);
-      strcpy(conf.target, optarg);
-      break;
-    }
-    case 's': target_samples = strdup(optarg); break;
-    case 'e': conf.showctxt = 1; break;
-    case 'h': return usage(&conf); break;
-    default: usage(&conf); wzfatal("Unrecognized option: %c.\n",c); break;
-    }
+  if (argc<2) return usage(&conf);
+  while ((c = getopt(argc, argv, ":t:k:s:eh")) >= 0) {
+      switch (c) {
+          case 'k': conf.mincov = atoi(optarg); break;
+          case 't': {
+              if (strlen(optarg) > 4) wzfatal("Invalid option for -t: %s.\n", optarg);
+              strcpy(conf.target, optarg);
+              break;
+          }
+          case 's': target_samples = strdup(optarg); break;
+          case 'e': conf.showctxt = 1; break;
+          case 'h': return usage(&conf); break;
+          case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt);
+          case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt);
+          default: usage(&conf); wzfatal("Unrecognized option: -%c\n",c); break;
+      }
   }
 
   // default to only FIRST sample
