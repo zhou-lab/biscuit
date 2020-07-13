@@ -37,6 +37,7 @@
 typedef struct {
     int max_cph;
     float max_cph_frac;
+    float max_cpy_frac;
     int max_cpa;
     int max_cpc;
     int max_cpt;
@@ -150,6 +151,15 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
                 (float) cph_retn / (cph_retn + cph_conv) > conf->max_cph_frac) tofilter = 1;
     }
 
+    if (conf->max_cpy_frac < 1.0) {
+        int cph_retn = retn[nt256char_to_nt256int8_table['C']] +
+            retn[nt256char_to_nt256int8_table['T']];
+        int cph_conv = conv[nt256char_to_nt256int8_table['C']] +
+            conv[nt256char_to_nt256int8_table['T']];
+        if (cph_retn + cph_conv > 0 &&
+                (float) cph_retn / (cph_retn + cph_conv) > conf->max_cpy_frac) tofilter = 1;
+    }
+
 OUTPUT:
     d->n++;
     if (tofilter) d->n_filtered++;
@@ -200,6 +210,7 @@ static void usage() {
     fprintf(stderr, "    -u          Filter unclear bs-strand (YD:u) reads\n");
     fprintf(stderr, "    -m INT      Filter: maximum CpH retention [Inf]\n");
     fprintf(stderr, "    -f FLOAT    Filter: maximum CpH retention fraction [1.0]\n");
+    fprintf(stderr, "    -y FLOAT    Filter: maximum CpY retention fraction [1.0]\n");
     fprintf(stderr, "    -a INT      Filter: maximum CpA retention [Inf]\n");
     fprintf(stderr, "    -c INT      Filter: maximum CpC retention [Inf]\n");
     fprintf(stderr, "    -t INT      Filter: maximum CpT retention [Inf]\n");
@@ -216,14 +227,16 @@ int main_bsconv(int argc, char *argv[]) {
     bsconv_conf_t conf = {0};
     conf.max_cph = conf.max_cpa = conf.max_cpc = conf.max_cpt = -1;
     conf.max_cph_frac = 1.0;
+    conf.max_cpy_frac = 1.0;
     conf.print_in_tab = 0;
 
     if (argc < 2) { usage(); return 1; }
-    while ((c = getopt(argc, argv, ":g:m:ac:f:pt:uvh")) >= 0) {
+    while ((c = getopt(argc, argv, ":g:m:ac:f:y:pt:uvh")) >= 0) {
         switch (c) {
             case 'g': reg = optarg; break;
             case 'm': conf.max_cph = atoi(optarg); break;
             case 'f': conf.max_cph_frac = atof(optarg); break;
+            case 'y': conf.max_cpy_frac = atof(optarg); break;
             case 'a': conf.max_cpa = atoi(optarg); break;
             case 'c': conf.max_cpc = atoi(optarg); break;
             case 't': conf.max_cpt = atoi(optarg); break;
