@@ -235,7 +235,7 @@ system("tail -$tenPerc $outdir/gc_content.sorted.bed > $outdir/tmp.top10p.bed");
 
 # sort top/bottom 10%
 system("sort -k1,1 -k2,2n $outdir/tmp.top10p.bed > $outdir/windows100bp.gc_content.top10p.bed");
-system("sort -k1,1 -k2,2n $outdir/tmp.top10p.bed > $outdir/windows100bp.gc_content.bot10p.bed");
+system("sort -k1,1 -k2,2n $outdir/tmp.bot10p.bed > $outdir/windows100bp.gc_content.bot10p.bed");
 
 # Compress output files
 system("gzip $outdir/windows100bp.gc_content.bot10p.bed");
