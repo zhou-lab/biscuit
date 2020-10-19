@@ -803,7 +803,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
           rec->betasum_context[sid*NCONTXTS+ctt] += beta;
           rec->cnt_context[sid*NCONTXTS+ctt]++;
         }
-        ksprintf(s, ":%d:%1.2f", cnts_meth1[METH_RETENTION]+cnts_meth1[METH_CONVERSION], beta);
+        ksprintf(s, ":%d:%1.3f", cnts_meth1[METH_RETENTION]+cnts_meth1[METH_CONVERSION], beta);
       } else {
         kputs(":0:.", s);
       }

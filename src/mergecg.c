@@ -25,6 +25,7 @@
 **/
 
 #include <stdlib.h>
+#include <math.h>
 #include <inttypes.h>
 #include <string.h>
 #include <zlib.h>
@@ -100,7 +101,10 @@ void format_output(bed1_t *p, char *chrm, char base_before, char base_after, int
         if (cov == 0) {
             fputs("\t.\t0", stdout);
         } else {
-            printf("\t%1.3f\t%d", (pd->c_betas[i]*pd->c_depts[i] + pd->g_betas[i]*pd->g_depts[i]) / (double) cov, cov);
+            // Calculate merged beta value from count values to reduce error in beta value
+            float c_ret = rintf(pd->c_betas[i]*pd->c_depts[i]);
+            float g_ret = rintf(pd->g_betas[i]*pd->g_depts[i]);
+            printf("\t%1.3f\t%d", (c_ret + g_ret) / (double) cov, cov);
         }
         if (pd->c_depts[i] == 0) {
             fputs("\tC:.:0", stdout);
