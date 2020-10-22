@@ -11,6 +11,8 @@ Update Notes:
         - Count soft-masked CpGs (CG/Cg/cG/cg are all counted as CpGs)
         - Correct GC-content calculation
         - Clean up code for ease of maintaining
+    21 Oct 2020 -
+        - Update sorting for GC-content windows
 
 Description:
 
@@ -62,7 +64,7 @@ Arguments:
 
 Dependencies:
 
-    - command line sort
+    - command line: head, tail, sort, gzip
     - memory approximitating the size of your genome (whole reference is loaded)
 =cut
 use Getopt::Long qw(GetOptions);
@@ -167,7 +169,6 @@ foreach my $chr (sort keys %seq){
     my $offset = 0;          # Current offset/start position of CpG
     my $nCpGs=0;             # Number of CpGs
     my $str = uc $seq{$chr}; # Uppercase sequence for easier comparison
-    if ($verbose) { print STDOUT "Length of $chr: ", length($str), "\n"; }
 
     my $result = index($str, $char, $offset);
     while ($result != -1) { # now get CpGs & print to bed
@@ -178,7 +179,7 @@ foreach my $chr (sort keys %seq){
         $offset = $result + 1;
         $result = index($str, $char, $offset);
     }
-    if ($verbose) { print STDOUT "\tFound $nCpGs CpGs in $chr\n"; }
+    if ($verbose) { print STDOUT "\tchr/contig length = ", length($str), "    # CpGs = $nCpGs\n"; }
 }
 close($cpgBed);
 
@@ -211,10 +212,20 @@ foreach my $chr (sort keys %seq){
         my @nMatches = $substr =~ /n/gi;                  # number of Ns
 
         my $gcFrac = sprintf('%.2f', (scalar @gcMatches/$windowSize));
+        #my $gcFrac = sprintf('%f', (scalar @gcMatches/$windowSize));
+        #if ($gcFrac == "0.0") {
+        #    $gcFrac = "0"
+        #} else {
+        #    if ($gcFrac == "1.0") {
+        #        $gcFrac = "1"
+        #    } else {
+        #        $gcFrac =~ s/0+$//; # remove trailing zeroes
+        #    }
+        #}
         #~ print STDOUT "Found a substr of length ", length($substr), " with GC-content: $gcFrac\n";
         #~ print STDOUT "\t$substr\n";
 
-        if (scalar @nMatches == 0) {
+        if ((scalar @nMatches == 0) and (length($substr) == $windowSize)) {
             $nWindows++;
             my $end = $i+$windowSize;
             print $sw "$chr\t$i\t$end\t$gcFrac\n";
@@ -228,25 +239,18 @@ print STDOUT "Command line functions to sort and subset files\n";
 my $tenPerc = sprintf('%.0f',0.1*$nWindows);
 if ($verbose) { print STDOUT "10% of $nWindows 100bp CpG windows is $tenPerc\n"; }
 
-# get top/bottom 10%
-system("sort -k4,4n $outdir/gc_content.bed > $outdir/gc_content.sorted.bed");
-system("head -$tenPerc $outdir/gc_content.sorted.bed > $outdir/tmp.bot10p.bed");
-system("tail -$tenPerc $outdir/gc_content.sorted.bed > $outdir/tmp.top10p.bed");
+# Get top/bottom 10% GC-content windows, sort, and compress
+system("LC_ALL=C sort -k4,4n $outdir/gc_content.bed > $outdir/gc_content.sorted.bed");
+#system("LC_ALL=C sort -k4,4 -k1,1 -k2,2n $outdir/gc_content.bed > $outdir/gc_content.sorted.bed");
+system("head -n $tenPerc $outdir/gc_content.sorted.bed | LC_ALL=C sort -k1,1 -k2,2n | gzip -c > $outdir/windows100bp.gc_content.bot10p.bed.gz");
+system("tail -n $tenPerc $outdir/gc_content.sorted.bed | LC_ALL=C sort -k1,1 -k2,2n | gzip -c > $outdir/windows100bp.gc_content.top10p.bed.gz");
 
-# sort top/bottom 10%
-system("sort -k1,1 -k2,2n $outdir/tmp.top10p.bed > $outdir/windows100bp.gc_content.top10p.bed");
-system("sort -k1,1 -k2,2n $outdir/tmp.bot10p.bed > $outdir/windows100bp.gc_content.bot10p.bed");
-
-# Compress output files
-system("gzip $outdir/windows100bp.gc_content.bot10p.bed");
-system("gzip $outdir/windows100bp.gc_content.top10p.bed");
+# Compress CpG output file
 system("gzip $outdir/cpg.bed");
 
 # Remove intermediate files
 system("rm $outdir/gc_content.bed");
 system("rm $outdir/gc_content.sorted.bed");
-system("rm $outdir/tmp.bot10p.bed");
-system("rm $outdir/tmp.top10p.bed");
 
 print "\nFinished $0\n";
 #=======================================================================
