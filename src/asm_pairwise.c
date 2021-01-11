@@ -126,10 +126,22 @@ int main_asm(int argc, char *argv[]) {
 
   char *chrm = NULL;
   int snp_loc=-1, cg_loc=-1, _snp_loc, _cg_loc;
+  int count_non_pairwise_lines=0, n_lines=0;
   int cross[25];          /* row: snp, column: cg|hcg|gch */
   memset(cross, 0, 25*sizeof(int));
   while(tsv_read(in)) {
+    if (in->n > 0) n_lines++;
     if (in->n < 5) continue;    /* incomplete line */
+    if (in->n > 7) { /* using epiread file not run in pairwise mode */
+        count_non_pairwise_lines++;
+        if ((count_non_pairwise_lines >= 100) &&
+            (count_non_pairwise_lines == n_lines)) {
+            fprintf(stderr, "The first %i lines are not in pairwise epiread format. ", n_lines);
+            fprintf(stderr, "Be sure to run biscuit epiread in pairwise mode.\n");
+            break;
+        }
+        continue;
+    }
 
     _snp_loc = atoi(in->fields[1]);
     _cg_loc = atoi(in->fields[2]);
@@ -156,7 +168,12 @@ int main_asm(int argc, char *argv[]) {
 
   free(chrm);
   tsv_close(in);
- 
+
+  if ((n_lines < 100) && (count_non_pairwise_lines == n_lines)) {
+      fprintf(stderr, "All lines in file are not in pairwise epiread format. ");
+      fprintf(stderr, "Be sure to run biscuit epiread in pairwise mode.\n");
+  }
+
   return 0;
 }
 
