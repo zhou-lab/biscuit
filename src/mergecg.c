@@ -1,4 +1,4 @@
-/* Merge C annd G beta values in CpG dinucleotide context
+/* Merge C and G beta values in CpG dinucleotide context
  * 
  * The MIT License (MIT)
  *
