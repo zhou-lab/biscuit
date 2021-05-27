@@ -561,6 +561,10 @@ static void *process_func(void *data) {
 
          uint8_t *nm = bam_aux_get(b, "NM");
          if (nm && bam_aux2i(nm)>conf->max_nm) continue;
+
+        uint8_t *as = bam_aux_get(b, "AS");
+        if (as && bam_aux2i(as) < conf->min_score) continue;
+
          uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
          if (cnt_ret > conf->max_retention) continue;
 
@@ -646,6 +650,7 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Filter options:\n");
     fprintf(stderr, "    -m INT    Minimum mapping quality [%u]\n", conf->min_mapq);
+    fprintf(stderr, "    -a INT    Minimum alignment score (from AS-tag) [%u]\n", conf->min_score);
     fprintf(stderr, "    -t INT    Max cytosine retention in a read [%u]\n", conf->max_retention);
     fprintf(stderr, "    -l INT    Minimum read length [%u]\n", conf->min_read_len);
     fprintf(stderr, "    -c        NO filtering secondary mapping\n");
@@ -671,6 +676,7 @@ int main_epiread(int argc, char *argv[]) {
    conf.step = 100000;
    conf.n_threads = 3;
    conf.min_mapq = 40;
+   conf.min_score = 40;
    conf.max_retention = 999999;
    conf.min_read_len = 10;
    conf.filter_qcfail = 1;
@@ -683,7 +689,7 @@ int main_epiread(int argc, char *argv[]) {
    conf.epiread_pair = 0;
 
    if (argc<2) return usage(&conf);
-   while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:n:m:NcuPpvh"))>=0) {
+   while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:n:m:a:NcuPpvh"))>=0) {
       switch (c) {
       case 'B': snp_bed_fn = optarg; break;
       case 'o': outfn = optarg; break;
@@ -694,6 +700,7 @@ int main_epiread(int argc, char *argv[]) {
       case 'l': conf.min_read_len = atoi(optarg); break;
       case 'n': conf.max_nm = atoi(optarg); break;
       case 'm': conf.min_mapq = atoi(optarg); break;
+      case 'a': conf.min_score = atoi(optarg); break;
       case 'N': conf.is_nome = 1; break;
       case 'c': conf.filter_secondary = 0; break;
       case 'u': conf.filter_duplicate = 0; break;
