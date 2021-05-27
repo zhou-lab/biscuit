@@ -57,6 +57,7 @@ int main_cinread(int argc, char *argv[]);
 int main_bsconv(int argc, char *argv[]);
 int main_mergecg(int argc, char *argv[]);
 int main_rectangle(int argc, char *argv[]);
+int main_qc(int argc, char *argv[]);
 
 static int usage()
 {
@@ -91,6 +92,7 @@ static int usage()
   fprintf(stderr, "\n");
   fprintf(stderr, " -- Other\n");
   fprintf(stderr, "    version      Print BISCUIT and library versions\n");
+  fprintf(stderr, "    qc           Generate QC files to hook to MultiQC\n");
   /* fprintf(stderr, "    ndr          Call nucleosome depletion region (NDR) from NOMe-seq\n"); */
   fprintf(stderr, "\n");
 
@@ -120,6 +122,7 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "mergecg") == 0) ret = main_mergecg(argc-1, argv+1);
   else if (strcmp(argv[1], "bsconv") == 0) ret = main_bsconv(argc-1, argv+1);
   else if (strcmp(argv[1], "rectangle") == 0) ret = main_rectangle(argc-1, argv+1);
+  else if (strcmp(argv[1], "qc") == 0) ret = main_qc(argc-1, argv+1);
   else if (strcmp(argv[1], "version") == 0) {
       fprintf(stderr, "BISCUIT Version: %s\n\n", PACKAGE_VERSION);
       fprintf(stderr, "Using:\n");
