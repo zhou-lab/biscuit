@@ -145,63 +145,16 @@ function biscuitQC {
         "bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_all.tmp.bed -a stdin | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_all.tmp.bed" \
         "bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_q40.tmp.bed -a stdin | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_q40.tmp.bed"
 
-    # MAPQ, Insert Size, Strand Info, and Duplicate Rates
-    if [[ -f ${outdir}/${sample}_mapq_table.tmp.txt ]]; then
-        rm -f ${outdir}/${sample}_mapq_table.tmp.txt
-    fi
-    if [[ -f ${outdir}/${sample}_isize_table.tmp.txt ]]; then
-        rm -f ${outdir}/${sample}_isize_table.tmp.txt
-    fi
-
-    samtools view -F 0x104 ${in_bam} | \
-    awk -v out1="${outdir}/${sample}_mapq_table.tmp.txt" \
-        -v out2="${outdir}/${sample}_isize_table.tmp.txt" '{ cnt[$5] += 1
-        if (and($2, 0x2) && $5 >= 40 && $9 >= 0 && $9 <= 2000) {
-            isize[$9] += 1; sumisize += 1 }
-        } END {
-            for (mapq in cnt) { print mapq"\t"cnt[mapq] >> out1 }
-            for (k in isize) { print k"\t"isize[k]/sumisize"\t"isize[k] >> out2 }
-        }'
-
-    echo -e "BISCUITqc Mapping Quality Table" \
-        > ${outdir}/${sample}_mapq_table.txt
-    echo -e "MapQ\tCount" >> ${outdir}/${sample}_mapq_table.txt
-    samtools view -F 0x100 -f 0x4 -c ${in_bam} | \
-        cat <(echo -ne "unmapped\t") - >> ${outdir}/${sample}_mapq_table.txt
-    cat ${outdir}/${sample}_mapq_table.tmp.txt | \
-        sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_mapq_table.txt
-
-    # Single-end reads don't have insert size, so skip if file doesn't exist
-    if [[ -f ${outdir}/${sample}_isize_table.tmp.txt ]]; then
-        echo -e "BISCUITqc Insert Size Table" > ${outdir}/${sample}_isize_table.txt
-        echo -e "InsertSize\tFraction\tReadCount" \
-            >> ${outdir}/${sample}_isize_table.txt
-        cat ${outdir}/${sample}_isize_table.tmp.txt | \
-            sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_isize_table.txt
+    # MAPQ, Insert Size, Duplicate Rates, and Strand Info
+    if [[ "${single_end}" == true ]]; then
+        biscuit qc -s ${in_bam} ${outdir}/${sample}
     else
-        >&2 echo -ne "${outdir}/${sample}_isize_table.tmp.txt does not exist. "
-        >&2 echo -ne "Insert size table QC file will not be created. "
-        >&2 echo -ne "If using a BAM from single-end reads, this is expected."
+        biscuit qc ${in_bam} ${outdir}/${sample}
     fi
 
     echo -e "BISCUITqc Strand Table" > ${outdir}/${sample}_strand_table.txt
     biscuit bsstrand ${genome} ${in_bam} \
         >> ${outdir}/${sample}_strand_table.txt 2>&1
-
-    echo "BISCUITqc Read Duplication Table" > ${outdir}/${sample}_dup_report.txt
-    samtools view -f 0x400 -c ${in_bam} | \
-        cat <(echo -ne "Number of duplicate reads:\t") - \
-        >> ${outdir}/${sample}_dup_report.txt
-    samtools view -c ${in_bam} | \
-        cat <(echo -ne "Number of reads:\t") - \
-        >> ${outdir}/${sample}_dup_report.txt
-
-    samtools view -f 0x400 -q 40 -c ${in_bam} | \
-        cat <(echo -ne "Number of duplicate q40-reads:\t") - \
-        >> ${outdir}/${sample}_dup_report.txt
-    samtools view -q 40 -c ${in_bam} | \
-        cat <(echo -ne "Number of q40-reads:\t") - \
-        >> ${outdir}/${sample}_dup_report.txt
 
     # Coverage distributions and uniformity
     echo -e "BISCUITqc Uniformity Table" > ${outdir}/${sample}_cv_table.txt
@@ -524,7 +477,7 @@ function biscuitQC {
 
 # Print helpful usage information
 function usage {
-    >&2 echo -e "\nUsage: QC.sh [-h,--help] [-v,--vcf] [-o,--outdir] [-k,--keep-tmp-files] assets_directory genome sample_name in_bam\n"
+    >&2 echo -e "\nUsage: QC.sh [-h,--help] [-s,--single-end] [-v,--vcf] [-o,--outdir] [-k,--keep-tmp-files] assets_directory genome sample_name in_bam\n"
     >&2 echo -e "Required inputs:"
     >&2 echo -e "\tassets_directory    : Path to assets directory"
     >&2 echo -e "\tgenome              : Path to reference FASTA file used in alignment"
@@ -532,6 +485,7 @@ function usage {
     >&2 echo -e "\tinput_bam           : Aligned BAM from BISCUIT\n"
     >&2 echo -e "Optional inputs:"
     >&2 echo -e "\t-h,--help           : Print help message and exit"
+    >&2 echo -e "\t-s,--single-end     : Input BAM is from single end data [DEFAULT: Assumes paired-end]"
     >&2 echo -e "\t-v,--vcf            : Path to VCF output from BISCUIT [DEFAULT: <unused>]"
     >&2 echo -e "\t-o,--outdir         : Output directory [DEFAULT: BISCUITqc]"
     >&2 echo -e "\t-k,--keep-tmp-files : Flag to keep temporary files for debugging [DEFAULT: Delete files]\n"
@@ -541,11 +495,12 @@ function usage {
 in_vcf="<unused>"
 outdir="BISCUITqc"
 keep_tmp=false
+single_end=false
 
 # Process command line arguments
 OPTS=$(getopt \
-    --options hv:o:k \
-    --long help,vcf:,outdir:,keep-bed-files \
+    --options hsv:o:k \
+    --long help,single-end,vcf:,outdir:,keep-bed-files \
     --name "$(basename "$0")" \
     -- "$@"
 )
@@ -556,6 +511,10 @@ while true; do
         -h|--help )
             usage
             exit 0
+            ;;
+        -s|--single-end )
+            single_end=true
+            shift
             ;;
         -v|--vcf )
             in_vcf="$2"
@@ -630,6 +589,7 @@ BISCUIT_BOTGC="${assets}/windows100bp.gc_content.bot10p.bed.gz"
 >&2 echo "Assets Directory   : ${assets}"
 >&2 echo "Reference          : ${genome}"
 >&2 echo "Keep *.tmp.* files : ${keep_tmp}"
+>&2 echo "Single-end data    : ${single_end}"
 >&2 echo "CPGS               : ${BISCUIT_CPGS}"
 #>&2 echo "CGIS               : ${BISCUIT_CGIS}"
 #>&2 echo "RMSK               : ${BISCUIT_RMSK}"

@@ -92,7 +92,7 @@ static int usage()
   fprintf(stderr, "\n");
   fprintf(stderr, " -- Other\n");
   fprintf(stderr, "    version      Print BISCUIT and library versions\n");
-  fprintf(stderr, "    qc           Generate QC files to hook to MultiQC\n");
+  fprintf(stderr, "    qc           Generate alignment QC files to hook to MultiQC\n");
   /* fprintf(stderr, "    ndr          Call nucleosome depletion region (NDR) from NOMe-seq\n"); */
   fprintf(stderr, "\n");
 
