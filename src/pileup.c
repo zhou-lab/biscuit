@@ -538,8 +538,10 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts_meth, int *cn
     pileup_data_t *d = ref_pileup_data_v(dv, i);
     /* read-position-based filtering */
     if (d->qual < conf->min_base_qual) continue;
-    if (d->qpos < conf->min_dist_end ||
-        d->rlen < d->qpos + conf->min_dist_end) continue;
+    // TODO: On the 3'-end, it should be before the end of mapping instead of
+    // end of read since adaptor sequences are soft-clipped.
+    if (d->qpos < conf->min_dist_end_5p ||
+        d->rlen < d->qpos + conf->min_dist_end_3p) continue;
     cnts_meth[d->sid * NSTATUS_METH + (d->stat&0xf)]++;
     cnts_base[d->sid * NSTATUS_BASE + (d->stat>>4)]++;
   }
@@ -976,8 +978,8 @@ static void *process_func(void *_result) {
               rb = refcache_getbase_upcase(rs, rpos+j);
               qb = bscall(b, qpos+j);
 
-              /* if read 2 in a proper pair, skip counting overlapped cytosines
-               *  Right now I assume read 1 and read 2 are the same length and there is no gap.
+              /* If read 2 in a proper pair, skip counting overlapped cytosines
+               * Right now I assume read 1 and read 2 are the same length and there is no gap.
                * Better solution would be to log mate end in the alignment (using bam_endpos).
                * The filtering of double counting is only effective when reads are properly paired.
                *  
@@ -1169,7 +1171,8 @@ void conf_init(conf_t *conf) {
   conf->min_score = 40;
   conf->max_retention = 999999;
   conf->min_read_len = 10;
-  conf->min_dist_end = 3;
+  conf->min_dist_end_5p = 3;
+  conf->min_dist_end_3p = 3;
   conf->filter_secondary = 1;
   conf->filter_doublecnt = 1;
   conf->filter_duplicate = 1;
@@ -1221,9 +1224,8 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -a INT      Minimum alignment score (from AS-tag) [%u]\n", conf->min_score);
     fprintf(stderr, "    -t INT      Maximum cytosine retention in a read [%u]\n", conf->max_retention);
     fprintf(stderr, "    -l INT      Minimum read length [%u]\n", conf->min_read_len);
-    // TODO: we should distinguish 5'-end and 3'-end. On the 3'-end, it should be before
-    // the end of mapping instead of end of read since adaptor sequences are soft-clipped.
-    fprintf(stderr, "    -e INT      Minimum distance to end of a read [%u]\n", conf->min_dist_end);
+    fprintf(stderr, "    -5 INT      Minimum distance to 5' end of a read [%u]\n", conf->min_dist_end_5p);
+    fprintf(stderr, "    -3 INT      Minimum distance to 3' end of a read [%u]\n", conf->min_dist_end_3p);
     fprintf(stderr, "    -r          NO redistribution of ambiguous (Y/R) calls in SNP genotyping\n");
     fprintf(stderr, "    -c          NO filtering secondary mapping\n");
     fprintf(stderr, "    -d          Double count cytosines in overlapping mate reads (avoided\n");
@@ -1257,7 +1259,7 @@ int main_pileup(int argc, char *argv[]) {
     conf_init(&conf);
 
     if (argc<2) return usage(&conf);
-    while ((c=getopt(argc, argv, ":o:w:g:@:e:b:s:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
+    while ((c=getopt(argc, argv, ":o:w:g:@:5:3:b:s:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
         switch (c) {
             case 'g': reg = optarg; break;
             case '@': conf.n_threads = atoi(optarg); break;
@@ -1276,7 +1278,8 @@ int main_pileup(int argc, char *argv[]) {
             case 'a': conf.min_score = atoi(optarg); break;
             case 't': conf.max_retention = atoi(optarg); break;
             case 'l': conf.min_read_len = atoi(optarg); break;
-            case 'e': conf.min_dist_end = atoi(optarg); break;
+            case '5': conf.min_dist_end_5p = atoi(optarg); break;
+            case '3': conf.min_dist_end_3p = atoi(optarg); break;
             case 'r': conf.ambi_redist = 0; break;
             case 'c': conf.filter_secondary = 0; break;
             case 'd': conf.filter_doublecnt = 0; break;
