@@ -123,10 +123,13 @@ static void *epiread_write_func(void *data) {
 
 static void format_epiread(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, conf_t *conf,
-        int first_cg, int first_gc, int first_snp, kstring_t ecg, kstring_t egc, kstring_t es) {
+        int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
+        char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
+
+    uint32_t k;
 
     if (conf->is_nome) { // nome-seq
-        int first_epi = first_cg < first_gc ? first_cg : first_gc;
+        int first_epi = get_int_v(hcg_p, 0) < get_int_v(gch_p, 0) ? get_int_v(hcg_p, 0) : get_int_v(gch_p, 0);
 
         if (first_epi > 0 && (unsigned) first_epi >= w->beg && (unsigned) first_epi < w->end) {
             ksprintf(epi, "%s\t%s\t%c\t%c",
@@ -136,22 +139,40 @@ static void format_epiread(
                     bsstrand ? '-' : '+');
 
             // HCG context (0-based)
-            if (first_cg >= 0) {
-                ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s);
+            if (hcg_p->size > 0) {
+                ksprintf(epi, "\t%d", get_int_v(hcg_p, 0)-1);
+                for (k=1; k<hcg_p->size; ++k)
+                    ksprintf(epi, ",%d", get_int_v(hcg_p, k)-1);
+
+                ksprintf(epi, "\t%c", get_char_v(hcg_c, 0));
+                for (k=1; k<hcg_c->size; ++k)
+                    ksprintf(epi, "%c", get_char_v(hcg_c, k));
             } else {
                 kputs("\t.\t.", epi);
             }
 
             // GCH context (0-based)
-            if (first_gc >= 0) {
-                ksprintf(epi, "\t%d\t%s", first_gc-1, egc.s);
+            if (gch_p->size > 0) {
+                ksprintf(epi, "\t%d", get_int_v(gch_p, 0)-1);
+                for (k=1; k<gch_p->size; ++k)
+                    ksprintf(epi, ",%d", get_int_v(gch_p, k)-1);
+
+                ksprintf(epi, "\t%c", get_char_v(gch_c, 0));
+                for (k=1; k<gch_c->size; ++k)
+                    ksprintf(epi, "%c", get_char_v(gch_c, k));
             } else {
                 kputs("\t.\t.", epi);
             }
 
             // SNP (0-based)
-            if (first_snp >= 0) {
-                ksprintf(epi, "\t%d\t%s", first_snp-1, es.s);
+            if (snp_p->size > 0) {
+                ksprintf(epi, "\t%d", get_int_v(snp_p, 0)-1);
+                for (k=1; k<snp_p->size; ++k)
+                    ksprintf(epi, ",%d", get_int_v(snp_p, k)-1);
+
+                ksprintf(epi, "\t%c", get_char_v(snp_c, 0));
+                for (k=1; k<snp_c->size; ++k)
+                    ksprintf(epi, "%c", get_char_v(snp_c, k));
             } else if (snps) {
                 kputs("\t.\t.", epi);
             } else {
@@ -162,7 +183,7 @@ static void format_epiread(
             kputc('\n', epi);
         }
     } else { // bs-seq
-        if (first_cg > 0 && (unsigned) first_cg >= w->beg && (unsigned) first_cg < w->end) {
+        if (get_int_v(cg_p, 0) > 0 && (unsigned) get_int_v(cg_p, 0) >= w->beg && (unsigned) get_int_v(cg_p, 0) < w->end) {
             ksprintf(epi, "%s\t%s\t%c\t%c",
                     chrm,
                     bam_get_qname(b),
@@ -170,15 +191,27 @@ static void format_epiread(
                     bsstrand ? '-' : '+');
 
             // CpG context (0-based)
-            if (first_cg >= 0) {
-                ksprintf(epi, "\t%d\t%s", first_cg-1, ecg.s);
+            if (cg_p->size > 0) {
+                ksprintf(epi, "\t%d", get_int_v(cg_p, 0)-1);
+                for (k=1; k<cg_p->size; ++k)
+                    ksprintf(epi, ",%d", get_int_v(cg_p, k)-1);
+
+                ksprintf(epi, "\t%c", get_char_v(cg_c, 0));
+                for (k=1; k<cg_c->size; ++k)
+                    ksprintf(epi, "%c", get_char_v(cg_c, k));
             } else {
                 kputs("\t.\t.", epi);
             }
 
             // SNP (0-based)
-            if (first_snp >= 0) {
-                ksprintf(epi, "\t%d\t%s", first_snp-1, es.s);
+            if (snp_p->size > 0) {
+                ksprintf(epi, "\t%d", get_int_v(snp_p, 0)-1);
+                for (k=1; k<snp_p->size; ++k)
+                    ksprintf(epi, ",%d", get_int_v(snp_p, k)-1);
+
+                ksprintf(epi, "\t%c", get_char_v(snp_c, 0));
+                for (k=1; k<snp_c->size; ++k)
+                    ksprintf(epi, "%c", get_char_v(snp_c, k));
             } else if (snps) {
                 kputs("\t.\t.", epi);
             } else {
@@ -309,19 +342,6 @@ static void *process_func(void *data) {
             uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
             if (cnt_ret > conf->max_retention) continue;
 
-            // standard epiread format variables
-            int first_snp = -1;
-            kstring_t es;
-            es.s = 0; es.l = es.m = 0;
-
-            int first_cg = -1; // HCG in nome-seq mode
-            kstring_t ecg;
-            ecg.s = 0; ecg.l = ecg.m = 0;
-
-            int first_gc = -1; // GCH in nome-seq mode
-            kstring_t egc;
-            egc.s = 0; egc.l = egc.m = 0;
-
             // pairwise epiread format variables
             int_v  *snp_p = init_int_v(10);  // snp position
             char_v *snp_c = init_char_v(10); // snp character
@@ -384,28 +404,20 @@ static void *process_func(void *data) {
                                         if (rb0 == 'C' && rb1 != 'C') { // HCG context
                                             // Note: measure G in CpG context, record location of C
                                             push_int_v(hcg_p, (int) rpos+j-1);
-                                            if (first_cg < 0) first_cg = (int) rpos+j-1;
                                             if (qb == 'A') {
-                                                kputc('T', &ecg);
                                                 push_char_v(hcg_c, 'T');
                                             } else if (qb == 'G') {
-                                                kputc('C', &ecg);
                                                 push_char_v(hcg_c, 'C');
                                             } else {
-                                                kputc('N', &ecg);
                                                 push_char_v(hcg_c, 'N');
                                             }
                                         } else if (rb0 != 'C' && rb1 == 'C') { // GCH context
                                             push_int_v(gch_p, (int) rpos+j);
-                                            if (first_gc < 0) first_gc = (int) rpos+j;
                                             if (qb == 'A') {
-                                                kputc('T', &egc);
                                                 push_char_v(gch_c, 'T');
                                             } else if (qb == 'G') {
-                                                kputc('C', &egc);
                                                 push_char_v(gch_c, 'C');
                                             } else {
-                                                kputc('N', &egc);
                                                 push_char_v(gch_c, 'N');
                                             }
                                         }
@@ -415,15 +427,11 @@ static void *process_func(void *data) {
                                     if (rb0 == 'C') { // CpG context
                                         // Note: measure G in CpG context, record location of C
                                         push_int_v(cg_p, (int) rpos+j-1);
-                                        if (first_cg < 0) first_cg = (int) rpos+j-1;
                                         if (qb == 'A') {
-                                            kputc('T', &ecg);
                                             push_char_v(cg_c, 'T');
                                         } else if (qb == 'G') {
-                                            kputc('C', &ecg);
                                             push_char_v(cg_c, 'C');
                                         } else {
-                                            kputc('N', &ecg);
                                             push_char_v(cg_c, 'N');
                                         }
                                     }
@@ -439,28 +447,20 @@ static void *process_func(void *data) {
                                         if (rb0 != 'G' && rb1 == 'G') { // HCG context
                                             // measure C in CpG context
                                             push_int_v(hcg_p, (int) rpos+j);
-                                            if (first_cg < 0) first_cg = (int) rpos+j;
                                             if (qb == 'T') {
-                                                kputc('T', &ecg);
                                                 push_char_v(hcg_c, 'T');
                                             } else if (qb == 'C') {
-                                                kputc('C', &ecg);
                                                 push_char_v(hcg_c, 'C');
                                             } else {
-                                                kputc('N', &ecg);
                                                 push_char_v(hcg_c, 'N');
                                             }
                                         } else if (rb0 == 'G' && rb1 != 'G') { // GCH context
                                             push_int_v(gch_p, (int) rpos+j);
-                                            if (first_gc < 0) first_gc = (int) rpos+j;
                                             if (qb == 'T') {
-                                                kputc('T', &egc);
                                                 push_char_v(gch_c, 'T');
                                             } else if (qb == 'C') {
-                                                kputc('C', &egc);
                                                 push_char_v(gch_c, 'C');
                                             } else {
-                                                kputc('N', &egc);
                                                 push_char_v(gch_c, 'N');
                                             }
                                         }
@@ -469,15 +469,11 @@ static void *process_func(void *data) {
                                     char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
                                     if (rb1 == 'G') { // CpG context
                                         push_int_v(cg_p, (int) rpos+j-1);
-                                        if (first_cg < 0) first_cg = (int) rpos+j;
                                         if (qb == 'T') {
-                                            kputc('T', &ecg);
                                             push_char_v(cg_c, 'T');
                                         } else if (qb == 'C') {
-                                            kputc('C', &ecg);
                                             push_char_v(cg_c, 'C');
                                         } else {
-                                            kputc('N', &ecg);
                                             push_char_v(cg_c, 'N');
                                         }
                                     }
@@ -487,9 +483,7 @@ static void *process_func(void *data) {
                             // append SNP info if present
                             uint32_t snp_ind = rpos+j-snp_beg;
                             if (snps && episnp_test(snps, snp_ind)) {
-                                kputc(qb, &es);
                                 push_char_v(snp_c, qb);
-                                if (first_snp < 0) first_snp = rpos+j;
                                 push_int_v(snp_p, rpos+j);
                             }
                         }
@@ -520,12 +514,11 @@ static void *process_func(void *data) {
             } else {
                 format_epiread(
                         &rec.s, b, bsstrand, chrm, &w, snps, conf,
-                        first_cg, first_gc, first_snp, ecg, egc, es);
+                        snp_p, hcg_p, gch_p, cg_p,
+                        snp_c, hcg_c, gch_c, cg_c);
             }
 
             // clean up
-            free(es.s); free(ecg.s); free(egc.s); 
-
             free_int_v(snp_p); free_char_v(snp_c);
             if (conf->is_nome) {
                 free_int_v(hcg_p); free_char_v(hcg_c);
