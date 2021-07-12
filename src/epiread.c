@@ -141,8 +141,10 @@ static void format_epiread(
             // HCG context (0-based)
             if (hcg_p->size > 0) {
                 ksprintf(epi, "\t%d", get_int_v(hcg_p, 0)-1);
-                for (k=1; k<hcg_p->size; ++k)
-                    ksprintf(epi, ",%d", get_int_v(hcg_p, k)-1);
+                if (conf->print_all_locations) {
+                    for (k=1; k<hcg_p->size; ++k)
+                        ksprintf(epi, ",%d", get_int_v(hcg_p, k)-1);
+                }
 
                 ksprintf(epi, "\t%c", get_char_v(hcg_c, 0));
                 for (k=1; k<hcg_c->size; ++k)
@@ -154,8 +156,10 @@ static void format_epiread(
             // GCH context (0-based)
             if (gch_p->size > 0) {
                 ksprintf(epi, "\t%d", get_int_v(gch_p, 0)-1);
-                for (k=1; k<gch_p->size; ++k)
-                    ksprintf(epi, ",%d", get_int_v(gch_p, k)-1);
+                if (conf->print_all_locations) {
+                    for (k=1; k<gch_p->size; ++k)
+                        ksprintf(epi, ",%d", get_int_v(gch_p, k)-1);
+                }
 
                 ksprintf(epi, "\t%c", get_char_v(gch_c, 0));
                 for (k=1; k<gch_c->size; ++k)
@@ -167,8 +171,10 @@ static void format_epiread(
             // SNP (0-based)
             if (snp_p->size > 0) {
                 ksprintf(epi, "\t%d", get_int_v(snp_p, 0)-1);
-                for (k=1; k<snp_p->size; ++k)
-                    ksprintf(epi, ",%d", get_int_v(snp_p, k)-1);
+                if (conf->print_all_locations) {
+                    for (k=1; k<snp_p->size; ++k)
+                        ksprintf(epi, ",%d", get_int_v(snp_p, k)-1);
+                }
 
                 ksprintf(epi, "\t%c", get_char_v(snp_c, 0));
                 for (k=1; k<snp_c->size; ++k)
@@ -193,8 +199,10 @@ static void format_epiread(
             // CpG context (0-based)
             if (cg_p->size > 0) {
                 ksprintf(epi, "\t%d", get_int_v(cg_p, 0)-1);
-                for (k=1; k<cg_p->size; ++k)
-                    ksprintf(epi, ",%d", get_int_v(cg_p, k)-1);
+                if (conf->print_all_locations) {
+                    for (k=1; k<cg_p->size; ++k)
+                        ksprintf(epi, ",%d", get_int_v(cg_p, k)-1);
+                }
 
                 ksprintf(epi, "\t%c", get_char_v(cg_c, 0));
                 for (k=1; k<cg_c->size; ++k)
@@ -206,8 +214,10 @@ static void format_epiread(
             // SNP (0-based)
             if (snp_p->size > 0) {
                 ksprintf(epi, "\t%d", get_int_v(snp_p, 0)-1);
-                for (k=1; k<snp_p->size; ++k)
-                    ksprintf(epi, ",%d", get_int_v(snp_p, k)-1);
+                if (conf->print_all_locations) {
+                    for (k=1; k<snp_p->size; ++k)
+                        ksprintf(epi, ",%d", get_int_v(snp_p, k)-1);
+                }
 
                 ksprintf(epi, "\t%c", get_char_v(snp_c, 0));
                 for (k=1; k<snp_c->size; ++k)
@@ -599,6 +609,7 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
     fprintf(stderr, "    -P        Pairwise mode [off]\n");
     fprintf(stderr, "    -N        NOMe-seq mode [off]\n");
+    fprintf(stderr, "    -A        Print all CpG and SNP locations in location column [off]\n");
     fprintf(stderr, "    -v        Verbose (print additional info for diagnostics) [off]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Filter options:\n");
@@ -646,12 +657,13 @@ int main_epiread(int argc, char *argv[]) {
     conf.filter_duplicate = 1;
     conf.filter_ppair = 1;
     conf.max_nm = 999999;
+    conf.print_all_locations = 0;
     conf.is_nome = 0;
     conf.verbose = 0;
     conf.epiread_pair = 0;
 
     if (argc<2) return usage(&conf);
-    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:NcduPpvh"))>=0) {
+    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANcduPpvh"))>=0) {
         switch (c) {
             case 'B': snp_bed_fn = optarg; break;
             case 'o': outfn = optarg; break;
@@ -666,6 +678,7 @@ int main_epiread(int argc, char *argv[]) {
             case 'b': conf.min_base_qual = atoi(optarg); break;
             case 'm': conf.min_mapq = atoi(optarg); break;
             case 'a': conf.min_score = atoi(optarg); break;
+            case 'A': conf.print_all_locations = 1; break;
             case 'N': conf.is_nome = 1; break;
             case 'c': conf.filter_secondary = 0; break;
             case 'd': conf.filter_doublecnt = 0; break;
