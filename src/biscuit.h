@@ -1,4 +1,4 @@
 #ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "0.3.16.20200420"
+#define PACKAGE_VERSION "1.0.0.dev"
 
 #endif
