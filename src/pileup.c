@@ -540,8 +540,7 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts_meth, int *cn
     if (d->qual < conf->min_base_qual) continue;
     // TODO: On the 3'-end, it should be before the end of mapping instead of
     // end of read since adaptor sequences are soft-clipped.
-    if (d->qpos < conf->min_dist_end_5p ||
-        d->rlen < d->qpos + conf->min_dist_end_3p) continue;
+    if (d->qpos <= conf->min_dist_end_5p || d->rlen < d->qpos + conf->min_dist_end_3p) continue;
     cnts_meth[d->sid * NSTATUS_METH + (d->stat&0xf)]++;
     cnts_base[d->sid * NSTATUS_BASE + (d->stat>>4)]++;
   }
@@ -1105,7 +1104,10 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
   kputs("##FILTER=<ID=PASS,Description=\"All filters passed\">\n", &header);
   kputs("##FILTER=<ID=LowQual,Description=\"Genotype quality smaller than 5\">\n", &header);
   kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
-  kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
+  if (conf->is_nome)
+      kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (HCG, HCHG, HCHH, GCG, GCH)\">\n", &header);
+  else
+      kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
   kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
   kputs("##INFO=<ID=AB,Number=A,Type=String,Description=\"When true alt-allele is ambiguous, ALT field will be N and true alt-allele is stored here, following IUPAC code convention. This option does not appear when ALT != N.\">\n", &header);
 
