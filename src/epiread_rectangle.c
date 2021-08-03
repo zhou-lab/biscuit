@@ -52,6 +52,8 @@ static void usage() {
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
     fprintf(stderr, "    -h        This help\n");
+    fprintf(stderr, "Note, this is not currently compatible with epiread format when run with the -A flag\n");
+    fprintf(stderr, "    i.e., biscuit epiread -A [-B snps.bed] <ref.fa> <in.bam>\n");
     fprintf(stderr, "\n");
 }
 

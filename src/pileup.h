@@ -49,7 +49,8 @@ typedef struct {
   uint32_t min_base_qual;
   uint32_t max_retention;
   uint32_t min_read_len;
-  uint8_t min_dist_end;
+  uint8_t min_dist_end_5p;
+  uint8_t min_dist_end_3p;
   uint8_t min_mapq;
   int max_nm;
   uint8_t filter_ppair:1;       /* filter BAM_FPROPER_PAIR */
@@ -67,10 +68,12 @@ typedef struct {
   double prior1;
   double prior2;
   uint8_t verbose;
+  int epiread_old;         /* print old BISCUIT epiread format */
+  int print_all_locations; /* print all CpG and SNP locations in location column of epiread format */
   int is_nome;
-  int somatic; /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
-  int epiread_pair;             /* pair output mode in epireads, doesn't mean "paired-end" */
-  int min_score;                /* minimum score from AS tag */
+  int somatic;             /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
+  int epiread_pair;        /* pair output mode in epireads, doesn't mean "paired-end" */
+  int min_score;           /* minimum score from AS tag */
 } conf_t;
 
 void conf_init(conf_t *conf);
