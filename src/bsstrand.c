@@ -3,6 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,35 +25,8 @@
  *
  */
 
-#include <unistd.h>
-#include "wstr.h"
-#include "wzmisc.h"
-#include "refcache.h"
-#include "sam.h"
-#include "bamfilter.h"
+#include "bsstrand.h"
 
-typedef enum {TAG_BSW, TAG_BSC, TAG_CONFLICT, TAG_UNKNOWN} conversion_tag_t;
-/* typedef enum {TAG_R1, TAG_R2} mapping_read_t; */
-/* typedef enum {TAG_FOR, TAG_REV} mapping_strand_t; */
-const char conversion_tags[4] = "frcu";
-
-typedef struct {
-    uint8_t output_count;
-    uint8_t correct_bsstrand;
-} bsstrand_conf_t;
-
-typedef struct {
-    refcache_t *rs;
-    int n_corr, n_mapped, n_unmapped;
-    int confusion[16];
-    int strandcnt[16];
-    bsstrand_conf_t *conf;
-} bsstrand_data_t;
-
-/* f - bisulfite converted Watson
- * r - bisulfite converted Crick
- * c - conflicting evidences, coexistence of both C>T and G>A
- * u - neither C>T or G>A exists */
 conversion_tag_t bam_tag_get_bsstrand(bam1_t *b) {
     char *s;
 

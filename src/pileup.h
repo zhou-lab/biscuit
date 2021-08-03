@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +22,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
 **/
+
+#ifndef _PILEUP_H_
+#define _PILEUP_H_
 
 #include <unistd.h>
 #include <ctype.h>
@@ -207,3 +211,5 @@ static inline void pileup_parse_region(const char *reg, void *hdr, int *tid, int
  */
 #define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
 #endif
+
+#endif /* _PILEUP_H_ */
