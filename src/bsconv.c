@@ -3,6 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,36 +25,9 @@
  *
  */
 
-#include <unistd.h>
-#include <errno.h>
-#include "wstr.h"
-#include "wzmisc.h"
-#include "refcache.h"
-#include "sam.h"
-#include "bamfilter.h"
-#include "pileup.h"
-#include "encode.h"
+#include "bsconv.h"
 
-typedef struct {
-    int max_cph;
-    float max_cph_frac;
-    float max_cpy_frac;
-    int max_cpa;
-    int max_cpc;
-    int max_cpt;
-    int filter_u;
-    int show_filtered;
-    int print_in_tab;
-} bsconv_conf_t;
-
-typedef struct bsconv_data_t {
-    refcache_t *rs;
-    bsconv_conf_t *conf;
-    int n;
-    int n_filtered;
-} bsconv_data_t;
-
-static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
+int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
     (void) (out);
     bsconv_data_t *d = (bsconv_data_t*) data;
@@ -166,6 +140,15 @@ OUTPUT:
     if (conf->show_filtered) tofilter = !tofilter;
     if (tofilter) return 0;
 
+    // save straight to array, don't print
+    if (conf->no_printing) {
+        for (i=0; i<4; ++i) {
+            d->retn_conv_counts[2*i  ] += retn[i];
+            d->retn_conv_counts[2*i+1] += conv[i];
+        }
+        return 0;
+    }
+
     // tab output
     if (conf->print_in_tab) {
         for (i=0; i<4; ++i) {
@@ -229,6 +212,7 @@ int main_bsconv(int argc, char *argv[]) {
     conf.max_cph_frac = 1.0;
     conf.max_cpy_frac = 1.0;
     conf.print_in_tab = 0;
+    conf.no_printing = 0; // only needed for qc at this time, so don't provide a command line argument to change this for now
 
     if (argc < 2) { usage(); return 1; }
     while ((c = getopt(argc, argv, ":g:m:ac:f:y:pt:uvh")) >= 0) {
