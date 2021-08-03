@@ -2,7 +2,8 @@
  * 
  * The MIT License (MIT)
  *
- * Copyright (c) 2016-2021 Wanding.Zhou@vai.org
+ * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +27,9 @@
 #include "pileup.h"
 #include "wzmisc.h"
 
+#define MAX_READ_LENGTH 302
+#define MAX_RLEN 50
+
 DEFINE_VECTOR(int_v, int)
 DEFINE_VECTOR(char_v, char)
 
@@ -42,6 +46,7 @@ void destroy_episnp(episnp_chrom1_v *episnp) {
     for (i=0; i<episnp->size; ++i) {
         episnp_chrom1_t *e = ref_episnp_chrom1_v(episnp, i);
         free(e->locs);
+        free(e->chrm);
     }
     free_episnp_chrom1_v(episnp);
 }
@@ -121,7 +126,77 @@ static void *epiread_write_func(void *data) {
 #define episnp_test(snps, i) snps[(i)>>3]&(1<<((i)&0x7))
 #define episnp_set(snps, i) snps[(i)>>3] |= 1<<((i)&0x7)
 
-static void format_epiread(
+void run_length_encode(char *str, char *out) {
+
+    int run_len;
+    char count[MAX_RLEN] = {0};
+    int len = strlen(str);
+
+    int i, j=0, k;
+
+    for (i=0; i<len; i++) {
+        out[j++] = str[i];
+
+        run_len = 1;
+        while (i+1 < len && str[i] == str[i+1]) {
+            run_len++;
+            i++;
+        }
+
+        if (run_len > 1) {
+            sprintf(count, "%d", run_len);
+            for (k=0; *(count+k); k++, j++) 
+                out[j] = count[k];
+        }
+    }
+
+    out[j] = '\0';
+}
+
+// format one bam record into the epi-bed format
+// positions are 0-based
+static void format_epi_bed(
+        kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, conf_t *conf,
+        char *rle_arr_cg, char *rle_arr_gc, uint32_t start, uint32_t end) {
+
+    // Columns: chromosome, start, end, read name, read number, BS strand, encoded CG RLE
+    // If running in NOMe-seq mode, then encoded GC RLE is added as a last column
+    if (start > 0 && (unsigned) start >= w->beg && (unsigned) start < w->end) {
+        ksprintf(epi, "%s\t%d\t%d\t%s\t%c\t%c",
+                chrm,
+                start-1,
+                end,
+                bam_get_qname(b),
+                (b->core.flag&BAM_FREAD2) ? '2' : '1',
+                bsstrand ? '-' : '+');
+
+        int len = strlen(rle_arr_cg);
+        char *encoded_rle = (char *) malloc(sizeof(char) * (len+1));
+        run_length_encode(rle_arr_cg, encoded_rle);
+        ksprintf(epi, "\t%s", encoded_rle);
+
+        if (conf->is_nome) {
+            int len = strlen(rle_arr_gc);
+            char *encoded_rle_gc = (char *) malloc(sizeof(char) * (len+1));
+            run_length_encode(rle_arr_gc, encoded_rle_gc);
+            ksprintf(epi, "\t%s", encoded_rle_gc);
+            free(encoded_rle_gc);
+        }
+
+        //ksprintf(epi, "\t%s", rle_arr_cg);
+        //if (conf->is_nome)
+        //    ksprintf(epi, "\t%s", rle_arr_gc);
+
+        // end line
+        kputc('\n', epi);
+
+        free(encoded_rle);
+    }
+}
+
+// format one bam record into the old epiread format
+// positions are 0-based
+static void format_epiread_old(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, conf_t *conf,
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
@@ -234,7 +309,8 @@ static void format_epiread(
     }
 }
 
-// format one bam record to epi-read format
+// format one bam record to pairwise format
+// positions are 1-based
 static void format_epiread_pairwise(
         kstring_t *epi, char *chrm, window_t *w, conf_t *conf,
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
@@ -276,7 +352,6 @@ static void format_epiread_pairwise(
         }
     }
 }
-
 
 static void *process_func(void *data) {
 
@@ -367,8 +442,17 @@ static void *process_func(void *data) {
                 cg_c = init_char_v(10); // cpg characters
             }
 
+            // run length encoding strings
+            char rle_arr_cg[MAX_READ_LENGTH] = {0}; // use qpos+j to determine which index will be written
+            char rle_arr_gc[MAX_READ_LENGTH] = {0};
+
             int i; uint32_t j;
-            uint32_t rpos = c->pos+1, qpos = 0, rmpos = c->mpos + 1;
+            uint8_t rle_set = 0, rle_gc = 0;
+            char accessibility = '0';
+
+            uint32_t rpos  = c->pos  + 1; // 1-based reference position
+            uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
+            uint32_t qpos  = 0;           // query position
 
             char rb, qb;
             for (i=0; i<c->n_cigar; ++i) {
@@ -381,13 +465,18 @@ static void *process_func(void *data) {
                             qb = bscall(b, qpos+j);
 
                             // skip bases with low base quality
-                            if (bam_get_qual(b)[qpos+j] < conf->min_base_qual)
+                            if (bam_get_qual(b)[qpos+j] < conf->min_base_qual) {
+                                rle_arr_cg[qpos+j] = 'F'; rle_arr_gc[qpos+j] = 'F'; rle_gc--;
                                 continue;
+                            }
 
                             // read-position-based filtering
-                            if (qpos+j+1 < conf->min_dist_end_5p ||
-                                c->l_qseq < (int32_t)(qpos+j+1 + conf->min_dist_end_3p))
+                            // Follows the same form as pileup, so qpos is adjusted to be 1-based/1-indexed and
+                            // filtering is done according to that, rather than being 0-based/0-indexed
+                            if (qpos+j+1 <= conf->min_dist_end_5p || c->l_qseq < (int32_t)(qpos+j+1 + conf->min_dist_end_3p)) {
+                                rle_arr_cg[qpos+j] = 'F'; rle_arr_gc[qpos+j] = 'F'; rle_gc--;
                                 continue;
+                            }
 
                             /* If read 2 in a proper pair, skip counting overlapped cytosines
                              * Right now I assume read 1 and read 2 are the same length and there is no gap.
@@ -401,8 +490,10 @@ static void *process_func(void *data) {
                                 (c->flag & BAM_FPROPER_PAIR) &&
                                 (c->flag & BAM_FREAD2) &&
                                 rpos+j >= max(rpos, rmpos) &&
-                                rpos+j <= min(rpos + c->l_qseq, rmpos + c->l_qseq))
+                                rpos+j <= min(rpos + c->l_qseq, rmpos + c->l_qseq)) {
+                                rle_arr_cg[qpos+j] = 'F'; rle_arr_gc[qpos+j] = 'F'; rle_gc--;
                                 continue;
+                            }
                             
 
                             // reference is a G
@@ -416,8 +507,12 @@ static void *process_func(void *data) {
                                             push_int_v(hcg_p, (int) rpos+j-1);
                                             if (qb == 'A') {
                                                 push_char_v(hcg_c, 'T');
+                                                rle_arr_cg[qpos+j-1] = 'U'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = '.';
                                             } else if (qb == 'G') {
                                                 push_char_v(hcg_c, 'C');
+                                                rle_arr_cg[qpos+j-1] = 'M'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_gc[qpos+j-1] = '.'; rle_arr_gc[qpos+j] = '.';
                                             } else {
                                                 push_char_v(hcg_c, 'N');
                                             }
@@ -425,8 +520,12 @@ static void *process_func(void *data) {
                                             push_int_v(gch_p, (int) rpos+j);
                                             if (qb == 'A') {
                                                 push_char_v(gch_c, 'T');
+                                                rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = '.'; accessibility = 'S'; rle_gc = 2;
                                             } else if (qb == 'G') {
                                                 push_char_v(gch_c, 'C');
+                                                rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = '.'; accessibility = 'O'; rle_gc = 2;
                                             } else {
                                                 push_char_v(gch_c, 'N');
                                             }
@@ -439,8 +538,10 @@ static void *process_func(void *data) {
                                         push_int_v(cg_p, (int) rpos+j-1);
                                         if (qb == 'A') {
                                             push_char_v(cg_c, 'T');
+                                            rle_arr_cg[qpos+j-1] = 'U'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
                                         } else if (qb == 'G') {
                                             push_char_v(cg_c, 'C');
+                                            rle_arr_cg[qpos+j-1] = 'M'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
                                         } else {
                                             push_char_v(cg_c, 'N');
                                         }
@@ -459,8 +560,10 @@ static void *process_func(void *data) {
                                             push_int_v(hcg_p, (int) rpos+j);
                                             if (qb == 'T') {
                                                 push_char_v(hcg_c, 'T');
+                                                rle_arr_cg[qpos+j] = 'U'; rle_arr_gc[qpos+j] = '.'; rle_set = 1;
                                             } else if (qb == 'C') {
                                                 push_char_v(hcg_c, 'C');
+                                                rle_arr_cg[qpos+j] = 'M'; rle_arr_gc[qpos+j] = '.'; rle_set = 1;
                                             } else {
                                                 push_char_v(hcg_c, 'N');
                                             }
@@ -468,8 +571,10 @@ static void *process_func(void *data) {
                                             push_int_v(gch_p, (int) rpos+j);
                                             if (qb == 'T') {
                                                 push_char_v(gch_c, 'T');
+                                                rle_arr_gc[qpos+j] = 'S'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
                                             } else if (qb == 'C') {
                                                 push_char_v(gch_c, 'C');
+                                                rle_arr_gc[qpos+j] = 'O'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
                                             } else {
                                                 push_char_v(gch_c, 'N');
                                             }
@@ -478,11 +583,13 @@ static void *process_func(void *data) {
                                 } else { // bs-seq
                                     char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
                                     if (rb1 == 'G') { // CpG context
-                                        push_int_v(cg_p, (int) rpos+j-1);
+                                        push_int_v(cg_p, (int) rpos+j);
                                         if (qb == 'T') {
                                             push_char_v(cg_c, 'T');
+                                            rle_arr_cg[qpos+j] = 'U'; rle_set = 1;
                                         } else if (qb == 'C') {
                                             push_char_v(cg_c, 'C');
+                                            rle_arr_cg[qpos+j] = 'M'; rle_set = 1;
                                         } else {
                                             push_char_v(cg_c, 'N');
                                         }
@@ -495,18 +602,55 @@ static void *process_func(void *data) {
                             if (snps && episnp_test(snps, snp_ind)) {
                                 push_char_v(snp_c, qb);
                                 push_int_v(snp_p, rpos+j);
+                                rle_arr_cg[qpos+j] = qb; rle_set = 1;
+                                rle_arr_gc[qpos+j] = qb; rle_set = 1;
+                            }
+
+                            // Fill out any locations that weren't filled during methylation/accessibility loops
+                            if (rle_set == 0) {
+                                rle_arr_cg[qpos+j] = '.';
+                                if (rle_gc == 1) {
+                                    rle_arr_gc[qpos+j] = accessibility;
+                                    accessibility = '0';
+                                } else {
+                                    rle_arr_gc[qpos+j] = '.';
+                                }
+                                rle_gc--;
+                            } else {
+                                rle_set = 0;
+                                if (rle_gc == 1) {
+                                    rle_arr_gc[qpos+j] = accessibility;
+                                    accessibility = '0';
+                                } else {
+                                    if (rle_arr_gc[qpos+j] == '0')
+                                        rle_arr_gc[qpos+j] = '.';
+                                }
+                                rle_gc--;
                             }
                         }
                         rpos += oplen;
                         qpos += oplen;
                         break;
                     case BAM_CINS:
+                        for (j=0; j<oplen; ++j) {
+                            qb = bscall(b, qpos+j);
+                            rle_arr_cg[qpos+j] = tolower(qb);
+                            rle_arr_gc[qpos+j] = tolower(qb);
+                        }
                         qpos += oplen;
                         break;
                     case BAM_CDEL:
+                        for (j=0; j<oplen; ++j) {
+                            rle_arr_cg[qpos+j] = 'D';
+                            rle_arr_gc[qpos+j] = 'D';
+                        }
                         rpos += oplen;
                         break;
                     case BAM_CSOFT_CLIP:
+                        for (j=0; j<oplen; ++j) {
+                            rle_arr_cg[qpos+j] = 'P';
+                            rle_arr_gc[qpos+j] = 'P';
+                        }
                         qpos += oplen;
                         break;
                     default:
@@ -515,17 +659,24 @@ static void *process_func(void *data) {
                 }
             }
 
+            uint32_t start = c->pos+1;
+            uint32_t end   = start + c->l_qseq - 1; // -1 adjusts end position due to 1-based counting
+
             // produce epiread output
             if (conf->epiread_pair) {
                 format_epiread_pairwise(
                         &rec.s, chrm, &w, conf,
                         snp_p, hcg_p, gch_p, cg_p,
                         snp_c, hcg_c, gch_c, cg_c);
-            } else {
-                format_epiread(
+            } 
+            if (conf->epiread_old) {
+                format_epiread_old(
                         &rec.s, b, bsstrand, chrm, &w, snps, conf,
                         snp_p, hcg_p, gch_p, cg_p,
                         snp_c, hcg_c, gch_c, cg_c);
+            }
+            if (!conf->epiread_pair && !conf->epiread_old) {
+                format_epi_bed(&rec.s, b, bsstrand, chrm, &w, conf, rle_arr_cg, rle_arr_gc, start, end);
             }
 
             // clean up
@@ -566,6 +717,12 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
     episnp_chrom1_t *episnp1 = 0;
     char *tok;
     FILE *fh = fopen(snp_bed_fn,"r");
+
+    if (fh == NULL) {
+        free(line.s);
+        wzfatal("Could not find SNP BED: %s\n", snp_bed_fn);
+    }
+
     while (1) {
         int c=fgetc(fh);
         if (c=='\n' || c==EOF) {
@@ -607,9 +764,10 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Output options:\n");
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
-    fprintf(stderr, "    -P        Pairwise mode [off]\n");
     fprintf(stderr, "    -N        NOMe-seq mode [off]\n");
-    fprintf(stderr, "    -A        Print all CpG and SNP locations in location column [off]\n");
+    fprintf(stderr, "    -P        Pairwise mode [off]\n");
+    fprintf(stderr, "    -O        Old BISCUIT epiread format, not compatible with -P [off]\n");
+    fprintf(stderr, "    -A        Print all CpG and SNP locations in location column, ignored if -O not given [off]\n");
     fprintf(stderr, "    -v        Verbose (print additional info for diagnostics) [off]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Filter options:\n");
@@ -657,13 +815,14 @@ int main_epiread(int argc, char *argv[]) {
     conf.filter_duplicate = 1;
     conf.filter_ppair = 1;
     conf.max_nm = 999999;
+    conf.epiread_old = 0;
     conf.print_all_locations = 0;
     conf.is_nome = 0;
     conf.verbose = 0;
     conf.epiread_pair = 0;
 
     if (argc<2) return usage(&conf);
-    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANcduPpvh"))>=0) {
+    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANcduOPpvh"))>=0) {
         switch (c) {
             case 'B': snp_bed_fn = optarg; break;
             case 'o': outfn = optarg; break;
@@ -678,6 +837,7 @@ int main_epiread(int argc, char *argv[]) {
             case 'b': conf.min_base_qual = atoi(optarg); break;
             case 'm': conf.min_mapq = atoi(optarg); break;
             case 'a': conf.min_score = atoi(optarg); break;
+            case 'O': conf.epiread_old = 1; break;
             case 'A': conf.print_all_locations = 1; break;
             case 'N': conf.is_nome = 1; break;
             case 'c': conf.filter_secondary = 0; break;
@@ -691,6 +851,11 @@ int main_epiread(int argc, char *argv[]) {
             case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt);
             default: return usage(&conf);
         }
+    }
+
+    if (conf.epiread_old && conf.epiread_pair) {
+        usage(&conf);
+        wzfatal("Cannot run with both pairwise and old epiread format set.\n");
     }
 
     if (optind + 2 > argc) {
@@ -798,6 +963,7 @@ int main_epiread(int argc, char *argv[]) {
     wqueue_destroy(window, wq);
     hts_close(in);
     bam_hdr_destroy(header);
+    destroy_episnp(episnp);
 
     return 0;
 }
