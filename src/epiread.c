@@ -143,11 +143,9 @@ void run_length_encode(char *str, char *out) {
             i++;
         }
 
-        if (run_len > 1) {
-            sprintf(count, "%d", run_len);
-            for (k=0; *(count+k); k++, j++) 
-                out[j] = count[k];
-        }
+        sprintf(count, "%d", run_len);
+        for (k=0; *(count+k); k++, j++) 
+            out[j] = count[k];
     }
 
     out[j] = '\0';
@@ -450,6 +448,15 @@ static void *process_func(void *data) {
             uint8_t rle_set = 0, rle_gc = 0;
             char accessibility = '0';
 
+            char filtered = 'F';
+            char ignored  = 'x';
+            char deletion = 'D';
+            char softclip = 'P';
+            char methylat = 'M';
+            char unmethyl = 'U';
+            char open_acc = 'O';
+            char shut_acc = 'S';
+
             uint32_t rpos  = c->pos  + 1; // 1-based reference position
             uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
             uint32_t qpos  = 0;           // query position
@@ -466,7 +473,7 @@ static void *process_func(void *data) {
 
                             // skip bases with low base quality
                             if (bam_get_qual(b)[qpos+j] < conf->min_base_qual) {
-                                rle_arr_cg[qpos+j] = 'F'; rle_arr_gc[qpos+j] = 'F'; rle_gc--;
+                                rle_arr_cg[qpos+j] = filtered; rle_arr_gc[qpos+j] = filtered; rle_gc--;
                                 continue;
                             }
 
@@ -474,7 +481,7 @@ static void *process_func(void *data) {
                             // Follows the same form as pileup, so qpos is adjusted to be 1-based/1-indexed and
                             // filtering is done according to that, rather than being 0-based/0-indexed
                             if (qpos+j+1 <= conf->min_dist_end_5p || c->l_qseq < (int32_t)(qpos+j+1 + conf->min_dist_end_3p)) {
-                                rle_arr_cg[qpos+j] = 'F'; rle_arr_gc[qpos+j] = 'F'; rle_gc--;
+                                rle_arr_cg[qpos+j] = filtered; rle_arr_gc[qpos+j] = filtered; rle_gc--;
                                 continue;
                             }
 
@@ -491,7 +498,7 @@ static void *process_func(void *data) {
                                 (c->flag & BAM_FREAD2) &&
                                 rpos+j >= max(rpos, rmpos) &&
                                 rpos+j <= min(rpos + c->l_qseq, rmpos + c->l_qseq)) {
-                                rle_arr_cg[qpos+j] = 'F'; rle_arr_gc[qpos+j] = 'F'; rle_gc--;
+                                rle_arr_cg[qpos+j] = filtered; rle_arr_gc[qpos+j] = filtered; rle_gc--;
                                 continue;
                             }
                             
@@ -507,12 +514,12 @@ static void *process_func(void *data) {
                                             push_int_v(hcg_p, (int) rpos+j-1);
                                             if (qb == 'A') {
                                                 push_char_v(hcg_c, 'T');
-                                                rle_arr_cg[qpos+j-1] = 'U'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
-                                                rle_arr_gc[qpos+j] = '.';
+                                                rle_arr_cg[qpos+j-1] = unmethyl; rle_arr_cg[qpos+j] = ignored; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = ignored;
                                             } else if (qb == 'G') {
                                                 push_char_v(hcg_c, 'C');
-                                                rle_arr_cg[qpos+j-1] = 'M'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
-                                                rle_arr_gc[qpos+j-1] = '.'; rle_arr_gc[qpos+j] = '.';
+                                                rle_arr_cg[qpos+j-1] = methylat; rle_arr_cg[qpos+j] = ignored; rle_set = 1;
+                                                rle_arr_gc[qpos+j-1] = ignored; rle_arr_gc[qpos+j] = ignored;
                                             } else {
                                                 push_char_v(hcg_c, 'N');
                                             }
@@ -520,12 +527,12 @@ static void *process_func(void *data) {
                                             push_int_v(gch_p, (int) rpos+j);
                                             if (qb == 'A') {
                                                 push_char_v(gch_c, 'T');
-                                                rle_arr_cg[qpos+j] = '.'; rle_set = 1;
-                                                rle_arr_gc[qpos+j] = '.'; accessibility = 'S'; rle_gc = 2;
+                                                rle_arr_cg[qpos+j] = ignored; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = ignored; accessibility = shut_acc; rle_gc = 2;
                                             } else if (qb == 'G') {
                                                 push_char_v(gch_c, 'C');
-                                                rle_arr_cg[qpos+j] = '.'; rle_set = 1;
-                                                rle_arr_gc[qpos+j] = '.'; accessibility = 'O'; rle_gc = 2;
+                                                rle_arr_cg[qpos+j] = ignored; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = ignored; accessibility = open_acc; rle_gc = 2;
                                             } else {
                                                 push_char_v(gch_c, 'N');
                                             }
@@ -538,10 +545,10 @@ static void *process_func(void *data) {
                                         push_int_v(cg_p, (int) rpos+j-1);
                                         if (qb == 'A') {
                                             push_char_v(cg_c, 'T');
-                                            rle_arr_cg[qpos+j-1] = 'U'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                            rle_arr_cg[qpos+j-1] = unmethyl; rle_arr_cg[qpos+j] = ignored; rle_set = 1;
                                         } else if (qb == 'G') {
                                             push_char_v(cg_c, 'C');
-                                            rle_arr_cg[qpos+j-1] = 'M'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                            rle_arr_cg[qpos+j-1] = methylat; rle_arr_cg[qpos+j] = ignored; rle_set = 1;
                                         } else {
                                             push_char_v(cg_c, 'N');
                                         }
@@ -560,10 +567,10 @@ static void *process_func(void *data) {
                                             push_int_v(hcg_p, (int) rpos+j);
                                             if (qb == 'T') {
                                                 push_char_v(hcg_c, 'T');
-                                                rle_arr_cg[qpos+j] = 'U'; rle_arr_gc[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_cg[qpos+j] = unmethyl; rle_arr_gc[qpos+j] = ignored; rle_set = 1;
                                             } else if (qb == 'C') {
                                                 push_char_v(hcg_c, 'C');
-                                                rle_arr_cg[qpos+j] = 'M'; rle_arr_gc[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_cg[qpos+j] = methylat; rle_arr_gc[qpos+j] = ignored; rle_set = 1;
                                             } else {
                                                 push_char_v(hcg_c, 'N');
                                             }
@@ -571,10 +578,10 @@ static void *process_func(void *data) {
                                             push_int_v(gch_p, (int) rpos+j);
                                             if (qb == 'T') {
                                                 push_char_v(gch_c, 'T');
-                                                rle_arr_gc[qpos+j] = 'S'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = shut_acc; rle_arr_cg[qpos+j] = ignored; rle_set = 1;
                                             } else if (qb == 'C') {
                                                 push_char_v(gch_c, 'C');
-                                                rle_arr_gc[qpos+j] = 'O'; rle_arr_cg[qpos+j] = '.'; rle_set = 1;
+                                                rle_arr_gc[qpos+j] = open_acc; rle_arr_cg[qpos+j] = ignored; rle_set = 1;
                                             } else {
                                                 push_char_v(gch_c, 'N');
                                             }
@@ -586,10 +593,10 @@ static void *process_func(void *data) {
                                         push_int_v(cg_p, (int) rpos+j);
                                         if (qb == 'T') {
                                             push_char_v(cg_c, 'T');
-                                            rle_arr_cg[qpos+j] = 'U'; rle_set = 1;
+                                            rle_arr_cg[qpos+j] = unmethyl; rle_set = 1;
                                         } else if (qb == 'C') {
                                             push_char_v(cg_c, 'C');
-                                            rle_arr_cg[qpos+j] = 'M'; rle_set = 1;
+                                            rle_arr_cg[qpos+j] = methylat; rle_set = 1;
                                         } else {
                                             push_char_v(cg_c, 'N');
                                         }
@@ -608,12 +615,12 @@ static void *process_func(void *data) {
 
                             // Fill out any locations that weren't filled during methylation/accessibility loops
                             if (rle_set == 0) {
-                                rle_arr_cg[qpos+j] = '.';
+                                rle_arr_cg[qpos+j] = ignored;
                                 if (rle_gc == 1) {
                                     rle_arr_gc[qpos+j] = accessibility;
                                     accessibility = '0';
                                 } else {
-                                    rle_arr_gc[qpos+j] = '.';
+                                    rle_arr_gc[qpos+j] = ignored;
                                 }
                                 rle_gc--;
                             } else {
@@ -623,7 +630,7 @@ static void *process_func(void *data) {
                                     accessibility = '0';
                                 } else {
                                     if (rle_arr_gc[qpos+j] == '0')
-                                        rle_arr_gc[qpos+j] = '.';
+                                        rle_arr_gc[qpos+j] = ignored;
                                 }
                                 rle_gc--;
                             }
@@ -641,15 +648,15 @@ static void *process_func(void *data) {
                         break;
                     case BAM_CDEL:
                         for (j=0; j<oplen; ++j) {
-                            rle_arr_cg[qpos+j] = 'D';
-                            rle_arr_gc[qpos+j] = 'D';
+                            rle_arr_cg[qpos+j] = deletion;
+                            rle_arr_gc[qpos+j] = deletion;
                         }
                         rpos += oplen;
                         break;
                     case BAM_CSOFT_CLIP:
                         for (j=0; j<oplen; ++j) {
-                            rle_arr_cg[qpos+j] = 'P';
-                            rle_arr_gc[qpos+j] = 'P';
+                            rle_arr_cg[qpos+j] = softclip;
+                            rle_arr_gc[qpos+j] = softclip;
                         }
                         qpos += oplen;
                         break;
