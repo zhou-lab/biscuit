@@ -27,6 +27,26 @@
 
 #include "cinread.h"
 
+static const char *tp_names[] = {
+    "QNAME",     // read name
+    "QPAIR",     // which read in pair
+    "STRAND",    // forward or reverse strand
+    "BSSTRAND",  // which original strand the read derives from
+    "MAPQ",      // MAPQ score
+    "QBEG",      // read start position
+    "QEND",      // read end position
+    "CHRM",      // chromosome
+    "CRPOS",     // cytosine position on reference
+    "CGRPOS",    // CpG position on reference (-1 if not applicable)
+    "CQPOS",     // cytosine position on read
+    "CRBASE",    // cytosine reference base
+    "CCTXT",     // cytosine context, strand flipped
+    "CQBASE",    // base called on read
+    "CRETENTION" // retention (R) or conversion (C)
+};
+
+static const char *tgt_names[] = {"c", "cg", "ch", "hcg", "gch", "hch"};
+
 int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
     (void) (out);

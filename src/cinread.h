@@ -34,24 +34,6 @@
 #include "bamfilter.h"
 #include "pileup.h"
 
-static const char *tp_names[] = {
-    "QNAME",     // read name
-    "QPAIR",     // which read in pair
-    "STRAND",    // forward or reverse strand
-    "BSSTRAND",  // which original strand the read derives from
-    "MAPQ",      // MAPQ score
-    "QBEG",      // read start position
-    "QEND",      // read end position
-    "CHRM",      // chromosome
-    "CRPOS",     // cytosine position on reference
-    "CGRPOS",    // CpG position on reference (-1 if not applicable)
-    "CQPOS",     // cytosine position on read
-    "CRBASE",    // cytosine reference base
-    "CCTXT",     // cytosine context, strand flipped
-    "CQBASE",    // base called on read
-    "CRETENTION" // retention (R) or conversion (C)
-};
-
 typedef enum {
     TP_QNAME,     // read name
     TP_QPAIR,     // which read in pair
@@ -69,8 +51,6 @@ typedef enum {
     TP_CQBASE,    // base called on read
     TP_CRETENTION // retention (R) or conversion (C)
 } __tp_name_t;
-
-static const char *tgt_names[] = {"c", "cg", "ch", "hcg", "gch", "hch"};
 
 typedef enum {SL_C, SL_CG, SL_CH, SL_HCG, SL_GCH, SL_HCH} __tgt_name_t; // SL_ select target
 
