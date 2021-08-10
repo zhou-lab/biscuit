@@ -970,7 +970,9 @@ int main_epiread(int argc, char *argv[]) {
     wqueue_destroy(window, wq);
     hts_close(in);
     bam_hdr_destroy(header);
-    destroy_episnp(episnp);
+
+    if (episnp)
+        destroy_episnp(episnp);
 
     return 0;
 }
