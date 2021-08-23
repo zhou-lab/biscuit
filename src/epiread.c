@@ -509,7 +509,7 @@ static void *process_func(void *data) {
                                     if (rpos+j+1 <= rs->end) { // prevent overflow
                                         char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
                                         char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
-                                        if (rb0 == 'C' && rb1 != 'C') { // HCG context
+                                        if (rb0 == 'C' && rb1 != 'C' && qpos+j > 0) { // HCG context, avoids when G is first base in read
                                             // Note: measure G in CpG context, record location of C
                                             push_int_v(hcg_p, (int) rpos+j-1);
                                             if (qb == 'A') {
@@ -524,6 +524,8 @@ static void *process_func(void *data) {
                                                 push_char_v(hcg_c, 'N');
                                             }
                                         } else if (rb0 != 'C' && rb1 == 'C') { // GCH context
+                                            // Potential FIXME: May need to add something similar to the qpos+j requirement
+                                            //                  in the above if-statement to avoid case where G is the last base
                                             push_int_v(gch_p, (int) rpos+j);
                                             if (qb == 'A') {
                                                 push_char_v(gch_c, 'T');
