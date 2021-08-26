@@ -1414,7 +1414,7 @@ int main_pileup(int argc, char *argv[]) {
         uint32_t beg, end;
         pileup_parse_region(reg, hdr, &tid, (int*) &beg, (int*) &end);
         /* chromosome are assumed to be less than 2**29 */
-        beg++; end++;
+        beg++; // shift beg from 0-based to 1-based
         if (beg<=0) beg = 1;
         if (end>hdr->target_len[tid]) end = hdr->target_len[tid];
         for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {

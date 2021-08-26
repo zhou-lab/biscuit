@@ -143,9 +143,13 @@ void run_length_encode(char *str, char *out) {
             i++;
         }
 
-        sprintf(count, "%d", run_len);
-        for (k=0; *(count+k); k++, j++) 
-            out[j] = count[k];
+        // TODO: Currently the code is set up to set ABC = A1B1C1. For better compression, uncomment the if-statement
+        //       which will leave ABC = ABC. This will require an update to the RLE decoding in biscuiteer
+        //if (run_len > 1) {
+            sprintf(count, "%d", run_len);
+            for (k=0; *(count+k); k++, j++) 
+                out[j] = count[k];
+        //}
     }
 
     out[j] = '\0';
@@ -157,9 +161,16 @@ static void format_epi_bed(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, conf_t *conf,
         char *rle_arr_cg, char *rle_arr_gc, uint32_t start, uint32_t end) {
 
+    // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
+    // This catches reads that start before the first window when calling epiread with a region (-g option) provided
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - MAX_READ_LENGTH : w->beg;
+    // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
+    // This catches reads that start at the last location when calling epiread with a region (-g option) provided
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + MAX_READ_LENGTH : w->end;
+
     // Columns: chromosome, start, end, read name, read number, BS strand, encoded CG RLE
     // If running in NOMe-seq mode, then encoded GC RLE is added as a last column
-    if (start > 0 && (unsigned) start >= w->beg && (unsigned) start < w->end) {
+    if (start > 0 && (unsigned) start >= print_w_beg && (unsigned) start < print_w_end) {
         ksprintf(epi, "%s\t%d\t%d\t%s\t%c\t%c",
                 chrm,
                 start-1,
@@ -169,21 +180,17 @@ static void format_epi_bed(
                 bsstrand ? '-' : '+');
 
         int len = strlen(rle_arr_cg);
-        char *encoded_rle = (char *) malloc(sizeof(char) * (len+1));
+        char *encoded_rle = (char *) malloc(sizeof(char) * (2*len+1)); // encoded string can be no larger than 2 times the original string length
         run_length_encode(rle_arr_cg, encoded_rle);
         ksprintf(epi, "\t%s", encoded_rle);
 
         if (conf->is_nome) {
             int len = strlen(rle_arr_gc);
-            char *encoded_rle_gc = (char *) malloc(sizeof(char) * (len+1));
+            char *encoded_rle_gc = (char *) malloc(sizeof(char) * (2*len+1)); // encoded string can be no larger than 2 times the original string length
             run_length_encode(rle_arr_gc, encoded_rle_gc);
             ksprintf(epi, "\t%s", encoded_rle_gc);
             free(encoded_rle_gc);
         }
-
-        //ksprintf(epi, "\t%s", rle_arr_cg);
-        //if (conf->is_nome)
-        //    ksprintf(epi, "\t%s", rle_arr_gc);
 
         // end line
         kputc('\n', epi);
@@ -199,12 +206,20 @@ static void format_epiread_old(
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
+    // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
+    // This catches reads that start before the first window when calling epiread with a region (-g option) provided
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - MAX_READ_LENGTH : w->beg;
+    // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
+    // This catches reads that start at the last location when calling epiread with a region (-g option) provided
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + MAX_READ_LENGTH : w->end;
+
     uint32_t k;
 
     if (conf->is_nome) { // nome-seq
         int first_epi = get_int_v(hcg_p, 0) < get_int_v(gch_p, 0) ? get_int_v(hcg_p, 0) : get_int_v(gch_p, 0);
 
-        if (first_epi > 0 && (unsigned) first_epi >= w->beg && (unsigned) first_epi < w->end) {
+        // Avoid double counting between windows
+        if (first_epi > 0 && (unsigned) first_epi >= print_w_beg && (unsigned) first_epi < print_w_end) {
             ksprintf(epi, "%s\t%s\t%c\t%c",
                     chrm,
                     bam_get_qname(b),
@@ -262,7 +277,8 @@ static void format_epiread_old(
             kputc('\n', epi);
         }
     } else { // bs-seq
-        if (get_int_v(cg_p, 0) > 0 && (unsigned) get_int_v(cg_p, 0) >= w->beg && (unsigned) get_int_v(cg_p, 0) < w->end) {
+        // Avoid double counting between windows
+        if (get_int_v(cg_p, 0) > 0 && (unsigned) get_int_v(cg_p, 0) >= print_w_beg && (unsigned) get_int_v(cg_p, 0) < print_w_end) {
             ksprintf(epi, "%s\t%s\t%c\t%c",
                     chrm,
                     bam_get_qname(b),
@@ -314,10 +330,17 @@ static void format_epiread_pairwise(
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
+    // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
+    // This catches reads that start before the first window when calling epiread with a region (-g option) provided
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - MAX_READ_LENGTH : w->beg;
+    // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
+    // This catches reads that start at the last location when calling epiread with a region (-g option) provided
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + MAX_READ_LENGTH : w->end;
+
     uint32_t j, k;
     for (k=0; k<snp_p->size; ++k) {
         // avoid double counting between windows
-        if (!((unsigned) get_int_v(snp_p, k) >= w->beg && (unsigned) get_int_v(snp_p, k) < w->end))
+        if (!((unsigned) get_int_v(snp_p, k) >= print_w_beg && (unsigned) get_int_v(snp_p, k) < print_w_end))
             continue;
 
         if (conf->is_nome) { // nome-seq
@@ -838,6 +861,8 @@ int main_epiread(int argc, char *argv[]) {
     conf.is_nome = 0;
     conf.verbose = 0;
     conf.epiread_pair = 0;
+    conf.epiread_reg_start = 0;
+    conf.epiread_reg_end = 0;
 
     if (argc<2) return usage(&conf);
     while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANcduOPpvh"))>=0) {
@@ -937,9 +962,15 @@ int main_epiread(int argc, char *argv[]) {
         uint32_t beg, end;
         pileup_parse_region(reg, header, &tid, (int*) &beg, (int*) &end);
         // chromosome are assumed to be less than 2**29
-        beg++; end++;
+        beg++; // shift beg from 0-based to 1-based
         if (beg<=0) beg = 1;
         if (end>header->target_len[tid]) end = header->target_len[tid];
+
+        // Save the start and end location when a region is called to catch data that falls outside these regions
+        // This is correct behavior based on how samtools finds reads that overlap a specified region
+        conf.epiread_reg_start = beg;
+        conf.epiread_reg_end   = end;
+
         for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
             w.tid = tid;
             w.block_id = block_id;
