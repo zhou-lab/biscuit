@@ -290,7 +290,6 @@ int main_qc(int argc, char *argv[]) {
         outfiles.f_out_isize = fopen(out_isize, "w");
     conf.out = outfiles;
 
-    fprintf(stdout, "You did it! You loaded %s\n", infn);
     process_qc(infn, conf, &data_bsstrand, &data_bsconv, &data_cinread_cg, &data_cinread_ch);
 
     close_outfiles(outfiles, conf);
