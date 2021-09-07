@@ -87,13 +87,13 @@ static int usage()
   fprintf(stderr, "    mergecg      Merge C and G in CpG context\n");
   fprintf(stderr, "\n");
   fprintf(stderr, " -- Epireads\n");
-  fprintf(stderr, "    epiread      Convert BAM to epiread format\n");
-  fprintf(stderr, "    rectangle    Convert epiread to rectangle format\n");
-  fprintf(stderr, "    asm          Test allele specific methylation\n");
+  fprintf(stderr, "    epiread      Convert BAM to epibed format\n");
+  fprintf(stderr, "    rectangle    Convert epiread format to rectangle format\n");
+  fprintf(stderr, "    asm          Test allele-specific methylation\n");
   fprintf(stderr, "\n");
   fprintf(stderr, " -- Other\n");
   fprintf(stderr, "    version      Print BISCUIT and library versions\n");
-  fprintf(stderr, "    qc           Generate alignment QC files to hook to MultiQC\n");
+  fprintf(stderr, "    qc           Generate QC files from BAM\n");
   /* fprintf(stderr, "    ndr          Call nucleosome depletion region (NDR) from NOMe-seq\n"); */
   fprintf(stderr, "\n");
 
