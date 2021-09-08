@@ -233,9 +233,9 @@ int main_bsstrand(int argc, char *argv[]) {
     fprintf(stderr, "\n");
 
     for (i=0; i<2; ++i) {
-        fprintf(stderr, "\nR%d mapped to converted:   %d", i+1, 
+        fprintf(stderr, "\nR%d mapped to OT/OB:   %d", i+1, 
                 d.strandcnt[i*8+0*4+TAG_BSW] + d.strandcnt[i*8+1*4+TAG_BSC]);
-        fprintf(stderr, "\nR%d mapped to synthesized: %d", i+1,
+        fprintf(stderr, "\nR%d mapped to CTOT/CTOB: %d", i+1,
                 d.strandcnt[i*8+1*4+TAG_BSW] + d.strandcnt[i*8+0*4+TAG_BSC]);
     }
     fprintf(stderr, "\n");

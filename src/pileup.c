@@ -983,8 +983,8 @@ static void *process_func(void *_result) {
                * Better solution would be to log mate end in the alignment (using bam_endpos).
                * The filtering of double counting is only effective when reads are properly paired.
                *  
-               * The filtering remove bases from read 2 (usually the synthesized read)
-               * falling into the overlapped region.
+               * The filtering removes bases from read 2 (usually the read on the complement strand)
+               * that fall into the overlapped region.
                */
               if (conf->filter_doublecnt &&
                   (c->flag & BAM_FPROPER_PAIR) &&
