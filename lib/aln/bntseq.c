@@ -1,7 +1,8 @@
 /* The MIT License
 
-   Copyright (c) 2016-2020 Wanding.Zhou@vai.org
    Copyright (c) 2008 Genome Research Ltd (GRL).
+                 2016-2020 Wanding.Zhou@vai.org
+                 2021      Jacob.Morrison@vai.org
 
    Permission is hereby granted, free of charge, to any person obtaining
    a copy of this software and associated documentation files (the
