@@ -143,8 +143,8 @@ OUTPUT:
     // save straight to array, don't print
     if (conf->no_printing) {
         for (i=0; i<4; ++i) {
-            d->retn_conv_counts[2*i  ] += retn[i];
-            d->retn_conv_counts[2*i+1] += conv[i];
+            d->retn_conv_counts[2*i  ] += (uint64_t) retn[i];
+            d->retn_conv_counts[2*i+1] += (uint64_t) conv[i];
         }
         return 0;
     }

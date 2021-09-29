@@ -56,7 +56,7 @@ typedef struct bsconv_data_t {
     bsconv_conf_t *conf;
     int n;
     int n_filtered;
-    int retn_conv_counts[9];
+    uint64_t retn_conv_counts[9];
 } bsconv_data_t;
 
 int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data);
