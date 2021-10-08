@@ -63,16 +63,16 @@ void format_strand_report(FILE *fname, bsstrand_data_t *data) {
     fprintf(fname, "strand\\BS      BSW (f)      BSC (r)\n");
 
     fprintf(fname, "     R1 (f):   ");
-    for (i=0;i<2;++i) fprintf(fname, "%-13d", data->strandcnt[i]); fprintf(fname, "\n");
+    for (i=0;i<2;++i) { fprintf(fname, "%-13d", data->strandcnt[i]); fprintf(fname, "\n"); }
 
     fprintf(fname, "     R1 (r):   ");
-    for (i=0;i<2;++i) fprintf(fname, "%-13d", data->strandcnt[4+i]); fprintf(fname, "\n");
+    for (i=0;i<2;++i) { fprintf(fname, "%-13d", data->strandcnt[4+i]); fprintf(fname, "\n"); }
 
     fprintf(fname, "     R2 (f):   ");
-    for (i=0;i<2;++i) fprintf(fname, "%-13d", data->strandcnt[8+i]); fprintf(fname, "\n");
+    for (i=0;i<2;++i) { fprintf(fname, "%-13d", data->strandcnt[8+i]); fprintf(fname, "\n"); }
 
     fprintf(fname, "     R2 (r):   ");
-    for (i=0;i<2;++i) fprintf(fname, "%-13d", data->strandcnt[12+i]); fprintf(fname, "\n");
+    for (i=0;i<2;++i) { fprintf(fname, "%-13d", data->strandcnt[12+i]); fprintf(fname, "\n"); }
 }
 
 void format_bsconv_report(FILE *fname, bsconv_data_t *data) {
@@ -81,7 +81,7 @@ void format_bsconv_report(FILE *fname, bsconv_data_t *data) {
 
     int i;
     for (i=0; i<4; ++i) {
-        if (i) fprintf(fname, "\t");
+        if (i) { fprintf(fname, "\t"); }
         fprintf(fname, "%.8lf", (double) data->retn_conv_counts[2*i] / (data->retn_conv_counts[2*i] + data->retn_conv_counts[2*i+1]));
     }
     fprintf(fname, "\n");
@@ -96,12 +96,14 @@ void format_readpos_report(FILE *fname, cinread_data_t *data, char *type) {
     for (i=0; i<CIN_N_READS; ++i) {
         for (j=0; j<CIN_READ_LEN; ++j) {
             for (k=0; k<CIN_N_RET_STATES-1; ++k) { // ignore 'N' retention state
-                if (k) 
+                if (k) {
                     r = 'R';
-                else
+                } else {
                     r = 'C';
-                if (data->counts[i][j][k] > 0)
+                }
+                if (data->counts[i][j][k] > 0) {
                     fprintf(fname, "%u\t%u\t%c\t%d\n", i+1, j, r, data->counts[i][j][k]);
+                }
             }
         }
     }

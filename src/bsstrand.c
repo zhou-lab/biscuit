@@ -223,13 +223,13 @@ int main_bsstrand(int argc, char *argv[]) {
     fprintf(stderr, "\nStrand Distribution:\n");
     fprintf(stderr, "strand\\BS      BSW (f)      BSC (r)\n");
     fprintf(stderr, "     R1 (f):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     R1 (r):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[4+i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[4+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     R2 (f):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[8+i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[8+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     R2 (r):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[12+i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[12+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "\n");
 
     for (i=0; i<2; ++i) {
@@ -244,13 +244,13 @@ int main_bsstrand(int argc, char *argv[]) {
     fprintf(stderr, "\nConfusion counts (single-end):\n");
     fprintf(stderr, "orig\\infer      BSW (f)      BSC (r)      Conflict (c) Unknown (u)\n");
     fprintf(stderr, "     BSW (f):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     BSC (r):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[4+i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[4+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "Conflict (c):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[8+i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[8+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, " Unknown (u):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[12+i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[12+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "\n");
 
     free_refcache(d.rs);

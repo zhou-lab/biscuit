@@ -643,9 +643,9 @@ static void left_extend_seed_set_align_beg(
     if (bwa_verbose >= 4) {
       int j;
       printf("*** [%s] Left ref:   ", __func__); 
-      for (j = 0; j < tmp; ++j) putchar("ACGTN"[(int)rs[j]]); putchar('\n');
+      for (j = 0; j < tmp; ++j) { putchar("ACGTN"[(int)rs[j]]); putchar('\n'); }
       printf("*** [%s] Left query: ", __func__);
-      for (j = 0; j < s->qbeg; ++j) putchar("ACGTN"[(int)qs[j]]); putchar('\n');
+      for (j = 0; j < s->qbeg; ++j) { putchar("ACGTN"[(int)qs[j]]); putchar('\n'); }
     }
 
     int max_off; // max off diagonal distance
@@ -702,9 +702,9 @@ static void right_extend_seed_set_align_end(
     if (bwa_verbose >= 4) {
       int j;
       printf("*** [%s] Right ref:   ", __func__);
-      for (j = 0; j < rmax[1] - rmax[0] - re; ++j) putchar("ACGTN"[(int)rseq[re+j]]); putchar('\n');
+      for (j = 0; j < rmax[1] - rmax[0] - re; ++j) { putchar("ACGTN"[(int)rseq[re+j]]); putchar('\n'); }
       printf("*** [%s] Right query: ", __func__);
-      for (j = 0; j < l_query - qe; ++j) putchar("ACGTN"[(int)query[qe+j]]); putchar('\n');
+      for (j = 0; j < l_query - qe; ++j) { putchar("ACGTN"[(int)query[qe+j]]); putchar('\n'); }
     }
 
     int max_off;  // max off-diagonal distance
