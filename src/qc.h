@@ -48,7 +48,7 @@
 #define OPTIMAL_MAPQ 40
 
 // Define output file tag lengths
-#define LEN_SAMP 50
+#define LEN_SAMP 256
 #define LEN_MAPQ 15
 #define LEN_ISIZE 16
 #define LEN_DUP 15
