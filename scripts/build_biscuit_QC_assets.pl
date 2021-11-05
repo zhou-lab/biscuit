@@ -127,7 +127,12 @@ open(my $cpgBed, '>', "$outdir$cpgBedName") || die print "Cannot open $cpgBedNam
 
 # Step 1. Load the reference genome
 print STDOUT "Loading the reference genome\n";
-open(my $in, '<', $ref) || die print "Cannot open fasta file: $ref\n";
+my $in;
+if ($ref =~ /.gz$/) {
+    open($in, "gunzip -c $ref |") || die "can't open pipe to $ref\n";
+} else {
+    open($in, '<', $ref) || die "can't open $ref\n";
+}
 my $chr;
 my %seq=();
 while(<$in>) {
