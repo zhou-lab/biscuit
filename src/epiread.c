@@ -679,7 +679,7 @@ static void *process_func(void *data) {
                             rle_arr_cg[qpos+j+n_deletions] = deletion;
                             rle_arr_gc[qpos+j+n_deletions] = deletion;
                         }
-                        n_deletions++;
+                        n_deletions += oplen;
                         rpos += oplen;
                         break;
                     case BAM_CSOFT_CLIP:
