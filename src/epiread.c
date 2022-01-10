@@ -143,13 +143,13 @@ void run_length_encode(char *str, char *out) {
             i++;
         }
 
-        // TODO: Currently the code is set up to set ABC = A1B1C1. For better compression, uncomment the if-statement
-        //       which will leave ABC = ABC. This will require an update to the RLE decoding in biscuiteer
-        //if (run_len > 1) {
+        // Currently, the code is set up to set ABC = ABC. If you want ABC = A1B1C1, then comment out the if-statement,
+        // but leave the sprintf and for loop untouched.
+        if (run_len > 1) {
             sprintf(count, "%d", run_len);
             for (k=0; *(count+k); k++, j++) 
                 out[j] = count[k];
-        //}
+        }
     }
 
     out[j] = '\0';
@@ -469,7 +469,8 @@ static void *process_func(void *data) {
 
             int i; uint32_t j;
             uint8_t rle_set = 0, rle_gc = 0;
-            uint8_t n_deletions = 0; // Number of deletions, used to shift the RLE string accordingly when deletions are present
+            uint8_t n_deletions = 0;    // Number of deletions, used to shift the RLE string accordingly when deletions are present
+            uint8_t n_insertions = 0;   // Number of insertions, used to shift the end position of the RLE string when insertions are present
             uint8_t softclip_start = 0; // Number of soft clip bases occurring at start of read - used to adjust starting position
             char accessibility = '0';
 
@@ -672,6 +673,7 @@ static void *process_func(void *data) {
                             rle_arr_cg[qpos+j+n_deletions] = tolower(qb);
                             rle_arr_gc[qpos+j+n_deletions] = tolower(qb);
                         }
+                        n_insertions += oplen;
                         qpos += oplen;
                         break;
                     case BAM_CDEL:
@@ -701,7 +703,7 @@ static void *process_func(void *data) {
             // in the CIGAR string, so we need to shift backwards the number of softclip positions to get the corresponding
             // start position for the whole read
             uint32_t start = c->pos+1 - softclip_start;
-            uint32_t end   = start + c->l_qseq + n_deletions - 1; // -1 adjusts end position due to 1-based counting
+            uint32_t end   = start + c->l_qseq + n_deletions - n_insertions - 1; // -1 adjusts end position due to 1-based counting
 
             // produce epiread output
             if (conf->epiread_pair) {
