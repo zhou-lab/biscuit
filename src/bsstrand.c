@@ -3,6 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,35 +25,8 @@
  *
  */
 
-#include <unistd.h>
-#include "wstr.h"
-#include "wzmisc.h"
-#include "refcache.h"
-#include "sam.h"
-#include "bamfilter.h"
+#include "bsstrand.h"
 
-typedef enum {TAG_BSW, TAG_BSC, TAG_CONFLICT, TAG_UNKNOWN} conversion_tag_t;
-/* typedef enum {TAG_R1, TAG_R2} mapping_read_t; */
-/* typedef enum {TAG_FOR, TAG_REV} mapping_strand_t; */
-const char conversion_tags[4] = "frcu";
-
-typedef struct {
-    uint8_t output_count;
-    uint8_t correct_bsstrand;
-} bsstrand_conf_t;
-
-typedef struct {
-    refcache_t *rs;
-    int n_corr, n_mapped, n_unmapped;
-    int confusion[16];
-    int strandcnt[16];
-    bsstrand_conf_t *conf;
-} bsstrand_data_t;
-
-/* f - bisulfite converted Watson
- * r - bisulfite converted Crick
- * c - conflicting evidences, coexistence of both C>T and G>A
- * u - neither C>T or G>A exists */
 conversion_tag_t bam_tag_get_bsstrand(bam1_t *b) {
     char *s;
 
@@ -249,19 +223,19 @@ int main_bsstrand(int argc, char *argv[]) {
     fprintf(stderr, "\nStrand Distribution:\n");
     fprintf(stderr, "strand\\BS      BSW (f)      BSC (r)\n");
     fprintf(stderr, "     R1 (f):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     R1 (r):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[4+i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[4+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     R2 (f):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[8+i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[8+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     R2 (r):   ");
-    for (i=0;i<2;++i) fprintf(stderr, "%-13d", d.strandcnt[12+i]); fprintf(stderr, "\n");
+    for (i=0;i<2;++i) { fprintf(stderr, "%-13d", d.strandcnt[12+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "\n");
 
     for (i=0; i<2; ++i) {
-        fprintf(stderr, "\nR%d mapped to converted:   %d", i+1, 
+        fprintf(stderr, "\nR%d mapped to OT/OB:   %d", i+1, 
                 d.strandcnt[i*8+0*4+TAG_BSW] + d.strandcnt[i*8+1*4+TAG_BSC]);
-        fprintf(stderr, "\nR%d mapped to synthesized: %d", i+1,
+        fprintf(stderr, "\nR%d mapped to CTOT/CTOB: %d", i+1,
                 d.strandcnt[i*8+1*4+TAG_BSW] + d.strandcnt[i*8+0*4+TAG_BSC]);
     }
     fprintf(stderr, "\n");
@@ -270,13 +244,13 @@ int main_bsstrand(int argc, char *argv[]) {
     fprintf(stderr, "\nConfusion counts (single-end):\n");
     fprintf(stderr, "orig\\infer      BSW (f)      BSC (r)      Conflict (c) Unknown (u)\n");
     fprintf(stderr, "     BSW (f):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "     BSC (r):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[4+i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[4+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "Conflict (c):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[8+i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[8+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, " Unknown (u):   ");
-    for (i=0;i<4;++i) fprintf(stderr, "%-13d", d.confusion[12+i]); fprintf(stderr, "\n");
+    for (i=0;i<4;++i) { fprintf(stderr, "%-13d", d.confusion[12+i]); fprintf(stderr, "\n"); }
     fprintf(stderr, "\n");
 
     free_refcache(d.rs);

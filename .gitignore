@@ -32,3 +32,6 @@ biscuit
 # Debug files
 *.dSYM/
 *.su
+
+# Mac files
+*.DS_Store

@@ -3,6 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,60 +23,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  *
- */
+ */ 
 
-#include <unistd.h>
-#include <errno.h>
-#include "wstr.h"
-#include "wzmisc.h"
-#include "refcache.h"
-#include "sam.h"
-#include "bamfilter.h"
-#include "pileup.h"
+#include "cinread.h"
 
-const char *tp_names[] = {
-    "QNAME", "QPAIR", "STRAND", "BSSTRAND", "MAPQ",
-    "QBEG", "QEND",
-    "CHRM",
-    "CRPOS",
-    "CGRPOS",
-    "CQPOS",
-    "CRBASE",
-    "CCTXT",
-    "CQBASE",
-    "CRETENTION"};
+static const char *tp_names[] = {
+    "QNAME",     // read name
+    "QPAIR",     // which read in pair
+    "STRAND",    // forward or reverse strand
+    "BSSTRAND",  // which original strand the read derives from
+    "MAPQ",      // MAPQ score
+    "QBEG",      // read start position
+    "QEND",      // read end position
+    "CHRM",      // chromosome
+    "CRPOS",     // cytosine position on reference
+    "CGRPOS",    // CpG position on reference (-1 if not applicable)
+    "CQPOS",     // cytosine position on read
+    "CRBASE",    // cytosine reference base
+    "CCTXT",     // cytosine context, strand flipped
+    "CQBASE",    // base called on read
+    "CRETENTION" // retention (R) or conversion (C)
+};
 
-typedef enum {
-    TP_QNAME, TP_QPAIR, TP_STRAND, TP_BSSTRAND, TP_MAPQ,
-    TP_QBEG, TP_QEND, // query start, end
-    TP_CHRM,          // chromosome
-    TP_CRPOS,         // cytosine position on reference
-    TP_CGRPOS,        // CpG position on reference (-1 if not applicable)
-    TP_CQPOS,         // cytosine position on query
-    TP_CRBASE,        // cytosine reference
-    TP_CCTXT,         // cytosine context, strand flipped
-    TP_CQBASE,        // base called on read
-    TP_CRETENTION} __tp_name_t; // retention (R) or conversion (C)
+static const char *tgt_names[] = {"c", "cg", "ch", "hcg", "gch", "hch"};
 
-const char *tgt_names[] = {"c", "cg", "ch", "hcg", "gch", "hch"};
-
-typedef enum {SL_C, SL_CG, SL_CH, SL_HCG, SL_GCH, SL_HCH} __tgt_name_t; // SL_ select target
-
-typedef struct {
-    int n_tp_names;
-    __tp_name_t *tp_names;
-    __tgt_name_t tgt;
-    FILE *out;
-    int skip_secondary;
-} cinread_conf_t;
-
-typedef struct cinread_data_t {
-    refcache_t *rs;
-    FILE *output;
-    cinread_conf_t *conf;
-} cinread_data_t;
-
-static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
+int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
     (void) (out);
     cinread_data_t *d = (cinread_data_t*) data;
@@ -134,44 +106,56 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
                         else retention = 'N';
                     } else retention = 'N';
 
-                    for (k=0; k<conf->n_tp_names; ++k) {
-                        if (k) fputc('\t', conf->out);
-                        switch(conf->tp_names[k]) {
-                            case TP_QNAME: fputs(bam_get_qname(b), conf->out); break;
-                            case TP_QPAIR: fputc((c->flag&BAM_FREAD2)?'2':'1', conf->out); break;
-                            case TP_QBEG: fprintf(conf->out, "%d", c->pos+1); break;
-                            case TP_QEND: fprintf(conf->out, "%d", bam_endpos(b)); break;
-                            case TP_STRAND: fputc((c->flag&BAM_FREVERSE)?'-':'+', conf->out); break;
-                            case TP_BSSTRAND: fputc(bsstrand?'-':'+', conf->out); break;
-                            case TP_MAPQ: fprintf(conf->out, "%d", c->qual); break;
-                            case TP_CHRM: fputs(hdr->target_name[c->tid], conf->out); break;
-                            case TP_CRPOS: fprintf(conf->out, "%u", rpos+j); break;
-                            case TP_CGRPOS: {
-                                if (fivenuc[3] == 'G') {
-                                    if (rb == 'C') fprintf(conf->out, "%u", rpos+j);
-                                    else if (rb == 'G') fprintf(conf->out, "%u", rpos+j-1);
-                                } else fprintf(conf->out, "-1");
-                                break;
-                            }
-                            case TP_CQPOS: {
-                                // note when there is hard clipping, l_qseq might be < qpos+j
-                                // see following for compensation
-                                fprintf(conf->out, "%u", (c->flag&BAM_FREVERSE)?(l_qseq-qpos-j):(qpos+j));
-                                break;
-                            }
-                            case TP_CRBASE: fputc(rb, conf->out); break;
-                            case TP_CCTXT: {
-                                fprintf(conf->out, "%.5s", fivenuc);
-                                break;
-                            }
-                            case TP_CQBASE: fputc(qb, conf->out); break;
-                            case TP_CRETENTION: fputc(retention, conf->out); break;
-                            default: wzfatal("Unknown print name: %u\n", conf->tp_names[k]);
-                        }
-                    }
+                    int idx_read = (c->flag & BAM_FREAD2) ? 1 : 0;
+                    int idx_qpos = (c->flag & BAM_FREVERSE) ? (l_qseq-qpos-j) : (qpos+j);
+                    int idx_retn = 2; // Assume retention == 'N'
+                    if (retention == 'C')
+                        idx_retn = 0;
+                    else if (retention == 'R')
+                        idx_retn = 1;
 
-                    if (fputc('\n', conf->out) < 0)
-                        if (errno == EPIPE) exit(1);
+                    d->counts[idx_read][idx_qpos][idx_retn]++;
+
+                    if (!(conf->skip_printing)) {
+                        for (k=0; k<conf->n_tp_names; ++k) {
+                            if (k) fputc('\t', conf->out);
+                            switch(conf->tp_names[k]) {
+                                case TP_QNAME: fputs(bam_get_qname(b), conf->out); break;
+                                case TP_QPAIR: fputc((c->flag&BAM_FREAD2)?'2':'1', conf->out); break;
+                                case TP_QBEG: fprintf(conf->out, "%d", c->pos+1); break;
+                                case TP_QEND: fprintf(conf->out, "%d", bam_endpos(b)); break;
+                                case TP_STRAND: fputc((c->flag&BAM_FREVERSE)?'-':'+', conf->out); break;
+                                case TP_BSSTRAND: fputc(bsstrand?'-':'+', conf->out); break;
+                                case TP_MAPQ: fprintf(conf->out, "%d", c->qual); break;
+                                case TP_CHRM: fputs(hdr->target_name[c->tid], conf->out); break;
+                                case TP_CRPOS: fprintf(conf->out, "%u", rpos+j); break;
+                                case TP_CGRPOS: {
+                                    if (fivenuc[3] == 'G') {
+                                            if (rb == 'C') fprintf(conf->out, "%u", rpos+j);
+                                            else if (rb == 'G') fprintf(conf->out, "%u", rpos+j-1);
+                                        } else fprintf(conf->out, "-1");
+                                        break;
+                                }
+                                case TP_CQPOS: {
+                                        // note when there is hard clipping, l_qseq might be < qpos+j
+                                        // see following for compensation
+                                        fprintf(conf->out, "%u", (c->flag&BAM_FREVERSE)?(l_qseq-qpos-j):(qpos+j));
+                                        break;
+                                }
+                                case TP_CRBASE: fputc(rb, conf->out); break;
+                                case TP_CCTXT: {
+                                    fprintf(conf->out, "%.5s", fivenuc);
+                                    break;
+                                }
+                                case TP_CQBASE: fputc(qb, conf->out); break;
+                                case TP_CRETENTION: fputc(retention, conf->out); break;
+                                default: wzfatal("Unknown print name: %u\n", conf->tp_names[k]);
+                            }
+                        }
+
+                        if (fputc('\n', conf->out) < 0)
+                            if (errno == EPIPE) exit(1);
+                    }
                 }
 
                 rpos += oplen;
@@ -198,7 +182,6 @@ static int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
     return 0;
 }
-
 
 static void usage() {
 
@@ -231,6 +214,7 @@ int main_cinread(int argc, char *argv[]) {
     char *reg = 0; // target region
     cinread_conf_t conf = {0};
     conf.skip_secondary = 1;
+    conf.skip_printing = 0;
     char *outfn = NULL;
 
     char *tgt_str = 0; char *tp_str = 0;
@@ -291,7 +275,6 @@ int main_cinread(int argc, char *argv[]) {
         conf.tp_names[3] = TP_CRBASE;
         conf.tp_names[4] = TP_CQBASE;
     }
-
 
     /* fprintf(stderr, "conf target: %d - %s\n", conf.tgt, tgt_names[conf.tgt]); */
     /* for (i=0; i<conf.n_tp_names; ++i) */

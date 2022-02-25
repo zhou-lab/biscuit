@@ -3,6 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -538,8 +539,9 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts_meth, int *cn
     pileup_data_t *d = ref_pileup_data_v(dv, i);
     /* read-position-based filtering */
     if (d->qual < conf->min_base_qual) continue;
-    if (d->qpos < conf->min_dist_end ||
-        d->rlen < d->qpos + conf->min_dist_end) continue;
+    // TODO: On the 3'-end, it should be before the end of mapping instead of
+    // end of read since adaptor sequences are soft-clipped.
+    if (d->qpos <= conf->min_dist_end_5p || d->rlen < d->qpos + conf->min_dist_end_3p) continue;
     cnts_meth[d->sid * NSTATUS_METH + (d->stat&0xf)]++;
     cnts_base[d->sid * NSTATUS_BASE + (d->stat>>4)]++;
   }
@@ -803,7 +805,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
           rec->betasum_context[sid*NCONTXTS+ctt] += beta;
           rec->cnt_context[sid*NCONTXTS+ctt]++;
         }
-        ksprintf(s, ":%d:%1.2f", cnts_meth1[METH_RETENTION]+cnts_meth1[METH_CONVERSION], beta);
+        ksprintf(s, ":%d:%1.3f", cnts_meth1[METH_RETENTION]+cnts_meth1[METH_CONVERSION], beta);
       } else {
         kputs(":0:.", s);
       }
@@ -976,13 +978,13 @@ static void *process_func(void *_result) {
               rb = refcache_getbase_upcase(rs, rpos+j);
               qb = bscall(b, qpos+j);
 
-              /* if read 2 in a proper pair, skip counting overlapped cytosines
-               *  Right now I assume read 1 and read 2 are the same length and there is no gap.
+              /* If read 2 in a proper pair, skip counting overlapped cytosines
+               * Right now I assume read 1 and read 2 are the same length and there is no gap.
                * Better solution would be to log mate end in the alignment (using bam_endpos).
                * The filtering of double counting is only effective when reads are properly paired.
                *  
-               * The filtering remove bases from read 2 (usually the synthesized read)
-               * falling into the overlapped region.
+               * The filtering removes bases from read 2 (usually the read on the complement strand)
+               * that fall into the overlapped region.
                */
               if (conf->filter_doublecnt &&
                   (c->flag & BAM_FPROPER_PAIR) &&
@@ -1103,7 +1105,10 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
   kputs("##FILTER=<ID=PASS,Description=\"All filters passed\">\n", &header);
   kputs("##FILTER=<ID=LowQual,Description=\"Genotype quality smaller than 5\">\n", &header);
   kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
-  kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
+  if (conf->is_nome)
+      kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (HCG, HCHG, HCHH, GCG, GCH)\">\n", &header);
+  else
+      kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
   kputs("##INFO=<ID=N5,Number=1,Type=String,Description=\"5-nucleotide context, centered around target cytosine\">\n", &header);
   kputs("##INFO=<ID=AB,Number=A,Type=String,Description=\"When true alt-allele is ambiguous, ALT field will be N and true alt-allele is stored here, following IUPAC code convention. This option does not appear when ALT != N.\">\n", &header);
 
@@ -1169,7 +1174,8 @@ void conf_init(conf_t *conf) {
   conf->min_score = 40;
   conf->max_retention = 999999;
   conf->min_read_len = 10;
-  conf->min_dist_end = 3;
+  conf->min_dist_end_5p = 3;
+  conf->min_dist_end_3p = 3;
   conf->filter_secondary = 1;
   conf->filter_doublecnt = 1;
   conf->filter_duplicate = 1;
@@ -1221,9 +1227,8 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -a INT      Minimum alignment score (from AS-tag) [%u]\n", conf->min_score);
     fprintf(stderr, "    -t INT      Maximum cytosine retention in a read [%u]\n", conf->max_retention);
     fprintf(stderr, "    -l INT      Minimum read length [%u]\n", conf->min_read_len);
-    // TODO: we should distinguish 5'-end and 3'-end. On the 3'-end, it should be before
-    // the end of mapping instead of end of read since adaptor sequences are soft-clipped.
-    fprintf(stderr, "    -e INT      Minimum distance to end of a read [%u]\n", conf->min_dist_end);
+    fprintf(stderr, "    -5 INT      Minimum distance to 5' end of a read [%u]\n", conf->min_dist_end_5p);
+    fprintf(stderr, "    -3 INT      Minimum distance to 3' end of a read [%u]\n", conf->min_dist_end_3p);
     fprintf(stderr, "    -r          NO redistribution of ambiguous (Y/R) calls in SNP genotyping\n");
     fprintf(stderr, "    -c          NO filtering secondary mapping\n");
     fprintf(stderr, "    -d          Double count cytosines in overlapping mate reads (avoided\n");
@@ -1257,7 +1262,7 @@ int main_pileup(int argc, char *argv[]) {
     conf_init(&conf);
 
     if (argc<2) return usage(&conf);
-    while ((c=getopt(argc, argv, ":o:w:g:@:e:b:s:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
+    while ((c=getopt(argc, argv, ":o:w:g:@:5:3:b:s:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
         switch (c) {
             case 'g': reg = optarg; break;
             case '@': conf.n_threads = atoi(optarg); break;
@@ -1276,7 +1281,8 @@ int main_pileup(int argc, char *argv[]) {
             case 'a': conf.min_score = atoi(optarg); break;
             case 't': conf.max_retention = atoi(optarg); break;
             case 'l': conf.min_read_len = atoi(optarg); break;
-            case 'e': conf.min_dist_end = atoi(optarg); break;
+            case '5': conf.min_dist_end_5p = atoi(optarg); break;
+            case '3': conf.min_dist_end_3p = atoi(optarg); break;
             case 'r': conf.ambi_redist = 0; break;
             case 'c': conf.filter_secondary = 0; break;
             case 'd': conf.filter_doublecnt = 0; break;
@@ -1408,7 +1414,7 @@ int main_pileup(int argc, char *argv[]) {
         uint32_t beg, end;
         pileup_parse_region(reg, hdr, &tid, (int*) &beg, (int*) &end);
         /* chromosome are assumed to be less than 2**29 */
-        beg++; end++;
+        beg++; // shift beg from 0-based to 1-based
         if (beg<=0) beg = 1;
         if (end>hdr->target_len[tid]) end = hdr->target_len[tid];
         for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {

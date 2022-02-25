@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +22,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
 **/
+
+#ifndef _PILEUP_H_
+#define _PILEUP_H_
 
 #include <unistd.h>
 #include <ctype.h>
@@ -45,7 +49,8 @@ typedef struct {
   uint32_t min_base_qual;
   uint32_t max_retention;
   uint32_t min_read_len;
-  uint8_t min_dist_end;
+  uint8_t min_dist_end_5p;
+  uint8_t min_dist_end_3p;
   uint8_t min_mapq;
   int max_nm;
   uint8_t filter_ppair:1;       /* filter BAM_FPROPER_PAIR */
@@ -63,10 +68,14 @@ typedef struct {
   double prior1;
   double prior2;
   uint8_t verbose;
+  int epiread_old;         /* print old BISCUIT epiread format */
+  int print_all_locations; /* print all CpG and SNP locations in location column of epiread format */
   int is_nome;
-  int somatic; /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
-  int epiread_pair;             /* pair output mode in epireads, doesn't mean "paired-end" */
-  int min_score;                /* minimum score from AS tag */
+  int somatic;             /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
+  int epiread_pair;        /* pair output mode in epireads, doesn't mean "paired-end" */
+  uint32_t epiread_reg_start; /* first location of region provided to epiread */
+  uint32_t epiread_reg_end; /* final location of region provided to epiread */
+  int min_score;           /* minimum score from AS tag */
 } conf_t;
 
 void conf_init(conf_t *conf);
@@ -204,3 +213,5 @@ static inline void pileup_parse_region(const char *reg, void *hdr, int *tid, int
  */
 #define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
 #endif
+
+#endif /* _PILEUP_H_ */

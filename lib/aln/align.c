@@ -190,7 +190,7 @@ int usage(mem_opt_t *opt) {
     fprintf(stderr, "                        (0: non-directional library [default]). For SE, parent\n");
     fprintf(stderr, "                        (1), daughter (3), or both (0 [default]). Note, parent\n");
     fprintf(stderr, "                        is the bisulfite treated strand and the daughter is\n");
-    fprintf(stderr, "                        the synthesized strand.\n");
+    fprintf(stderr, "                        the complement strand.\n");
     fprintf(stderr, "    -f INT          1: BSW strand; 3: BSC strand; 0: both. Note, libraries\n");
     fprintf(stderr, "                        targeting either BSW or BSC are unseen so far! [0]\n");
     fprintf(stderr, "    -k INT          Minimum seed length [%d]\n", opt->min_seed_len);

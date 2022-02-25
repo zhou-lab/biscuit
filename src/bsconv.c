@@ -3,6 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
+ *               2021      Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,35 +25,9 @@
  *
  */
 
-#include <unistd.h>
-#include <errno.h>
-#include "wstr.h"
-#include "wzmisc.h"
-#include "refcache.h"
-#include "sam.h"
-#include "bamfilter.h"
-#include "pileup.h"
-#include "encode.h"
+#include "bsconv.h"
 
-typedef struct {
-    int max_cph;
-    float max_cph_frac;
-    int max_cpa;
-    int max_cpc;
-    int max_cpt;
-    int filter_u;
-    int show_filtered;
-    int print_in_tab;
-} bsconv_conf_t;
-
-typedef struct bsconv_data_t {
-    refcache_t *rs;
-    bsconv_conf_t *conf;
-    int n;
-    int n_filtered;
-} bsconv_data_t;
-
-static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
+int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
     (void) (out);
     bsconv_data_t *d = (bsconv_data_t*) data;
@@ -150,11 +125,29 @@ static int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
                 (float) cph_retn / (cph_retn + cph_conv) > conf->max_cph_frac) tofilter = 1;
     }
 
+    if (conf->max_cpy_frac < 1.0) {
+        int cph_retn = retn[nt256char_to_nt256int8_table['C']] +
+            retn[nt256char_to_nt256int8_table['T']];
+        int cph_conv = conv[nt256char_to_nt256int8_table['C']] +
+            conv[nt256char_to_nt256int8_table['T']];
+        if (cph_retn + cph_conv > 0 &&
+                (float) cph_retn / (cph_retn + cph_conv) > conf->max_cpy_frac) tofilter = 1;
+    }
+
 OUTPUT:
     d->n++;
     if (tofilter) d->n_filtered++;
     if (conf->show_filtered) tofilter = !tofilter;
     if (tofilter) return 0;
+
+    // save straight to array, don't print
+    if (conf->no_printing) {
+        for (i=0; i<4; ++i) {
+            d->retn_conv_counts[2*i  ] += (uint64_t) retn[i];
+            d->retn_conv_counts[2*i+1] += (uint64_t) conv[i];
+        }
+        return 0;
+    }
 
     // tab output
     if (conf->print_in_tab) {
@@ -200,6 +193,7 @@ static void usage() {
     fprintf(stderr, "    -u          Filter unclear bs-strand (YD:u) reads\n");
     fprintf(stderr, "    -m INT      Filter: maximum CpH retention [Inf]\n");
     fprintf(stderr, "    -f FLOAT    Filter: maximum CpH retention fraction [1.0]\n");
+    fprintf(stderr, "    -y FLOAT    Filter: maximum CpY retention fraction [1.0]\n");
     fprintf(stderr, "    -a INT      Filter: maximum CpA retention [Inf]\n");
     fprintf(stderr, "    -c INT      Filter: maximum CpC retention [Inf]\n");
     fprintf(stderr, "    -t INT      Filter: maximum CpT retention [Inf]\n");
@@ -216,14 +210,17 @@ int main_bsconv(int argc, char *argv[]) {
     bsconv_conf_t conf = {0};
     conf.max_cph = conf.max_cpa = conf.max_cpc = conf.max_cpt = -1;
     conf.max_cph_frac = 1.0;
+    conf.max_cpy_frac = 1.0;
     conf.print_in_tab = 0;
+    conf.no_printing = 0; // only needed for qc at this time, so don't provide a command line argument to change this for now
 
     if (argc < 2) { usage(); return 1; }
-    while ((c = getopt(argc, argv, ":g:m:ac:f:pt:uvh")) >= 0) {
+    while ((c = getopt(argc, argv, ":g:m:ac:f:y:pt:uvh")) >= 0) {
         switch (c) {
             case 'g': reg = optarg; break;
             case 'm': conf.max_cph = atoi(optarg); break;
             case 'f': conf.max_cph_frac = atof(optarg); break;
+            case 'y': conf.max_cpy_frac = atof(optarg); break;
             case 'a': conf.max_cpa = atoi(optarg); break;
             case 'c': conf.max_cpc = atoi(optarg); break;
             case 't': conf.max_cpt = atoi(optarg); break;

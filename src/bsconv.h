@@ -1,4 +1,5 @@
-/**
+/* annotate bisulfite conversion of reads
+ * 
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
@@ -21,21 +22,43 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
-**/
+ *
+ */
 
-/**** simple filter of a BAM file ****/
-/* example usage see bsstrand.c */
+#ifndef _BSCONV_H_
+#define _BSCONV_H_
 
-#ifndef _BAMFILTER_H
-#define _BAMFILTER_H
-
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
+#include <unistd.h>
+#include <errno.h>
+#include "wstr.h"
+#include "wzmisc.h"
+#include "refcache.h"
 #include "sam.h"
+#include "bamfilter.h"
+#include "pileup.h"
+#include "encode.h"
 
-typedef int (*bam_filter_f)(bam1_t *b, samFile *out, bam_hdr_t *header, void *data);
+typedef struct {
+    int max_cph;
+    float max_cph_frac;
+    float max_cpy_frac;
+    int max_cpa;
+    int max_cpc;
+    int max_cpt;
+    int filter_u;
+    int show_filtered;
+    int print_in_tab;
+    int no_printing;
+} bsconv_conf_t;
 
-int bam_filter(char *input_bam, char *output_bam, char *reg, void *data, bam_filter_f func);
+typedef struct bsconv_data_t {
+    refcache_t *rs;
+    bsconv_conf_t *conf;
+    int n;
+    int n_filtered;
+    uint64_t retn_conv_counts[9];
+} bsconv_data_t;
 
-#endif /* _BAMFILTER_H */
+int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data);
+
+#endif /* _BSCONV_H_ */
