@@ -24,6 +24,7 @@
  * SOFTWARE.
  * 
  **/
+#include <zlib.h>
 #include "pileup.h"
 #include "wzmisc.h"
 
@@ -759,7 +760,7 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
     // read SNP bed file
     episnp_chrom1_t *episnp1 = 0;
     char *tok;
-    FILE *fh = fopen(snp_bed_fn,"r");
+    gzFile fh = gzopen(snp_bed_fn, "r");
 
     if (fh == NULL) {
         free(line.s);
@@ -767,7 +768,7 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
     }
 
     while (1) {
-        int c=fgetc(fh);
+        int c = gzgetc(fh);
         if (c=='\n' || c==EOF) {
             if (strcount_char(line.s, '\t')>=2) {
                 tok = strtok(line.s, "\t");
@@ -791,6 +792,8 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
         }
     }
     free(line.s);
+
+    gzclose(fh);
 
     return episnp;
 }
