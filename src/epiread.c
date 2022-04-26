@@ -172,31 +172,52 @@ static void format_epi_bed(
     // Columns: chromosome, start, end, read name, read number, BS strand, encoded CG RLE
     // If running in NOMe-seq mode, then encoded GC RLE is added as a last column
     if (start > 0 && (unsigned) start >= print_w_beg && (unsigned) start < print_w_end) {
-        ksprintf(epi, "%s\t%d\t%d\t%s\t%c\t%c",
-                chrm,
-                start-1,
-                end,
-                bam_get_qname(b),
-                (b->core.flag&BAM_FREAD2) ? '2' : '1',
-                bsstrand ? '-' : '+');
+        uint8_t write_read_cg = 1; 
+        uint8_t write_read_gc = 1; 
+        int len_cg = (int)strlen(rle_arr_cg);
+        int len_gc = conf->is_nome ? (int)strlen(rle_arr_gc) : -1;
 
-        int len = strlen(rle_arr_cg);
-        char *encoded_rle = (char *) malloc(sizeof(char) * (2*len+1)); // encoded string can be no larger than 2 times the original string length
-        run_length_encode(rle_arr_cg, encoded_rle);
-        ksprintf(epi, "\t%s", encoded_rle);
+        // Check if RLE string is only composed of F's and x's and P's
+        if (conf->filter_empty_epiread) {
+            char *filt_ignr_soft = "FxP";
 
-        if (conf->is_nome) {
-            int len = strlen(rle_arr_gc);
-            char *encoded_rle_gc = (char *) malloc(sizeof(char) * (2*len+1)); // encoded string can be no larger than 2 times the original string length
-            run_length_encode(rle_arr_gc, encoded_rle_gc);
-            ksprintf(epi, "\t%s", encoded_rle_gc);
-            free(encoded_rle_gc);
+            size_t check_rle_cg = strspn(rle_arr_cg, filt_ignr_soft);
+            if (len_cg == (int)check_rle_cg) { write_read_cg = 0; }
+
+            if (conf->is_nome) {
+                size_t check_rle_gc = strspn(rle_arr_gc, filt_ignr_soft);
+                if (len_gc == (int)check_rle_gc) { write_read_gc = 0; }
+            }
         }
 
-        // end line
-        kputc('\n', epi);
+        if (write_read_cg || write_read_gc) {
+            ksprintf(epi, "%s\t%d\t%d\t%s\t%c\t%c",
+                    chrm,
+                    start-1,
+                    end,
+                    bam_get_qname(b),
+                    (b->core.flag&BAM_FREAD2) ? '2' : '1',
+                    bsstrand ? '-' : '+');
 
-        free(encoded_rle);
+            char *encoded_rle = (char *) malloc(sizeof(char) * (2*len_cg+1)); // encoded string can be no larger than 2 times the original string length
+            run_length_encode(rle_arr_cg, encoded_rle);
+            ksprintf(epi, "\t%s", encoded_rle);
+
+            if (conf->is_nome) {
+                char *encoded_rle_gc = (char *) malloc(sizeof(char) * (2*len_gc+1)); // encoded string can be no larger than 2 times the original string length
+                run_length_encode(rle_arr_gc, encoded_rle_gc);
+                ksprintf(epi, "\t%s", encoded_rle_gc);
+                free(encoded_rle_gc);
+            }
+
+            // end line
+            kputc('\n', epi);
+
+            free(encoded_rle);
+        } else {
+            fprintf(stderr, "Filtering CG read: %s\n", rle_arr_cg);
+            fprintf(stderr, "Filtering GC read: %s\n", rle_arr_gc);
+        }
     }
 }
 
@@ -824,6 +845,7 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -l INT    Minimum read length [%u]\n", conf->min_read_len);
     fprintf(stderr, "    -5 INT    Minimum distance to 5' end of a read [%u]\n", conf->min_dist_end_5p);
     fprintf(stderr, "    -3 INT    Minimum distance to 3' end of a read [%u]\n", conf->min_dist_end_3p);
+    fprintf(stderr, "    -E        NO filtering of empty epireads\n");
     fprintf(stderr, "    -c        NO filtering secondary mapping\n");
     fprintf(stderr, "    -d        Double count cytosines in overlapping mate reads (avoided\n");
     fprintf(stderr, "                  by default)\n");
@@ -868,9 +890,10 @@ int main_epiread(int argc, char *argv[]) {
     conf.epiread_pair = 0;
     conf.epiread_reg_start = 0;
     conf.epiread_reg_end = 0;
+    conf.filter_empty_epiread = 1;
 
     if (argc<2) return usage(&conf);
-    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANcduOPpvh"))>=0) {
+    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANEcduOPpvh"))>=0) {
         switch (c) {
             case 'B': snp_bed_fn = optarg; break;
             case 'o': outfn = optarg; break;
@@ -888,6 +911,7 @@ int main_epiread(int argc, char *argv[]) {
             case 'O': conf.epiread_old = 1; break;
             case 'A': conf.print_all_locations = 1; break;
             case 'N': conf.is_nome = 1; break;
+            case 'E': conf.filter_empty_epiread = 0; break;
             case 'c': conf.filter_secondary = 0; break;
             case 'd': conf.filter_doublecnt = 0; break;
             case 'u': conf.filter_duplicate = 0; break;
