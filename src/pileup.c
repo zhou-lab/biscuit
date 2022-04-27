@@ -1299,8 +1299,8 @@ int main_pileup(int argc, char *argv[]) {
             case 'Q': conf.prior2 = atof(optarg); break;
 
             case 'h': return usage(&conf);
-            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default:
                 return usage(&conf);
         }

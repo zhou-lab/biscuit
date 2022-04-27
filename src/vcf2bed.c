@@ -325,8 +325,8 @@ int main_vcf2bed(int argc, char *argv[]) {
             case 's': target_samples = strdup(optarg); break;
             case 'e': conf.showctxt = 1; break;
             case 'h': return usage(&conf); break;
-            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(&conf); wzfatal("Unrecognized option: -%c\n",c); break;
         }
     }

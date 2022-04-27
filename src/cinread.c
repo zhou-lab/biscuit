@@ -227,8 +227,8 @@ int main_cinread(int argc, char *argv[]) {
             case 'p': tp_str = optarg; break;
             case 's': conf.skip_secondary = 0; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

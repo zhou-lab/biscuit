@@ -112,7 +112,7 @@ int main_asm(int argc, char *argv[]) {
     while ((c = getopt(argc, argv, ":h")) >= 0) {
         switch(c) {
             case 'h': usage(); return 1;
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

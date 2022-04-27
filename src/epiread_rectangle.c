@@ -67,8 +67,8 @@ int main_rectangle(int argc, char *argv[]) {
         switch (c) {
             case 'o': out_fn = optarg; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

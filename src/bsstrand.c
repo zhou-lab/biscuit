@@ -195,8 +195,8 @@ int main_bsstrand(int argc, char *argv[]) {
             case 'y': conf.output_count = 1; break;
             case 'c': conf.correct_bsstrand = 1; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

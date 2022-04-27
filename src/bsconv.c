@@ -228,8 +228,8 @@ int main_bsconv(int argc, char *argv[]) {
             case 'p': conf.print_in_tab = 1; break;
             case 'v': conf.show_filtered = 1; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

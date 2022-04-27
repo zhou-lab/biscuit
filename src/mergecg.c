@@ -151,9 +151,9 @@ int main_mergecg(int argc, char *argv[]) {
             case 'N': nome_mode=1; break;
             case 'k': min_depth = atoi(optarg); break;
             case 'h': return usage(min_depth); break;
-            case ':': usage(min_depth); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(min_depth); wzfatal("Unrecognized option: -%c\n", optopt);
-            default: usage(min_depth); wzfatal("Unrecognized option: %c.\n", c);
+            case ':': usage(min_depth); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(min_depth); wzfatal("Unrecognized option: -%c\n", optopt); break;
+            default: usage(min_depth); wzfatal("Unrecognized option: %c.\n", c); break;
         }
     }
 

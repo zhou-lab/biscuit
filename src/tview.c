@@ -717,8 +717,8 @@ int main_tview(int argc, char *argv[]) {
           case 'n': read_name = strdup(optarg); break;
           case 'f': buf_flank = atoi(optarg); break;
           case 'h': usage(); return 1;
-          case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-          case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+          case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+          case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
           default: usage(); return 1;
       }
   }

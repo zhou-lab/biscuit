@@ -224,8 +224,8 @@ int main_biscuit_index(int argc, char *argv[]) {
             case 'p': prefix = strdup(optarg); break;
             case '6': is_64 = 1; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

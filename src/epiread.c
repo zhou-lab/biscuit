@@ -919,8 +919,8 @@ int main_epiread(int argc, char *argv[]) {
             case 'P': conf.epiread_pair = 1; break;
             case 'v': conf.verbose = 1; break;
             case 'h': return usage(&conf);
-            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: return usage(&conf);
         }
     }
