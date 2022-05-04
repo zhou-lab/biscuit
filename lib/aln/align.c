@@ -126,6 +126,22 @@ static void *process(void *shared, int step, void *_data) {
         for (i = 0; i < n_sep[1]; ++i)
           data->seqs[sep[1][i].id].sam = sep[1][i].sam;
       }
+
+      // clean up
+      if (n_sep[0]) {
+          for (i = 0; i < n_sep[0]; ++i) {
+              /* bisulfite free, the pointers can be NULL */
+              free(sep[0][i].bisseq[0]);
+              free(sep[0][i].bisseq[1]);
+          }
+      }
+      if (n_sep[1]) {
+          for (i = 0; i < n_sep[1]; ++i) {
+              /* bisulfite free, the pointers can be NULL */
+              free(sep[1][i].bisseq[0]);
+              free(sep[1][i].bisseq[1]);
+          }
+      }
       free(sep[0]); free(sep[1]);
     } else {
       mem_process_seqs(opt, idx->bwt, idx->bns, idx->pac, aux->n_processed, data->n_seqs, data->seqs, aux->pes0);

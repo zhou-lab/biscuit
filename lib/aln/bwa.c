@@ -788,10 +788,12 @@ bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_) {
     }
     trim_readno(&ks->name);
     bis_kseq2bseq1(ks, &seqs[n]);
+    seqs[n].id = n;
     size += seqs[n++].l_seq;
     if (ks2) {
       trim_readno(&ks2->name);
       bis_kseq2bseq1(ks2, &seqs[n]);
+      seqs[n].id = n;
       size += seqs[n++].l_seq;
     }
     if (size >= chunk_size && (n&1) == 0) break;
