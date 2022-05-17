@@ -123,7 +123,7 @@ static void print_meth_average_1chrom(FILE *out, char *sample, char *chrom, doub
       fprintf(out, "\t%"PRId64"\t%1.3f%%", k_hcg,  b_hcg  / (double) k_hcg  * 100);
       fprintf(out, "\t%"PRId64"\t%1.3f%%", k_hchg, b_hchg / (double) k_hchg * 100);
       fprintf(out, "\t%"PRId64"\t%1.3f%%", k_hchh, b_hchh / (double) k_hchh * 100);
-      fprintf(out, "\t%"PRId64"\t%1.3f%%", k_hchh, b_hch  / (double) k_hch  * 100);
+      fprintf(out, "\t%"PRId64"\t%1.3f%%", k_hch,  b_hch  / (double) k_hch  * 100);
       fprintf(out, "\t%"PRId64"\t%1.3f%%", k_gch,  b_gch  / (double) k_gch  * 100);
       fputc('\n', out);
     }
@@ -144,7 +144,7 @@ static void print_meth_average_1chrom(FILE *out, char *sample, char *chrom, doub
       fprintf(out, "\t%"PRId64"\t%1.3f%%", k_cg,  b_cg  / (double) k_cg  * 100);
       fprintf(out, "\t%"PRId64"\t%1.3f%%", k_chg, b_chg / (double) k_chg * 100);
       fprintf(out, "\t%"PRId64"\t%1.3f%%", k_chh, b_chh / (double) k_chh * 100);
-      fprintf(out, "\t%"PRId64"\t%1.3f%%", k_chh, b_ch  / (double) k_ch  * 100);
+      fprintf(out, "\t%"PRId64"\t%1.3f%%", k_ch,  b_ch  / (double) k_ch  * 100);
       fputc('\n', out);
     }
   }
