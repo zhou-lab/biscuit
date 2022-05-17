@@ -151,25 +151,27 @@ static void print_meth_average_1chrom(FILE *out, char *sample, char *chrom, doub
 }
 
 static void print_meth_average1(FILE *out, char *sample, double *betasum, int64_t *cnt, writer_conf_t *c) {
-  
-  // genome-wide
-  double betasum0[NCONTXTS] = {0.0};
-  int64_t cnt0[NCONTXTS] = {0}; int k0;
 
-  // by chromosome meth average
-  unsigned k;
-  for (k=0; k<c->targets->size; ++k) {
-    print_meth_average_1chrom(out, sample, get_target_v(c->targets,k).name,
-                              betasum+k*NCONTXTS, cnt+k*NCONTXTS, c);
     // genome-wide
-    for (k0=0; k0<NCONTXTS; ++k0) {
-      cnt0[k0] += cnt[k*NCONTXTS+k0];
-      betasum0[k0] += betasum[k*NCONTXTS+k0];
-    }
-  }
+    double  betasum0[NCONTXTS] = {0.0};
+    int64_t cnt0[NCONTXTS] = {0};
+    int k0;
 
-  // whole genome meth average
-  print_meth_average_1chrom(out, sample, "WholeGenome", betasum0, cnt0, c);
+    // by chromosome meth average
+    unsigned k, t;
+    for (k=0; k<c->targets->size; ++k) {
+        t = get_target_v(c->targets, k).tid;
+        print_meth_average_1chrom(out, sample, get_target_v(c->targets,t).name,
+                betasum+k*NCONTXTS, cnt+k*NCONTXTS, c);
+        // genome-wide
+        for (k0=0; k0<NCONTXTS; ++k0) {
+            cnt0[k0] += cnt[k*NCONTXTS+k0];
+            betasum0[k0] += betasum[k*NCONTXTS+k0];
+        }
+    }
+
+    // whole genome meth average
+    print_meth_average_1chrom(out, sample, "WholeGenome", betasum0, cnt0, c);
 }
 
 void *write_func(void *data) {
