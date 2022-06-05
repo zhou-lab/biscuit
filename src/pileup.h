@@ -71,6 +71,7 @@ typedef struct {
   int epiread_old;         /* print old BISCUIT epiread format */
   int print_all_locations; /* print all CpG and SNP locations in location column of epiread format */
   int is_nome;
+  uint8_t is_long_read;    /* data is from long read sequencing */
   int somatic;             /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
   int epiread_pair;        /* pair output mode in epireads, doesn't mean "paired-end" */
   uint32_t epiread_reg_start; /* first location of region provided to epiread */

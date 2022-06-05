@@ -28,8 +28,17 @@
 #include "pileup.h"
 #include "wzmisc.h"
 
+// TODO: Work these variables into two variables in the conf_t type
+//       and can be set via CLI options
+// For short reads
 #define MAX_READ_LENGTH 302
 #define MAX_RLEN 50
+// For long reads, I'm guessing there's a better way to do this, but until I
+// know what that is, this is going to be the way it's done
+// This also probably too long for PacBio and could be too short for ONT, but
+// I'll put in some checks to skip lines that are too long
+#define MAX_READ_LENGTH_LR 50000
+#define MAX_RLEN_LR 500
 
 DEFINE_VECTOR(int_v, int)
 DEFINE_VECTOR(char_v, char)
@@ -127,10 +136,15 @@ static void *epiread_write_func(void *data) {
 #define episnp_test(snps, i) snps[(i)>>3]&(1<<((i)&0x7))
 #define episnp_set(snps, i) snps[(i)>>3] |= 1<<((i)&0x7)
 
-void run_length_encode(char *str, char *out) {
+void run_length_encode(char *str, char *out, conf_t *conf) {
 
     int run_len;
-    char count[MAX_RLEN] = {0};
+    char *count;
+    if (conf->is_long_read) {
+        count = (char *)calloc(MAX_RLEN_LR, sizeof(char));
+    } else {
+        count = (char *)calloc(MAX_RLEN, sizeof(char));
+    }
     int len = strlen(str);
 
     int i, j=0, k;
@@ -153,6 +167,8 @@ void run_length_encode(char *str, char *out) {
         }
     }
 
+    free(count);
+
     out[j] = '\0';
 }
 
@@ -162,12 +178,15 @@ static void format_epi_bed(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, conf_t *conf,
         char *rle_arr_cg, char *rle_arr_gc, uint32_t start, uint32_t end) {
 
+    // Set max read length
+    uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
+
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
-    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - MAX_READ_LENGTH : w->beg;
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
-    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + MAX_READ_LENGTH : w->end;
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
 
     // Columns: chromosome, start, end, read name, read number, BS strand, encoded CG RLE
     // If running in NOMe-seq mode, then encoded GC RLE is added as a last column
@@ -200,12 +219,12 @@ static void format_epi_bed(
                     bsstrand ? '-' : '+');
 
             char *encoded_rle = (char *) malloc(sizeof(char) * (2*len_cg+1)); // encoded string can be no larger than 2 times the original string length
-            run_length_encode(rle_arr_cg, encoded_rle);
+            run_length_encode(rle_arr_cg, encoded_rle, conf);
             ksprintf(epi, "\t%s", encoded_rle);
 
             if (conf->is_nome) {
                 char *encoded_rle_gc = (char *) malloc(sizeof(char) * (2*len_gc+1)); // encoded string can be no larger than 2 times the original string length
-                run_length_encode(rle_arr_gc, encoded_rle_gc);
+                run_length_encode(rle_arr_gc, encoded_rle_gc, conf);
                 ksprintf(epi, "\t%s", encoded_rle_gc);
                 free(encoded_rle_gc);
             }
@@ -228,12 +247,15 @@ static void format_epiread_old(
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
+    // Set max read length
+    uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
+
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
-    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - MAX_READ_LENGTH : w->beg;
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
-    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + MAX_READ_LENGTH : w->end;
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
 
     uint32_t k;
 
@@ -352,12 +374,15 @@ static void format_epiread_pairwise(
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
+    // Set max read length
+    uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
+
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
-    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - MAX_READ_LENGTH : w->beg;
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
-    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + MAX_READ_LENGTH : w->end;
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
 
     uint32_t j, k;
     for (k=0; k<snp_p->size; ++k) {
@@ -486,8 +511,15 @@ static void *process_func(void *data) {
             }
 
             // run length encoding strings
-            char rle_arr_cg[MAX_READ_LENGTH] = {0}; // use qpos+j to determine which index will be written
-            char rle_arr_gc[MAX_READ_LENGTH] = {0};
+            char *rle_arr_cg; // use qpos+j to determine which index will be written
+            char *rle_arr_gc;
+            if (conf->is_long_read) {
+                rle_arr_cg = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
+                rle_arr_gc = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
+            } else {
+                rle_arr_cg = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
+                rle_arr_gc = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
+            }
 
             int i; uint32_t j;
             uint8_t rle_set = 0, rle_gc = 0;
@@ -745,6 +777,8 @@ static void *process_func(void *data) {
             }
 
             // clean up
+            free(rle_arr_gc);
+            free(rle_arr_cg);
             free_int_v(snp_p); free_char_v(snp_c);
             if (conf->is_nome) {
                 free_int_v(hcg_p); free_char_v(hcg_c);
@@ -832,6 +866,7 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "Output options:\n");
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
     fprintf(stderr, "    -N        NOMe-seq mode [off]\n");
+    fprintf(stderr, "    -L        Data is from long read sequencing [off]\n");
     fprintf(stderr, "    -P        Pairwise mode [off]\n");
     fprintf(stderr, "    -O        Old BISCUIT epiread format, not compatible with -P [off]\n");
     fprintf(stderr, "    -A        Print all CpG and SNP locations in location column, ignored if -O not given [off]\n");
@@ -886,6 +921,7 @@ int main_epiread(int argc, char *argv[]) {
     conf.epiread_old = 0;
     conf.print_all_locations = 0;
     conf.is_nome = 0;
+    conf.is_long_read = 0;
     conf.verbose = 0;
     conf.epiread_pair = 0;
     conf.epiread_reg_start = 0;
@@ -893,7 +929,7 @@ int main_epiread(int argc, char *argv[]) {
     conf.filter_empty_epiread = 1;
 
     if (argc<2) return usage(&conf);
-    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANEcduOPpvh"))>=0) {
+    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANLEcduOPpvh"))>=0) {
         switch (c) {
             case 'B': snp_bed_fn = optarg; break;
             case 'o': outfn = optarg; break;
@@ -911,6 +947,7 @@ int main_epiread(int argc, char *argv[]) {
             case 'O': conf.epiread_old = 1; break;
             case 'A': conf.print_all_locations = 1; break;
             case 'N': conf.is_nome = 1; break;
+            case 'L': conf.is_long_read = 1; break;
             case 'E': conf.filter_empty_epiread = 0; break;
             case 'c': conf.filter_secondary = 0; break;
             case 'd': conf.filter_doublecnt = 0; break;
