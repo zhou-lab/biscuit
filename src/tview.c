@@ -57,7 +57,7 @@ static int get_bsstrand(bam1_t *b) {
   if (s) {
     s++;
     if (strcmp((char*)s, "CT")==0) return 0;
-    else if (strcmp((char*)s, "GA")) return 1;
+    else if (strcmp((char*)s, "GA")==0) return 1;
   }
 
   /* otherwise, return failure */

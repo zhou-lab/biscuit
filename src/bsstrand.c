@@ -50,7 +50,7 @@ conversion_tag_t bam_tag_get_bsstrand(bam1_t *b) {
     if (s) {
         s++;
         if (strcmp((char*)s, "CT")==0) return TAG_BSW;
-        else if (strcmp((char*)s, "GA")) return TAG_BSC;
+        else if (strcmp((char*)s, "GA")==0) return TAG_BSC;
     }
 
     /* otherwise, guess the bsstrand from nCT and nGA */
