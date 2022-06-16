@@ -335,7 +335,7 @@ uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allo
   if (s) {
     s++;
     if (strcmp((char*)s, "CT")==0) return 0;
-    else if (strcmp((char*)s, "GA")) return 1;
+    else if (strcmp((char*)s, "GA")==0) return 1;
   }
 
   /* otherwise, guess the bsstrand from nCT and nGA */
