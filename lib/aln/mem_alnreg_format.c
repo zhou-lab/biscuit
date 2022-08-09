@@ -231,172 +231,197 @@ static void mem_alnreg_tagSA(const mem_opt_t *opt, const bntseq_t *bns, const ui
  * format SAM
  *************************/
 // mate is set at final stage because the mate might be asymmetric with alternative mappings
-// It doesn't not change the mem_alnreg_t inputs, since one alignment may be paired 
+// It doesn't change the mem_alnreg_t inputs, since one alignment may be paired 
 // with multiple other alignments 
 void mem_alnreg_formatSAM(
-   const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
-   kstring_t *str, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_t *m0,
-   const mem_alnreg_v *regs0, int is_primary, mem_pestat_t *pes) {
+        const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
+        kstring_t *str, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_t *m0,
+        const mem_alnreg_v *regs0, int is_primary, mem_pestat_t *pes) {
 
-   // make copies
-   mem_alnreg_t p = *p0;
-   mem_alnreg_t m; memset(&m, 0, sizeof(mem_alnreg_t));
-   if (m0) m = *m0;
+    // make copies
+    mem_alnreg_t p = *p0;
+    mem_alnreg_t m; memset(&m, 0, sizeof(mem_alnreg_t));
+    if (m0) m = *m0;
 
-   // set mate-related flags
-   p.flag |= m0 ? 0x1 : 0; // is paired in sequencing
-   p.flag |= m0 && m.rid < 0 ? 0x8 : 0; // is mate mapped
+    // set mate-related flags
+    p.flag |= m0 ? 0x1 : 0; // is paired in sequencing
+    p.flag |= m0 && m.rid < 0 ? 0x8 : 0; // is mate mapped
 
-   // if the mate has certain bss so should the target read
-   if (m0 && m0->bss_u == 0) p.bss_u = 0;
+    // if the mate has certain bss so should the target read
+    if (m0 && m0->bss_u == 0) p.bss_u = 0;
 
-   if (p.rid >= 0 && m0 && m.rid >= 0 && pes && is_proper_pair(bns, &p, &m, *pes)) {
-      p.flag |= 2; m.flag |= 2;
-   }
-   // copy mate coordinate to alignment
-   if (p.rid < 0 && m0 && m.rid >= 0) {
-      p.rid = m.rid; 
-      p.pos = m.pos;
-      p.is_rev = m.is_rev; // not 100% sure if we should copy is_rev
-      p.n_cigar = 0;
-   }
-   // copy alignment coordinates to mate
-   if (m0 && (m.rid < 0) && p.rid >= 0) {  // copy alignment to mate
-      m.rid = p.rid;
-      m.pos = p.pos;
-      m.is_rev = p.is_rev;
-      m.n_cigar = 0;
-   }
-   p.flag |= m0 && m.is_rev ? 0x20 : 0; // is mate on the reverse strand
+    if (p.rid >= 0 && m0 && m.rid >= 0 && pes && is_proper_pair(bns, &p, &m, *pes)) {
+        p.flag |= 2; m.flag |= 2;
+    }
+    // copy mate coordinate to alignment
+    if (p.rid < 0 && m0 && m.rid >= 0) {
+        p.rid = m.rid; 
+        p.pos = m.pos;
+        p.is_rev = m.is_rev; // not 100% sure if we should copy is_rev
+        p.n_cigar = 0;
+    }
+    // copy alignment coordinates to mate
+    if (m0 && (m.rid < 0) && p.rid >= 0) {  // copy alignment to mate
+        m.rid = p.rid;
+        m.pos = p.pos;
+        m.is_rev = p.is_rev;
+        m.n_cigar = 0;
+    }
+    p.flag |= m0 && m.is_rev ? 0x20 : 0; // is mate on the reverse strand
 
-   // print up to CIGAR
-   int l_name = strlen(s->name);
-   ks_resize(str, str->l + s->l_seq0 + l_name + (s->qual ? s->l_seq0 : 0) + 20);
-   kputsn(s->name, l_name, str); kputc('\t', str); // read name, QNAME
-   kputw((p.flag & 0xffff) | (p.flag & 0x10000 ? 0x100 : 0), str); kputc('\t', str); // FLAG
-   if (p.rid >= 0) { // with coordinate
-      kputs(bns->anns[p.rid].name, str); kputc('\t', str); // reference/chromosome name, RNAME
-      kputl(p.pos + 1, str); kputc('\t', str); // POS
-      kputw(p.mapq, str); kputc('\t', str); // MAPQ
-      if (p.n_cigar) { // CIGAR
-         int i;
-         for (i = 0; i < p.n_cigar; ++i) {
-            int c = p.cigar[i] & 0xf;
-            if (!(opt->flag & MEM_F_SOFTCLIP) && !p.is_alt && (c == 3 || c == 4))
-               c = is_primary ? 3 : 4; // use hard clipping for supplementary alignments
-            kputw(p.cigar[i]>>4, str); kputc("MIDSH"[c], str);
-         }
-      } else kputc('*', str); // having a coordinate but unaligned (e.g. when copy_mate is true)
-   } else kputsn("*\t0\t0\t*", 7, str); // without coordinte
-   kputc('\t', str);
+    // print up to CIGAR
+    int l_name = strlen(s->name);
+    ks_resize(str, str->l + s->l_seq0 + l_name + (s->qual ? s->l_seq0 : 0) + 20);
+    kputsn(s->name, l_name, str); kputc('\t', str); // read name, QNAME
+    kputw((p.flag & 0xffff) | (p.flag & 0x10000 ? 0x100 : 0), str); kputc('\t', str); // FLAG
+    if (p.rid >= 0) { // with coordinate
+        kputs(bns->anns[p.rid].name, str); kputc('\t', str); // reference/chromosome name, RNAME
+        kputl(p.pos + 1, str); kputc('\t', str); // POS
+        kputw(p.mapq, str); kputc('\t', str); // MAPQ
+        if (p.n_cigar) { // CIGAR
+            int i;
+            for (i = 0; i < p.n_cigar; ++i) {
+                int c = p.cigar[i] & 0xf;
+                if (!(opt->flag & MEM_F_SOFTCLIP) && !p.is_alt && (c == 3 || c == 4))
+                    c = is_primary ? 3 : 4; // use hard clipping for supplementary alignments
+                kputw(p.cigar[i]>>4, str); kputc("MIDSH"[c], str);
+            }
+        } else kputc('*', str); // having a coordinate but unaligned (e.g. when copy_mate is true)
+    } else kputsn("*\t0\t0\t*", 7, str); // without coordinte
+    kputc('\t', str);
 
-   // print the mate position if applicable
-   if (m0 && m.rid >= 0) {
-      if (p.rid == m.rid) kputc('=', str);
-      else kputs(bns->anns[m.rid].name, str);
-      kputc('\t', str);
-      kputl(m.pos + 1, str); kputc('\t', str);
-      if (p.rid == m.rid) {
+    // print the mate position if applicable
+    if (m0 && m.rid >= 0) {
+        if (p.rid == m.rid) kputc('=', str);
+        else kputs(bns->anns[m.rid].name, str);
+        kputc('\t', str);
+        kputl(m.pos + 1, str); kputc('\t', str);
+        if (p.rid == m.rid) {
 
-         // the following calculation of insert size is different from BWA
-         int64_t p0 = -1, p1 = -1;
-         if (p.is_rev) p1 = p.pos + get_rlen(p.n_cigar, p.cigar) - 1;
-         else p0 = p.pos;
-         if (m.is_rev) p1 = m.pos + get_rlen(m.n_cigar, m.cigar) - 1;
-         else p0 = m.pos;
-         if (p.n_cigar > 0 && m.n_cigar > 0 && p0 >= 0 && p1 >= 0) kputl(p1-p0+1, str);
-         else kputc('0', str);
+            // the following calculation of insert size is different from BWA
+            int64_t p0 = -1, p1 = -1;
+            if (p.is_rev) p1 = p.pos + get_rlen(p.n_cigar, p.cigar) - 1;
+            else p0 = p.pos;
+            if (m.is_rev) p1 = m.pos + get_rlen(m.n_cigar, m.cigar) - 1;
+            else p0 = m.pos;
+            if (p.n_cigar > 0 && m.n_cigar > 0 && p0 >= 0 && p1 >= 0) kputl(p1-p0+1, str);
+            else kputc('0', str);
 
-         // the BWA way
-         // int64_t p0 = p.pos + (p.is_rev? get_rlen(p.n_cigar, p.cigar) - 1 : 0);
-         // int64_t p1 = m.pos + (m.is_rev? get_rlen(m.n_cigar, m.cigar) - 1 : 0);
-         // if (m.n_cigar == 0 || p.n_cigar == 0) kputc('0', str);
-         // else kputl(-(p0 - p1 + (p0 > p1? 1 : p0 < p1? -1 : 0)), str);
-      } else kputc('0', str);
-   } else kputsn("*\t0\t0", 5, str);
-   kputc('\t', str);
+            // the BWA way
+            // int64_t p0 = p.pos + (p.is_rev? get_rlen(p.n_cigar, p.cigar) - 1 : 0);
+            // int64_t p1 = m.pos + (m.is_rev? get_rlen(m.n_cigar, m.cigar) - 1 : 0);
+            // if (m.n_cigar == 0 || p.n_cigar == 0) kputc('0', str);
+            // else kputl(-(p0 - p1 + (p0 > p1? 1 : p0 < p1? -1 : 0)), str);
+        } else kputc('0', str);
+    } else kputsn("*\t0\t0", 5, str);
+    kputc('\t', str);
 
-   // print SEQ and QUAL
-   if (p.flag & 0x100) {  // for secondary alignments, don't write SEQ and QUAL
-      kputsn("*\t*", 3, str);
-   } else if (p.is_rev) { // the reverse strand
+    // print SEQ and QUAL
+    if (p.flag & 0x100) {  // for secondary alignments, don't write SEQ and QUAL
+        kputsn("*\t*", 3, str);
+    } else if (p.is_rev) { // the reverse strand
 
-      // SEQ
-      int i, qb = 0, qe = s->l_seq0;
-      if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
-         if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qe -= p.cigar[0]>>4;
-         if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qb += p.cigar[p.n_cigar-1]>>4;
-      }
-      ks_resize(str, str->l + (qe - qb) + 1);
-      for (i = qe-1; i >= qb; --i) str->s[str->l++] = "TGCAN"[(int)s->seq0[i]];
-      kputc('\t', str);
+        // SEQ
+        int i, qb = 0, qe = s->l_seq0;
+        if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
+            if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qe -= p.cigar[0]>>4;
+            if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qb += p.cigar[p.n_cigar-1]>>4;
+        }
+        ks_resize(str, str->l + (qe - qb) + 1);
+        for (i = qe-1; i >= qb; --i) str->s[str->l++] = "TGCAN"[(int)s->seq0[i]];
+        kputc('\t', str);
 
-      // QUAL
-      if (s->qual) {
-         ks_resize(str, str->l + (qe - qb) + 1);
-         for (i = qe-1; i >= qb; --i) str->s[str->l++] = s->qual[i];
-         str->s[str->l] = 0;
-      } else kputc('*', str);
-    
-   } else {                // the forward strand
+        // QUAL
+        if (s->qual) {
+            ks_resize(str, str->l + (qe - qb) + 1);
+            for (i = qe-1; i >= qb; --i) str->s[str->l++] = s->qual[i];
+            str->s[str->l] = 0;
+        } else kputc('*', str);
 
-      // SEQ
-      int i, qb = 0, qe = s->l_seq0;
-      if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
-         if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qb += p.cigar[0]>>4;
-         if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qe -= p.cigar[p.n_cigar-1]>>4;
-      }
-      ks_resize(str, str->l + (qe - qb) + 1);
-      for (i = qb; i < qe; ++i) str->s[str->l++] = "ACGTN"[(int)s->seq0[i]];
-      kputc('\t', str);
+    } else {                // the forward strand
 
-      // QUAL
-      if (s->qual) {
-         ks_resize(str, str->l + (qe - qb) + 1);
-         for (i = qb; i < qe; ++i) str->s[str->l++] = s->qual[i];
-         str->s[str->l] = 0;
-      } else kputc('*', str);
-   }
+        // SEQ
+        int i, qb = 0, qe = s->l_seq0;
+        if (p.n_cigar && !is_primary && !(opt->flag&MEM_F_SOFTCLIP) && !p.is_alt) { // hard clip
+            if ((p.cigar[0]&0xf) == 4 || (p.cigar[0]&0xf) == 3) qb += p.cigar[0]>>4;
+            if ((p.cigar[p.n_cigar-1]&0xf) == 4 || (p.cigar[p.n_cigar-1]&0xf) == 3) qe -= p.cigar[p.n_cigar-1]>>4;
+        }
+        ks_resize(str, str->l + (qe - qb) + 1);
+        for (i = qb; i < qe; ++i) str->s[str->l++] = "ACGTN"[(int)s->seq0[i]];
+        kputc('\t', str);
 
-   // TAGS
-   if (p.n_cigar) {
-      kputsn("\tNM:i:", 6, str); kputw(p.NM, str); // true mismatches
-      // position of actual mismatches
-      kputsn("\tMD:Z:", 6, str); kputs((char*)(p.cigar + p.n_cigar), str);
-      kputsn("\tZC:i:", 6, str); kputw(p.ZC, str); // count of conversion
-      kputsn("\tZR:i:", 6, str); kputw(p.ZR, str); // count of retention
-   }
-   // AS: best local SW score
-   if (p.score >= 0) { kputsn("\tAS:i:", 6, str); kputw(p.score, str); }
-   // XS: 2nd best SW score or SW score of tandem hit whichever is higher
-   if (p.sub >= 0) { kputsn("\tXS:i:", 6, str); kputw(max(p.sub, p.csub), str); }
-   // RG: read group
-   if (bwa_rg_id[0]) { kputsn("\tRG:Z:", 6, str); kputs(bwa_rg_id, str); }
-   // SA: other parts of a chimeric primary mapping
-   if (regs0) mem_alnreg_tagSA(opt, bns, pac, s, p0, regs0, str);
-   // PA: ratio of score / alt_score, higher the ratio, the more accurate the position
-   if (is_primary && p.alt_sc > 0) ksprintf(str, "\tPA:f:%.3f", (double) p.score / p.alt_sc); // used to be lowercase pa, just to be consistent
-   // XL: read length excluding adaptor
-   kputsn("\tXL:i:", 6, str); kputw(s->l_seq, str);
-   // XA and XB: alternative (secondary) alignment
-   if (regs0) mem_alnreg_tagXAXB(opt, bns, pac, s, p0, regs0, str);
-   if (s->comment) { kputc('\t', str); kputs(s->comment, str); }
-   // XR: reference/chromosome annotation
-   if ((opt->flag&MEM_F_REF_HDR) && p.rid >= 0 && bns->anns[p.rid].anno != 0 && bns->anns[p.rid].anno[0] != 0) {
-      int tmp;
-      kputsn("\tXR:Z:", 6, str);
-      tmp = str->l;
-      kputs(bns->anns[p.rid].anno, str);
-      unsigned i;
-      for (i = tmp; i < str->l; ++i) // replace TAB in the comment to SPACE
-         if (str->s[i] == '\t') str->s[i] = ' ';
-   }
-   // YD: Bisulfite conversion strand label, f for forward and r for reverse, a la BWA-meth
-   kputsn("\tYD:A:", 6, str);
-   if (p.bss_u) kputc('u', str);
-   else kputc("fr"[p.bss], str);
+        // QUAL
+        if (s->qual) {
+            ks_resize(str, str->l + (qe - qb) + 1);
+            for (i = qb; i < qe; ++i) str->s[str->l++] = s->qual[i];
+            str->s[str->l] = 0;
+        } else kputc('*', str);
+    }
 
-   kputc('\n', str);
+    // TAGS
+    if (p.n_cigar) {
+        kputsn("\tNM:i:", 6, str); kputw(p.NM, str); // true mismatches
+        // position of actual mismatches
+        kputsn("\tMD:Z:", 6, str); kputs((char*)(p.cigar + p.n_cigar), str);
+        kputsn("\tZC:i:", 6, str); kputw(p.ZC, str); // count of conversion
+        kputsn("\tZR:i:", 6, str); kputw(p.ZR, str); // count of retention
+    }
+
+    // AS: best local SW score
+    if (p.score >= 0) { kputsn("\tAS:i:", 6, str); kputw(p.score, str); }
+
+    // XS: 2nd best SW score or SW score of tandem hit whichever is higher
+    if (p.sub >= 0) { kputsn("\tXS:i:", 6, str); kputw(max(p.sub, p.csub), str); }
+
+    // RG: read group
+    if (bwa_rg_id[0]) { kputsn("\tRG:Z:", 6, str); kputs(bwa_rg_id, str); }
+
+    // SA: other parts of a chimeric primary mapping
+    if (regs0) mem_alnreg_tagSA(opt, bns, pac, s, p0, regs0, str);
+
+    // PA: ratio of score / alt_score, higher the ratio, the more accurate the position
+    if (is_primary && p.alt_sc > 0) ksprintf(str, "\tPA:f:%.3f", (double) p.score / p.alt_sc); // used to be lowercase pa, just to be consistent
+
+    // XL: read length excluding adaptor
+    kputsn("\tXL:i:", 6, str); kputw(s->l_seq, str);
+
+    // XA and XB: alternative (secondary) alignment
+    if (regs0) mem_alnreg_tagXAXB(opt, bns, pac, s, p0, regs0, str);
+    if (s->comment) { kputc('\t', str); kputs(s->comment, str); }
+    // XR: reference/chromosome annotation
+    if ((opt->flag&MEM_F_REF_HDR) && p.rid >= 0 && bns->anns[p.rid].anno != 0 && bns->anns[p.rid].anno[0] != 0) {
+        int tmp;
+        kputsn("\tXR:Z:", 6, str);
+        tmp = str->l;
+        kputs(bns->anns[p.rid].anno, str);
+        unsigned i;
+        for (i = tmp; i < str->l; ++i) // replace TAB in the comment to SPACE
+            if (str->s[i] == '\t') str->s[i] = ' ';
+    }
+
+    // MC/MQ: CIGAR string for mate/next segment (MC) and Mapping quality for mate/next segment (MQ)
+    kputsn("\tMC:Z:", 6, str);
+    if (m.n_cigar) { // CIGAR
+        int i;
+        for (i = 0; i < m.n_cigar; ++i) {
+            int c = m.cigar[i] & 0xf;
+            if (!(opt->flag & MEM_F_SOFTCLIP) && !m.is_alt && (c == 3 || c == 4))
+                c = is_primary ? 3 : 4; // use hard clipping for supplementary alignments
+            kputw(m.cigar[i]>>4, str); kputc("MIDSH"[c], str);
+        }
+    } else {
+        kputc('*', str); // having a coordinate but unaligned (e.g. when copy_mate is true)
+    }
+
+    kputsn("\tMQ:i:", 6, str);
+    kputw(m.mapq, str);
+
+    // YD: Bisulfite conversion strand label, f for forward and r for reverse, a la BWA-meth
+    kputsn("\tYD:A:", 6, str);
+    if (p.bss_u) kputc('u', str);
+    else kputc("fr"[p.bss], str);
+
+    kputc('\n', str);
 }
 
 /****************************************
