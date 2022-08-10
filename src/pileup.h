@@ -43,49 +43,48 @@
 #include "biscuit.h"
 
 typedef struct {
-  int step;
-  int n_threads;
-  int min_cov;
-  uint32_t min_base_qual;
-  uint32_t max_retention;
-  uint32_t min_read_len;
-  uint8_t min_dist_end_5p;
-  uint8_t min_dist_end_3p;
-  uint8_t min_mapq;
-  int max_nm;
-  uint8_t filter_ppair:1;       /* filter BAM_FPROPER_PAIR */
-  uint8_t filter_secondary:1;
-  uint8_t filter_doublecnt:1; /* stop double-counting cytosine in overlapping mate reads */
-  uint8_t filter_duplicate:1;
-  uint8_t filter_qcfail:1;
-  uint8_t noheader:1;
-  uint8_t ambi_redist:1;
-  double error;
-  double mu;
-  double mu_somatic;
-  double contam;
-  double prior0;
-  double prior1;
-  double prior2;
-  uint8_t verbose;
-  int epiread_old;         /* print old BISCUIT epiread format */
-  int print_all_locations; /* print all CpG and SNP locations in location column of epiread format */
-  int is_nome;
-  uint8_t is_long_read;    /* data is from long read sequencing */
-  int somatic;             /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
-  int epiread_pair;        /* pair output mode in epireads, doesn't mean "paired-end" */
-  uint32_t epiread_reg_start; /* first location of region provided to epiread */
-  uint32_t epiread_reg_end; /* final location of region provided to epiread */
-  uint8_t filter_empty_epiread:1; /* remove epireads that only have F/x/P */
-  int min_score;           /* minimum score from AS tag */
+    int step;
+    int n_threads;
+    uint32_t min_base_qual;
+    uint32_t max_retention;
+    uint32_t min_read_len;
+    uint8_t min_dist_end_5p;
+    uint8_t min_dist_end_3p;
+    uint8_t min_mapq;
+    int max_nm;
+    uint8_t filter_ppair:1;     /* filter BAM_FPROPER_PAIR */
+    uint8_t filter_secondary:1;
+    uint8_t filter_doublecnt:1; /* stop double-counting cytosine in overlapping mate reads */
+    uint8_t filter_duplicate:1;
+    uint8_t filter_qcfail:1;
+    uint8_t noheader:1;
+    uint8_t ambi_redist:1;
+    double error;
+    double mu;
+    double mu_somatic;
+    double contam;
+    double prior0;
+    double prior1;
+    double prior2;
+    uint8_t verbose;
+    int epiread_old;         /* print old BISCUIT epiread format */
+    int print_all_locations; /* print all CpG and SNP locations in location column of epiread format */
+    int is_nome;
+    uint8_t is_long_read;           /* data is from long read sequencing */
+    int somatic;                    /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
+    int epiread_pair;               /* pair output mode in epireads, doesn't mean "paired-end" */
+    uint32_t epiread_reg_start;     /* first location of region provided to epiread */
+    uint32_t epiread_reg_end;       /* final location of region provided to epiread */
+    uint8_t filter_empty_epiread:1; /* remove epireads that only have F/x/P */
+    int min_score;                  /* minimum score from AS tag */
 } conf_t;
 
 void conf_init(conf_t *conf);
 
 typedef struct {
-  int64_t block_id;
-  int32_t tid;
-  uint32_t beg, end;
+    int64_t block_id;
+    int32_t tid;
+    uint32_t beg, end;
 } window_t;
 
 DEFINE_WQUEUE(window, window_t)
@@ -99,20 +98,20 @@ typedef enum {METH_RETENTION, METH_CONVERSION, METH_NA} status_meth_t;
 typedef enum {BASE_A, BASE_C, BASE_G, BASE_T, BASE_N, BASE_Y, BASE_R} status_base_t;
 
 /* cytosine context code */
-#define NCONTXTS 6          /* not including NA */
+#define NCONTXTS 6 /* not including NA */
 typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH, CTXT_GCG, CTXT_GCHG, CTXT_GCHH, CTXT_NA} cytosine_context_t;
 extern const char *cytosine_context[];
 
 typedef struct {
-  uint8_t sid;                  /* which sample */
-  uint8_t bsstrand:1;           /* bisulfite strand */
-  uint8_t qual:7;               /* base quality */
-  uint8_t strand:1;             /* read stand */
-  uint16_t qpos;                /* position on read */
-  uint8_t cnt_ret;              /* count of retention of entire read */
-  uint16_t rlen;                /* read length */
-  char qb;                      /* query base */
-  uint8_t stat;                 /* (status_base_t << 4) | status_meth_t */
+    uint8_t sid;        /* which sample */
+    uint8_t bsstrand:1; /* bisulfite strand */
+    uint8_t qual:7;     /* base quality */
+    uint8_t strand:1;   /* read stand */
+    uint16_t qpos;      /* position on read */
+    uint8_t cnt_ret;    /* count of retention of entire read */
+    uint16_t rlen;      /* read length */
+    char qb;            /* query base */
+    uint8_t stat;       /* (status_base_t << 4) | status_meth_t */
 } __attribute__((__packed__)) pileup_data_t;
 
 DEFINE_VECTOR(pileup_data_v, pileup_data_t)
@@ -121,16 +120,14 @@ DEFINE_VECTOR(pileup_data_v, pileup_data_t)
 #define RECORD_SLOT_OBSOLETE -1
 
 typedef struct {
-  int64_t block_id;
-  kstring_t s;                  // vcf record
+    int64_t block_id;
+    kstring_t s; /* vcf record */
 
-  /* coverage */
-  int tid;
+    /* coverage */
+    int tid;
 
-  /* methlevelaverages, [beta sum, cnt] */
-  /* dim = NCONTXTS * n_bams */
-  double *betasum_context;      // CG, CHG, CHH
-  int64_t *cnt_context;         // number of c in each context
+    double *betasum_context; /* CG, CHG, CHH */
+    int64_t *cnt_context;    /* number of C's in each context */
 } record_t;
 
 DEFINE_VECTOR(record_v, record_t)
@@ -147,64 +144,63 @@ uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual);
 uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allow_u);
 
 typedef struct {
-  int32_t tid;
-  char *name;
-  uint32_t len;
+    int32_t tid;
+    char *name;
+    uint32_t len;
 } target_t;
 
 DEFINE_VECTOR(target_v, target_t);
 
 static inline int compare_targets(const void *a, const void *b) {
-  return strcmp(((target_t*)a)->name, ((target_t*)b)->name);
+    return strcmp(((target_t*)a)->name, ((target_t*)b)->name);
 }
 
 cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc);
 
 #define max(a,b)                \
-  ({ __typeof__ (a) _a = (a);   \
-    __typeof__ (b) _b = (b);    \
-    _a > _b ? _a : _b; })
+    ({ __typeof__ (a) _a = (a); \
+     __typeof__ (b) _b = (b);   \
+     _a > _b ? _a : _b; })
 
 #define min(a,b)                \
-  ({ __typeof__ (a) _a = (a);   \
-    __typeof__ (b) _b = (b);    \
-    _a > _b ? _b : _a; })
+    ({ __typeof__ (a) _a = (a); \
+     __typeof__ (b) _b = (b);   \
+     _a > _b ? _b : _a; })
 
 void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq);
 int reference_supp(int cnts[9]);
 
-static inline int compare_supp(const void *a, const void *b)
-{
-  return ((*(uint32_t*)b)>>4) - ((*(uint32_t*)a)>>4);
+static inline int compare_supp(const void *a, const void *b) {
+    return ((*(uint32_t*)b)>>4) - ((*(uint32_t*)a)>>4);
 }
 
 typedef struct {
-  wqueue_t(record) *q;
-  int n_bams;
-  char **bam_fns;
-  char *outfn;
-  char *statsfn;
-  char *header;
-  target_v *targets;
-  conf_t *conf;
+    wqueue_t(record) *q;
+    int n_bams;
+    char **bam_fns;
+    char *outfn;
+    char *statsfn;
+    char *header;
+    target_v *targets;
+    conf_t *conf;
 } writer_conf_t;
 
 void *write_func(void *data);
 
 static inline void pileup_parse_region(const char *reg, void *hdr, int *tid, int *beg, int *end) {
-  const char *q = hts_parse_reg(reg, beg, end);
-  if (q) {
-    char *tmp = (char*)malloc(q - reg + 1);
-    strncpy(tmp, reg, q - reg);
-    tmp[q - reg] = 0;
-    *tid = bam_name2id(hdr, tmp);
-    free(tmp);
-  }
-  else {
-    // not parsable as a region, but possibly a sequence named "foo:a"
-    *tid = bam_name2id(hdr, reg);
-    *beg = 0; *end = INT_MAX;
-  }
+    const char *q = hts_parse_reg(reg, beg, end);
+    if (q) {
+        char *tmp = (char*)malloc(q - reg + 1);
+        strncpy(tmp, reg, q - reg);
+        tmp[q - reg] = 0;
+        *tid = bam_name2id(hdr, tmp);
+        free(tmp);
+    }
+    else {
+        // not parsable as a region, but possibly a sequence named "foo:a"
+        *tid = bam_name2id(hdr, reg);
+        *beg = 0; *end = INT_MAX;
+    }
 }
 
 #ifndef kroundup32
