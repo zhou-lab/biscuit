@@ -78,7 +78,7 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
     double pchisq = gsl_cdf_chisq_Q(two_by_two_chisq(cross[smax[0]*5+cmax[0]],
                                                      cross[smax[0]*5+cmax[1]],
                                                      cross[smax[1]*5+cmax[0]],
-                                                     cross[smax[1]*5+cmax[1]]), 2);
+                                                     cross[smax[1]*5+cmax[1]]), 1);
     if (snp_loc != cg_loc &&
         nt256int8_to_nt256char_table[cmax[0]] != 'N' &&
         nt256int8_to_nt256char_table[cmax[1]] != 'N') {
