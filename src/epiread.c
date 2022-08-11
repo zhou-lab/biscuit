@@ -435,6 +435,18 @@ static void *process_func(void *data) {
     }
    
     bam_hdr_t *header = sam_hdr_read(in);
+
+    // Need to define the cigar tab for parsing the MC tags
+    if (header->cigar_tab == 0) {
+        header->cigar_tab = (int8_t*) malloc(128);
+
+        int i;
+        for (i = 0; i < 128; ++i)
+            header->cigar_tab[i] = -1;
+        for (i = 0; BAM_CIGAR_STR[i]; ++i)
+            header->cigar_tab[(int)BAM_CIGAR_STR[i]] = i;
+    }
+
     refcache_t *rs = init_refcache(res->ref_fn, 1000, 1000);
     uint32_t j;
 
@@ -542,6 +554,22 @@ static void *process_func(void *data) {
             uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
             uint32_t qpos  = 0;           // query position
 
+            uint32_t read_length = bam_cigar2rlen(c->n_cigar, bam_get_cigar(b));
+
+            uint32_t mate_length;
+            uint8_t *mc = bam_aux_get(b, "MC");
+            if (mc) {
+                mc++;
+                mate_length = get_mate_length((char *)mc, header);
+            } else {
+                // If MC tag is missing, then assume reads are the same length
+                mate_length = read_length;
+            }
+
+            // -1 accounts for the 1-based nature of the coordinates
+            uint32_t rend  = rpos  + read_length - 1;
+            uint32_t rmend = rmpos + mate_length - 1;
+
             // TODO: Can probably clean up the RLE array index calls (i.e., rle_arr_cg[qpos+j-1+n_deletions])
             char rb, qb;
             for (i=0; i<c->n_cigar; ++i) {
@@ -646,19 +674,20 @@ static void *process_func(void *data) {
                                 continue;
                             }
 
-                            /* If read 2 in a proper pair, skip counting overlapped cytosines
-                             * Right now I assume read 1 and read 2 are the same length and there is no gap.
-                             * Better solution would be to log mate end in the alignment (using bam_endpos).
-                             * The filtering of double counting is only effective when reads are properly paired.
+                            /* If reads 1 and 2 overlap, skip counting bases in read 2
+                             * Read lengths are relative to the reference as defined by the CIGAR string (if MC tag
+                             *     not given in read, then mate length is assumed to be the same as the current
+                             *     read)
+                             * Overlapping bases in both proper and improper pairs (if user requests these be
+                             *     included) will be ignored
                              *  
                              * The filtering removes bases from read 2 (usually the read on the complement strand)
                              * that fall into the overlapped region.
                              */
-                            if (conf->filter_doublecnt &&
-                                (c->flag & BAM_FPROPER_PAIR) &&
+                            if ((conf->filter_doublecnt) &&
                                 (c->flag & BAM_FREAD2) &&
-                                rpos+j >= max(rpos, rmpos) &&
-                                rpos+j <= min(rpos + c->l_qseq, rmpos + c->l_qseq)) {
+                                (rpos+j >= max(rpos, rmpos)) &&
+                                (rpos+j <= min(rend, rmend))) {
                                 rle_arr_cg[qpos+j+n_deletions] = filtered; rle_arr_gc[qpos+j+n_deletions] = filtered; rle_gc--;
 
                                 // Properly handle the old epiread format
