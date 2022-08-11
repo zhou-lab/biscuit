@@ -143,6 +143,8 @@ uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual);
 
 uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allow_u);
 
+uint32_t get_mate_length(char *m_cigar, bam_hdr_t *hdr);
+
 typedef struct {
     int32_t tid;
     char *name;

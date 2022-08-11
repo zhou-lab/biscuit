@@ -834,6 +834,45 @@ uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand) {
     return cnt;
 }
 
+uint32_t get_mate_length(char *m_cigar, bam_hdr_t *hdr) {
+    // reference length of mate read (excludes clipping and insertions)
+    uint32_t length = 0;
+
+    // An unmapped read will have a '*' as its CIGAR string
+    // Treat these reads as having length 0 (this is why the initialization value is 0)
+    if (*m_cigar != '*') {
+        char *query;
+        size_t n_cigar = 0;
+
+        // Count number of CIGAR operations
+        for (query = m_cigar; *m_cigar && *m_cigar != '\0'; ++m_cigar) {
+            if (!isdigit((unsigned char) *m_cigar)) { ++n_cigar; }
+        }
+
+        if (*m_cigar++ != '\0') { wzfatal("Malformed MC tag CIGAR string\n"); }
+        if (n_cigar == 0)       { wzfatal("No CIGAR operations found in MC tag\n"); }
+        if (n_cigar >= 65536)   { wzfatal("Too many CIGAR operations found in MC tag\n"); }
+
+        unsigned int i;
+        int op;
+        uint32_t *cigar = malloc(n_cigar * sizeof(uint32_t));
+        for (i = 0; i < n_cigar; ++i, ++query) {
+            cigar[i] = strtol(query, &query, 10) << BAM_CIGAR_SHIFT;
+
+            op = (uint8_t)*query >= 128? -1 : hdr->cigar_tab[(int)*query];
+            if (op < 0) { wzfatal("Unrecognized CIGAR operator\n"); }
+
+            cigar[i] |= op;
+        }
+
+        length = bam_cigar2rlen(n_cigar, cigar);
+
+        free(cigar);
+    }
+
+    return length;
+}
+
 static void *process_func(void *_result) {
 
     result_t *res = (result_t*) _result;
@@ -860,7 +899,21 @@ static void *process_func(void *_result) {
         }
     }
     /* header of first bam */
+    // TODO: This assumes that the headers are the same for all input BAMs
+    //       This is probably okay to assume, but it's better to use the respective headers for each BAM
     bam_hdr_t *bam_hdr = sam_hdr_read(in_fhs[0]);
+
+    // Need to define the cigar tab for parsing the MC tags
+    if (bam_hdr->cigar_tab == 0) {
+        bam_hdr->cigar_tab = (int8_t*) malloc(128);
+
+        int i;
+        for (i = 0; i < 128; ++i)
+            bam_hdr->cigar_tab[i] = -1;
+        for (i = 0; BAM_CIGAR_STR[i]; ++i)
+            bam_hdr->cigar_tab[(int)BAM_CIGAR_STR[i]] = i;
+    }
+
     refcache_t *rs = init_refcache(res->ref_fn, 1000, 1000);
     int i; unsigned j;
 
@@ -920,7 +973,24 @@ static void *process_func(void *_result) {
                 uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
                 if (cnt_ret > conf->max_retention) continue;
 
+                // read positions and lengths
                 uint32_t rpos = c->pos+1, qpos = 0, rmpos = c->mpos + 1;
+                uint32_t read_length = bam_cigar2rlen(c->n_cigar, bam_get_cigar(b));
+
+                uint32_t mate_length;
+                uint8_t *mc = bam_aux_get(b, "MC");
+                if (mc) {
+                    mc++;
+                    mate_length = get_mate_length((char *)mc, bam_hdr);
+                } else {
+                    // If MC tag is missing, then assume reads are the same length
+                    mate_length = read_length;
+                }
+
+                // -1 accounts for the 1-based nature of the coordinates
+                uint32_t rend  = rpos  + read_length - 1;
+                uint32_t rmend = rmpos + mate_length - 1;
+
                 for (i=0; i<c->n_cigar; ++i) {
                     uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
                     uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
@@ -933,19 +1003,23 @@ static void *process_func(void *_result) {
                                 rb = refcache_getbase_upcase(rs, rpos+j);
                                 qb = bscall(b, qpos+j);
 
-                                /* If read 2 in a proper pair, skip counting overlapped cytosines
-                                 * Right now I assume read 1 and read 2 are the same length and there is no gap.
-                                 * Better solution would be to log mate end in the alignment (using bam_endpos).
-                                 * The filtering of double counting is only effective when reads are properly paired.
+                                /* If reads 1 and 2 overlap, skip counting bases in read 2
+                                 * Read lengths are relative to the reference as defined by the CIGAR string (if MC tag
+                                 *     not given in read, then mate length is assumed to be the same as the current
+                                 *     read)
+                                 * Overlapping bases in both proper and improper pairs (if user requests these be
+                                 *     included) will be ignored
                                  *  
                                  * The filtering removes bases from read 2 (usually the read on the complement strand)
                                  * that fall into the overlapped region.
                                  */
-                                if (conf->filter_doublecnt &&
-                                        (c->flag & BAM_FPROPER_PAIR) &&
-                                        (c->flag & BAM_FREAD2) &&
-                                        rpos+j >= max(rpos, rmpos) && rpos+j <= min(rpos + c->l_qseq, rmpos + c->l_qseq))
+                                if ((conf->filter_doublecnt) &&
+                                    (c->flag & BAM_FREAD2) &&
+                                    (rpos+j >= max(rpos, rmpos)) &&
+                                    (rpos+j <= min(rend, rmend))) {
                                     continue;
+                                }
+
                                 pileup_data_v **plp_data_vec = plp->data+rpos+j-w.beg;
                                 if (!*plp_data_vec) *plp_data_vec = init_pileup_data_v(2);
                                 pileup_data_t *d = next_ref_pileup_data_v(*plp_data_vec);
