@@ -77,6 +77,7 @@ typedef struct {
     uint32_t epiread_reg_end;       /* final location of region provided to epiread */
     uint8_t filter_empty_epiread:1; /* remove epireads that only have F/x/P */
     int min_score;                  /* minimum score from AS tag */
+    uint32_t n_g_first;             /* number of OB/CTOB reads with a G in a CG context as first base, only incremented if not already filtered */
 } conf_t;
 
 void conf_init(conf_t *conf);
