@@ -568,6 +568,8 @@ static void *process_func(void *data) {
             uint32_t rpos  = c->pos  + 1; // 1-based reference position
             uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
             uint32_t qpos  = 0;           // query position
+            uint32_t qj    = 0;           // current position in query
+            uint32_t qjd   = 0;           // current position in query adjusted by n_deletions
 
             // Handle read lengths for overlapping reads
             uint32_t read_length = bam_cigar2rlen(c->n_cigar, bam_get_cigar(b));
@@ -586,7 +588,6 @@ static void *process_func(void *data) {
             uint32_t rend  = rpos  + read_length - 1;
             uint32_t rmend = rmpos + mate_length - 1;
 
-            // TODO: Can probably clean up the RLE array index calls (i.e., rle_arr_cg[qpos+j-1+n_deletions])
             char rb, qb;
             for (i=0; i<c->n_cigar; ++i) {
                 uint32_t op    = bam_cigar_op(bam_get_cigar(b)[i]);
@@ -594,12 +595,14 @@ static void *process_func(void *data) {
                 switch(op) {
                     case BAM_CMATCH:
                         for (j=0; j<oplen; ++j) {
+                            qj = qpos + j;
+                            qjd = qj + n_deletions;
                             rb = refcache_getbase_upcase(rs, rpos+j);
-                            qb = bscall(b, qpos+j);
+                            qb = bscall(b, qj);
 
                             // skip bases with low base quality
-                            if (bam_get_qual(b)[qpos+j] < conf->min_base_qual) {
-                                rle_arr_cg[qpos+j+n_deletions] = filtered; rle_arr_gc[qpos+j+n_deletions] = filtered; rle_gc--;
+                            if (bam_get_qual(b)[qj] < conf->min_base_qual) {
+                                rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
 
                                 // Properly handle the old epiread format
                                 // TODO: This exact same thing occurs three times for each of the filtering
@@ -609,7 +612,7 @@ static void *process_func(void *data) {
                                         if (rpos+j+1 <= rs->end) {
                                             char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
                                             char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 == 'C' && rb1 != 'C' && qpos+j > 0) {
+                                            if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
                                                 push_int_v(hcg_p, (int) rpos+j-1); push_char_v(hcg_c, skip_epi);
                                             } else if (rb0 != 'C' && rb1 == 'C') {
                                                 push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
@@ -647,8 +650,8 @@ static void *process_func(void *data) {
                             // read-position-based filtering
                             // Follows the same form as pileup, so qpos is adjusted to be 1-based/1-indexed and
                             // filtering is done according to that, rather than being 0-based/0-indexed
-                            if (qpos+j+1 <= conf->min_dist_end_5p || c->l_qseq < (int32_t)(qpos+j+1 + conf->min_dist_end_3p)) {
-                                rle_arr_cg[qpos+j+n_deletions] = filtered; rle_arr_gc[qpos+j+n_deletions] = filtered; rle_gc--;
+                            if (qj+1 <= conf->min_dist_end_5p || c->l_qseq < (int32_t)(qj+1 + conf->min_dist_end_3p)) {
+                                rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
 
                                 // Properly handle the old epiread format
                                 if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
@@ -656,7 +659,7 @@ static void *process_func(void *data) {
                                         if (rpos+j+1 <= rs->end) {
                                             char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
                                             char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 == 'C' && rb1 != 'C' && qpos+j > 0) {
+                                            if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
                                                 push_int_v(hcg_p, (int) rpos+j-1); push_char_v(hcg_c, skip_epi);
                                             } else if (rb0 != 'C' && rb1 == 'C') {
                                                 push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
@@ -704,7 +707,7 @@ static void *process_func(void *data) {
                                 (c->flag & BAM_FREAD2) &&
                                 (rpos+j >= max(rpos, rmpos)) &&
                                 (rpos+j <= min(rend, rmend))) {
-                                rle_arr_cg[qpos+j+n_deletions] = filtered; rle_arr_gc[qpos+j+n_deletions] = filtered; rle_gc--;
+                                rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
 
                                 // Properly handle the old epiread format
                                 if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
@@ -712,7 +715,7 @@ static void *process_func(void *data) {
                                         if (rpos+j+1 <= rs->end) {
                                             char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
                                             char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 == 'C' && rb1 != 'C' && qpos+j > 0) {
+                                            if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
                                                 push_int_v(hcg_p, (int) rpos+j-1); push_char_v(hcg_c, skip_epi);
                                             } else if (rb0 != 'C' && rb1 == 'C') {
                                                 push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
@@ -753,7 +756,7 @@ static void *process_func(void *data) {
                                     if (rpos+j+1 <= rs->end) { // prevent overflow
                                         char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
                                         char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
-                                        if (rb0 == 'C' && rb1 != 'C' && qpos+j > 0) { // HCG context, avoids when G is first base in read
+                                        if (rb0 == 'C' && rb1 != 'C' && qj > 0) { // HCG context, avoids when G is first base in read
                                             // Note: measure G in CpG context, record location of C
                                             push_int_v(hcg_p, (int) rpos+j-1);
                                             if (qb == 'A') {
@@ -783,14 +786,14 @@ static void *process_func(void *data) {
                                                         print_first_g_warning();
                                                     }
                                                     conf->n_g_first++;
-                                                    rle_arr_cg[qpos+j+n_deletions] = filtered;
+                                                    rle_arr_cg[qjd] = filtered;
                                                 } else {
-                                                    rle_arr_cg[qpos+j-1+n_deletions] = unmethyl;
-                                                    rle_arr_cg[qpos+j+n_deletions] = ignored;
+                                                    rle_arr_cg[qjd-1] = unmethyl;
+                                                    rle_arr_cg[qjd] = ignored;
                                                 }
                                                 rle_set = 1;
 
-                                                rle_arr_gc[qpos+j+n_deletions] = ignored;
+                                                rle_arr_gc[qjd] = ignored;
                                             } else if (qb == 'G') {
                                                 push_char_v(hcg_c, 'C');
                                                 if (qpos == 0 && j == 0 && n_deletions == 0) {
@@ -798,10 +801,10 @@ static void *process_func(void *data) {
                                                         print_first_g_warning();
                                                     }
                                                     conf->n_g_first++;
-                                                    rle_arr_cg[qpos+j+n_deletions] = filtered;
+                                                    rle_arr_cg[qjd] = filtered;
                                                 } else {
-                                                    rle_arr_cg[qpos+j-1+n_deletions] = methylat;
-                                                    rle_arr_cg[qpos+j+n_deletions] = ignored;
+                                                    rle_arr_cg[qjd-1] = methylat;
+                                                    rle_arr_cg[qjd] = ignored;
                                                 }
                                                 rle_set = 1;
 
@@ -810,32 +813,32 @@ static void *process_func(void *data) {
                                                         print_first_g_warning();
                                                     }
                                                     conf->n_g_first++;
-                                                    rle_arr_gc[qpos+j+n_deletions] = filtered;
+                                                    rle_arr_gc[qjd] = filtered;
                                                 } else {
-                                                    rle_arr_gc[qpos+j-1+n_deletions] = ignored;
-                                                    rle_arr_gc[qpos+j+n_deletions] = ignored;
+                                                    rle_arr_gc[qjd-1] = ignored;
+                                                    rle_arr_gc[qjd] = ignored;
                                                 }
                                             } else {
                                                 push_char_v(hcg_c, 'N');
                                             }
                                         } else if (rb0 != 'C' && rb1 == 'C') { // GCH context
-                                            // Potential FIXME: May need to add something similar to the qpos+j requirement
+                                            // Potential FIXME: May need to add something similar to the qj requirement
                                             //                  in the above if-statement to avoid case where G is the last base
                                             push_int_v(gch_p, (int) rpos+j);
                                             if (qb == 'A') {
                                                 push_char_v(gch_c, 'T');
-                                                rle_arr_cg[qpos+j+n_deletions] = ignored;
+                                                rle_arr_cg[qjd] = ignored;
                                                 rle_set = 1;
 
-                                                rle_arr_gc[qpos+j+n_deletions] = ignored;
+                                                rle_arr_gc[qjd] = ignored;
                                                 accessibility = shut_acc;
                                                 rle_gc = 2;
                                             } else if (qb == 'G') {
                                                 push_char_v(gch_c, 'C');
-                                                rle_arr_cg[qpos+j+n_deletions] = ignored;
+                                                rle_arr_cg[qjd] = ignored;
                                                 rle_set = 1;
 
-                                                rle_arr_gc[qpos+j+n_deletions] = ignored;
+                                                rle_arr_gc[qjd] = ignored;
                                                 accessibility = open_acc;
                                                 rle_gc = 2;
                                             } else {
@@ -855,10 +858,10 @@ static void *process_func(void *data) {
                                                     print_first_g_warning();
                                                 }
                                                 conf->n_g_first++;
-                                                rle_arr_cg[qpos+j+n_deletions] = filtered;
+                                                rle_arr_cg[qjd] = filtered;
                                             } else {
-                                                rle_arr_cg[qpos+j-1+n_deletions] = unmethyl;
-                                                rle_arr_cg[qpos+j+n_deletions] = ignored;
+                                                rle_arr_cg[qjd-1] = unmethyl;
+                                                rle_arr_cg[qjd] = ignored;
                                             }
                                             rle_set = 1;
                                         } else if (qb == 'G') {
@@ -868,10 +871,10 @@ static void *process_func(void *data) {
                                                     print_first_g_warning();
                                                 }
                                                 conf->n_g_first++;
-                                                rle_arr_cg[qpos+j+n_deletions] = filtered;
+                                                rle_arr_cg[qjd] = filtered;
                                             } else {
-                                                rle_arr_cg[qpos+j-1+n_deletions] = methylat;
-                                                rle_arr_cg[qpos+j+n_deletions] = ignored;
+                                                rle_arr_cg[qjd-1] = methylat;
+                                                rle_arr_cg[qjd] = ignored;
                                             }
                                             rle_set = 1;
                                         } else {
@@ -892,10 +895,10 @@ static void *process_func(void *data) {
                                             push_int_v(hcg_p, (int) rpos+j);
                                             if (qb == 'T') {
                                                 push_char_v(hcg_c, 'T');
-                                                rle_arr_cg[qpos+j+n_deletions] = unmethyl; rle_arr_gc[qpos+j+n_deletions] = ignored; rle_set = 1;
+                                                rle_arr_cg[qjd] = unmethyl; rle_arr_gc[qjd] = ignored; rle_set = 1;
                                             } else if (qb == 'C') {
                                                 push_char_v(hcg_c, 'C');
-                                                rle_arr_cg[qpos+j+n_deletions] = methylat; rle_arr_gc[qpos+j+n_deletions] = ignored; rle_set = 1;
+                                                rle_arr_cg[qjd] = methylat; rle_arr_gc[qjd] = ignored; rle_set = 1;
                                             } else {
                                                 push_char_v(hcg_c, 'N');
                                             }
@@ -903,10 +906,10 @@ static void *process_func(void *data) {
                                             push_int_v(gch_p, (int) rpos+j);
                                             if (qb == 'T') {
                                                 push_char_v(gch_c, 'T');
-                                                rle_arr_gc[qpos+j+n_deletions] = shut_acc; rle_arr_cg[qpos+j+n_deletions] = ignored; rle_set = 1;
+                                                rle_arr_gc[qjd] = shut_acc; rle_arr_cg[qjd] = ignored; rle_set = 1;
                                             } else if (qb == 'C') {
                                                 push_char_v(gch_c, 'C');
-                                                rle_arr_gc[qpos+j+n_deletions] = open_acc; rle_arr_cg[qpos+j+n_deletions] = ignored; rle_set = 1;
+                                                rle_arr_gc[qjd] = open_acc; rle_arr_cg[qjd] = ignored; rle_set = 1;
                                             } else {
                                                 push_char_v(gch_c, 'N');
                                             }
@@ -918,10 +921,10 @@ static void *process_func(void *data) {
                                         push_int_v(cg_p, (int) rpos+j);
                                         if (qb == 'T') {
                                             push_char_v(cg_c, 'T');
-                                            rle_arr_cg[qpos+j+n_deletions] = unmethyl; rle_set = 1;
+                                            rle_arr_cg[qjd] = unmethyl; rle_set = 1;
                                         } else if (qb == 'C') {
                                             push_char_v(cg_c, 'C');
-                                            rle_arr_cg[qpos+j+n_deletions] = methylat; rle_set = 1;
+                                            rle_arr_cg[qjd] = methylat; rle_set = 1;
                                         } else {
                                             push_char_v(cg_c, 'N');
                                         }
@@ -943,7 +946,7 @@ static void *process_func(void *data) {
                                  *        if (rpos+j+1 <= rs->end) {
                                  *            char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
                                  *            char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                 *            if (rb0 == 'C' && rb1 != 'C' && qpos+j > 0) {
+                                 *            if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
                                  *                set_int_v(hcg_p, hcg_p->size-1, (int) rpos+j); set_char_v(hcg_c, hcg_c->size-1, skip_epi);
                                  *            } else if (rb0 != 'C' && rb1 == 'C') {
                                  *                set_int_v(gch_p, gch_p->size-1, (int) rpos+j); set_char_v(gch_c, gch_c->size-1, skip_epi);
@@ -976,28 +979,28 @@ static void *process_func(void *data) {
                                  *}
                                  */
 
-                                rle_arr_cg[qpos+j+n_deletions] = qb; rle_set = 1;
-                                rle_arr_gc[qpos+j+n_deletions] = qb; rle_set = 1;
+                                rle_arr_cg[qjd] = qb; rle_set = 1;
+                                rle_arr_gc[qjd] = qb; rle_set = 1;
                             }
 
                             // Fill out any locations that weren't filled during methylation/accessibility loops
                             if (rle_set == 0) {
-                                rle_arr_cg[qpos+j+n_deletions] = ignored;
+                                rle_arr_cg[qjd] = ignored;
                                 if (rle_gc == 1) {
-                                    rle_arr_gc[qpos+j+n_deletions] = accessibility;
+                                    rle_arr_gc[qjd] = accessibility;
                                     accessibility = '0';
                                 } else {
-                                    rle_arr_gc[qpos+j+n_deletions] = ignored;
+                                    rle_arr_gc[qjd] = ignored;
                                 }
                                 rle_gc--;
                             } else {
                                 rle_set = 0;
                                 if (rle_gc == 1) {
-                                    rle_arr_gc[qpos+j+n_deletions] = accessibility;
+                                    rle_arr_gc[qjd] = accessibility;
                                     accessibility = '0';
                                 } else {
-                                    if (rle_arr_gc[qpos+j+n_deletions] == '0')
-                                        rle_arr_gc[qpos+j+n_deletions] = ignored;
+                                    if (rle_arr_gc[qjd] == '0')
+                                        rle_arr_gc[qjd] = ignored;
                                 }
                                 rle_gc--;
                             }
@@ -1007,27 +1010,33 @@ static void *process_func(void *data) {
                         break;
                     case BAM_CINS:
                         for (j=0; j<oplen; ++j) {
-                            qb = bscall(b, qpos+j);
-                            rle_arr_cg[qpos+j+n_deletions] = tolower(qb);
-                            rle_arr_gc[qpos+j+n_deletions] = tolower(qb);
+                            qj = qpos + j;
+                            qjd = qj + n_deletions;
+                            qb = bscall(b, qj);
+                            rle_arr_cg[qjd] = tolower(qb);
+                            rle_arr_gc[qjd] = tolower(qb);
                         }
                         n_insertions += oplen;
                         qpos += oplen;
                         break;
                     case BAM_CDEL:
                         for (j=0; j<oplen; ++j) {
-                            rle_arr_cg[qpos+j+n_deletions] = deletion;
-                            rle_arr_gc[qpos+j+n_deletions] = deletion;
+                            qj = qpos + j;
+                            qjd = qj + n_deletions;
+                            rle_arr_cg[qjd] = deletion;
+                            rle_arr_gc[qjd] = deletion;
                         }
                         n_deletions += oplen;
                         rpos += oplen;
                         break;
                     case BAM_CSOFT_CLIP:
                         for (j=0; j<oplen; ++j) {
-                            if (qpos+j <= softclip_start) // We only want to count the softclips when they occur at the start of the read
+                            qj = qpos + j;
+                            qjd = qj + n_deletions;
+                            if (qj <= softclip_start) // We only want to count the softclips when they occur at the start of the read
                                 softclip_start++;
-                            rle_arr_cg[qpos+j+n_deletions] = softclip;
-                            rle_arr_gc[qpos+j+n_deletions] = softclip;
+                            rle_arr_cg[qjd] = softclip;
+                            rle_arr_gc[qjd] = softclip;
                         }
                         qpos += oplen;
                         break;
