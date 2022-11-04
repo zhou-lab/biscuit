@@ -1,5 +1,5 @@
-/* convert bam to epiread format with supplied SNP bed file
- * 
+/* convert bam to epiread format with supplied snp bed file
+ *
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
@@ -22,17 +22,17 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
+ *
  **/
 #include <zlib.h>
 #include "pileup.h"
 #include "wzmisc.h"
 
-// TODO: Work these variables into two variables in the conf_t type
-//       and can be set via CLI options
+// TODO: Work these variables into two variables in the conf_t type and can be set via CLI options
 // For short reads
 #define MAX_READ_LENGTH 302
 #define MAX_RLEN 50
+
 // For long reads, I'm guessing there's a better way to do this, but until I
 // know what that is, this is going to be the way it's done
 // This also probably too long for PacBio and could be too short for ONT, but
@@ -44,9 +44,9 @@ DEFINE_VECTOR(int_v, int)
 DEFINE_VECTOR(char_v, char)
 
 typedef struct episnp_chrom1_t {
-    char *chrm;
-    size_t n;
-    uint32_t *locs;  // snp locations
+    char     *chrm; /* chromosome */
+    size_t    n;    /* number of snps */
+    uint32_t *locs; /* snp locations */
 } episnp_chrom1_t;
 
 DEFINE_VECTOR(episnp_chrom1_v, episnp_chrom1_t)
@@ -61,9 +61,8 @@ void destroy_episnp(episnp_chrom1_v *episnp) {
     free_episnp_chrom1_v(episnp);
 }
 
-// get all episnps from one chromosomes
+// Get all episnps from one chromosome
 static inline episnp_chrom1_t *get_episnp1(episnp_chrom1_v *episnp, char *chrm) {
-
     uint32_t i;
     episnp_chrom1_t *episnp1;
     for (i=0; i<episnp->size; ++i) {
@@ -74,7 +73,6 @@ static inline episnp_chrom1_t *get_episnp1(episnp_chrom1_v *episnp, char *chrm) 
 }
 
 static inline episnp_chrom1_t *get_n_insert_episnp1(episnp_chrom1_v *episnp, char *chrm) {
-
     episnp_chrom1_t *episnp1 = get_episnp1(episnp, chrm);
     if (!episnp1) {
         episnp1 = next_ref_episnp_chrom1_v(episnp);
@@ -85,22 +83,27 @@ static inline episnp_chrom1_t *get_n_insert_episnp1(episnp_chrom1_v *episnp, cha
     return episnp1;
 }
 
+#define episnp_test(snps, i) snps[(i)>>3]&(1<<((i)&0x7))
+#define episnp_set(snps, i) snps[(i)>>3] |= 1<<((i)&0x7)
+
 typedef struct {
-    char *bam_fn; // on stack
-    char *ref_fn; // on stack
-    episnp_chrom1_v *snp;
-    wqueue_t(window) *q;
-    wqueue_t(record) *rq;
-    conf_t *conf;
+    char             *bam_fn; /* BAM filename */
+    char             *ref_fn; /* reference filename */
+    episnp_chrom1_v  *snp;    /* vector of snp locations */
+    wqueue_t(window) *q;      /* queue window */
+    wqueue_t(record) *rq;     /* queue records */
+    conf_t           *conf;   /* config variables */
 } result_t;
 
 static void *epiread_write_func(void *data) {
-
     writer_conf_t *c = (writer_conf_t*) data;
 
     FILE *out;
-    if (c->outfn) out=fopen(c->outfn, "w");
-    else out=stdout;
+    if (c->outfn) {
+        out = fopen(c->outfn, "w");
+    } else {
+        out = stdout;
+    }
 
     int64_t next_block = 0;
     record_v *records = init_record_v(20);
@@ -109,35 +112,33 @@ static void *epiread_write_func(void *data) {
         record_t rec;
         wqueue_get(record, c->q, &rec);
         if(rec.block_id == RECORD_QUEUE_END) break;
+
         if (rec.block_id == next_block) {
             do {
-                if (rec.s.s)
-                    fputs(rec.s.s, out);
+                if (rec.s.s) fputs(rec.s.s, out);
                 free(rec.s.s);
 
-                /* get next block from shelf if available else return OBSOLETE 
-                 * and retrieve new block from queue */
+                // Get next block from shelf if available else return OBSOLETE and retrieve new block from queue
                 next_block++;
                 pop_record_by_block_id(records, next_block, &rec);
             } while (rec.block_id != RECORD_SLOT_OBSOLETE);
-        } else { // shelf the block if not next
+        } else {
+            // Shelf the block if not next
             put_into_record_v(records, rec);
         }
     }
 
     free_record_v(records);
-    if (c->outfn) { // for stdout, will close at the end of main
+    if (c->outfn) {
+        // For stdout, will close at the end of main
         fflush(out);
         fclose(out);
     }
+
     return 0;
 }
 
-#define episnp_test(snps, i) snps[(i)>>3]&(1<<((i)&0x7))
-#define episnp_set(snps, i) snps[(i)>>3] |= 1<<((i)&0x7)
-
 void run_length_encode(char *str, char *out, conf_t *conf) {
-
     int run_len;
     char *count;
     if (conf->is_long_read) {
@@ -162,8 +163,9 @@ void run_length_encode(char *str, char *out, conf_t *conf) {
         // but leave the sprintf and for loop untouched.
         if (run_len > 1) {
             sprintf(count, "%d", run_len);
-            for (k=0; *(count+k); k++, j++) 
+            for (k=0; *(count+k); k++, j++) {
                 out[j] = count[k];
+            }
         }
     }
 
@@ -172,8 +174,7 @@ void run_length_encode(char *str, char *out, conf_t *conf) {
     out[j] = '\0';
 }
 
-// format one bam record into the epi-bed format
-// positions are 0-based
+// Format one bam record into the epi-bed format (positions are 0-based)
 static void format_epi_bed(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, conf_t *conf,
         char *rle_arr_cg, char *rle_arr_gc, uint32_t start, uint32_t end) {
@@ -184,6 +185,7 @@ static void format_epi_bed(
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
     uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
+
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
     uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
@@ -191,8 +193,8 @@ static void format_epi_bed(
     // Columns: chromosome, start, end, read name, read number, BS strand, encoded CG RLE
     // If running in NOMe-seq mode, then encoded GC RLE is added as a last column
     if (start > 0 && (unsigned) start >= print_w_beg && (unsigned) start < print_w_end) {
-        uint8_t write_read_cg = 1; 
-        uint8_t write_read_gc = 1; 
+        uint8_t write_read_cg = 1;
+        uint8_t write_read_gc = 1;
         int len_cg = (int)strlen(rle_arr_cg);
         int len_gc = conf->is_nome ? (int)strlen(rle_arr_gc) : -1;
 
@@ -218,12 +220,14 @@ static void format_epi_bed(
                     (b->core.flag&BAM_FREAD2) ? '2' : '1',
                     bsstrand ? '-' : '+');
 
-            char *encoded_rle = (char *) malloc(sizeof(char) * (2*len_cg+1)); // encoded string can be no larger than 2 times the original string length
+            // Encoded string can be no larger than 2 times the original string length
+            char *encoded_rle = (char *) malloc(sizeof(char) * (2*len_cg+1));
             run_length_encode(rle_arr_cg, encoded_rle, conf);
             ksprintf(epi, "\t%s", encoded_rle);
 
             if (conf->is_nome) {
-                char *encoded_rle_gc = (char *) malloc(sizeof(char) * (2*len_gc+1)); // encoded string can be no larger than 2 times the original string length
+                // Encoded string can be no larger than 2 times the original string length
+                char *encoded_rle_gc = (char *) malloc(sizeof(char) * (2*len_gc+1));
                 run_length_encode(rle_arr_gc, encoded_rle_gc, conf);
                 ksprintf(epi, "\t%s", encoded_rle_gc);
                 free(encoded_rle_gc);
@@ -240,8 +244,7 @@ static void format_epi_bed(
     }
 }
 
-// format one bam record into the old epiread format
-// positions are 0-based
+// Format one bam record into the old epiread format (positions are 0-based)
 static void format_epiread_old(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, conf_t *conf,
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
@@ -253,6 +256,7 @@ static void format_epiread_old(
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
     uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
+
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
     uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
@@ -300,7 +304,7 @@ static void format_epiread_old(
                 kputs("\t.\t.", epi);
             }
 
-            // SNP (0-based)
+            // snp (0-based)
             if (snp_p->size > 0) {
                 ksprintf(epi, "\t%d", get_int_v(snp_p, 0)-1);
                 if (conf->print_all_locations) {
@@ -344,7 +348,7 @@ static void format_epiread_old(
                 kputs("\t.\t.", epi);
             }
 
-            // SNP (0-based)
+            // snp (0-based)
             if (snp_p->size > 0) {
                 ksprintf(epi, "\t%d", get_int_v(snp_p, 0)-1);
                 if (conf->print_all_locations) {
@@ -367,8 +371,7 @@ static void format_epiread_old(
     }
 }
 
-// format one bam record to pairwise format
-// positions are 1-based
+// Format one bam record to pairwise format (positions are 1-based)
 static void format_epiread_pairwise(
         kstring_t *epi, char *chrm, window_t *w, conf_t *conf,
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
@@ -380,6 +383,7 @@ static void format_epiread_pairwise(
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
     uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
+
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
     uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
@@ -391,7 +395,7 @@ static void format_epiread_pairwise(
             continue;
 
         if (conf->is_nome) { // nome-seq
-            for (j=0; j<hcg_p->size; ++j) { // SNP and HCG context
+            for (j=0; j<hcg_p->size; ++j) { // snp and HCG context
                 ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n",
                         chrm,
                         get_int_v(snp_p, k),
@@ -399,7 +403,7 @@ static void format_epiread_pairwise(
                         get_char_v(snp_c, k),
                         get_char_v(hcg_c, j));
             }
-            for (j=0; j<gch_p->size; ++j) { // SNP and GCH context
+            for (j=0; j<gch_p->size; ++j) { // snp and GCH context
                 ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n",
                         chrm,
                         get_int_v(snp_p, k),
@@ -429,26 +433,25 @@ static inline void print_first_g_warning() {
 }
 
 static void *process_func(void *data) {
+    result_t *res  = (result_t*) data;
+    conf_t   *conf = (conf_t*) res->conf;
 
-    result_t *res = (result_t*) data;
-    conf_t *conf = (conf_t*) res->conf;
-    htsFile *in = hts_open(res->bam_fn, "rb");
+    htsFile   *in  = hts_open(res->bam_fn, "rb");
     hts_idx_t *idx = sam_index_load(in, res->bam_fn);
     if (!idx) {
-        fprintf(stderr, "[%s:%d] BAM %s is not indexed?\n",
-                __func__, __LINE__, res->bam_fn);
+        fprintf(stderr, "[%s:%d] BAM %s is not indexed?\n", __func__, __LINE__, res->bam_fn);
         fflush(stderr);
         exit(1);
     }
-   
     bam_hdr_t *header = sam_hdr_read(in);
 
     // Need to define the cigar tab for parsing the MC tags
     if (header->cigar_tab == 0) {
-        header->cigar_tab = (int8_t*) malloc(128);
+        int c_size = 128;
+        header->cigar_tab = (int8_t*) malloc((size_t)c_size);
 
         int i;
-        for (i = 0; i < 128; ++i)
+        for (i = 0; i < c_size; ++i)
             header->cigar_tab[i] = -1;
         for (i = 0; BAM_CIGAR_STR[i]; ++i)
             header->cigar_tab[(int)BAM_CIGAR_STR[i]] = i;
@@ -469,12 +472,15 @@ static void *process_func(void *data) {
 
         uint32_t snp_beg = w.beg>1000 ? w.beg-1000 : 1; // start location of snps
         uint32_t snp_end = w.end+1000;
-        // make snp lookup table
+
+        // Make snp lookup table (if supplied)
         uint8_t *snps = NULL;
-        if (res->snp) { // if snp is supplied
+        if (res->snp) {
             snps = calloc((snp_end-snp_beg)/8+1, sizeof(uint8_t));
             episnp_chrom1_t *episnp1 = get_episnp1(res->snp, chrm);
-            if (episnp1) { // if chromosome is found in snp file
+
+            // If chromosome is found in snp file
+            if (episnp1) {
                 for (j=0; j<episnp1->n; ++j) {
                     uint32_t l = episnp1->locs[j];
                     if (l>=snp_beg && l<snp_end) {
@@ -483,8 +489,9 @@ static void *process_func(void *data) {
                 }
             }
         }
-    
-        rec.s.l = rec.s.m = 0; rec.s.s = 0; // the epiread string
+
+        // The epiread string
+        rec.s.l = rec.s.m = 0; rec.s.s = 0;
 
         refcache_fetch(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
         hts_itr_t *iter = sam_itr_queryi(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
@@ -494,7 +501,7 @@ static void *process_func(void *data) {
         while ((ret = sam_itr_next(in, iter, b))>0) {
             uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual, 0);
 
-            // read-based filtering
+            // Read-based filtering
             bam1_core_t *c = &b->core;
             if (c->qual < conf->min_mapq) continue;
             if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->min_read_len) continue;
@@ -506,7 +513,7 @@ static void *process_func(void *data) {
             }
 
             uint8_t *nm = bam_aux_get(b, "NM");
-            if (nm && bam_aux2i(nm)>conf->max_nm) continue;
+            if (nm && bam_aux2i(nm) > conf->max_nm) continue;
 
             uint8_t *as = bam_aux_get(b, "AS");
             if (as && bam_aux2i(as) < conf->min_score) continue;
@@ -514,7 +521,7 @@ static void *process_func(void *data) {
             uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
             if (cnt_ret > conf->max_retention) continue;
 
-            // pairwise epiread format variables
+            // Pairwise epiread format variables
             int_v  *snp_p = init_int_v(10);  // snp position
             char_v *snp_c = init_char_v(10); // snp character
             int_v  *cg_p=0, *hcg_p=0, *gch_p=0;
@@ -529,7 +536,7 @@ static void *process_func(void *data) {
                 cg_c = init_char_v(10); // cpg characters
             }
 
-            // run length encoding strings
+            // Run length encoding strings
             char *rle_arr_cg; // use qpos+j to determine which index will be written
             char *rle_arr_gc;
             if (conf->is_long_read) {
@@ -541,9 +548,10 @@ static void *process_func(void *data) {
             }
 
             int i; uint32_t j;
-            uint8_t rle_set = 0, rle_gc = 0;
-            uint8_t n_deletions = 0;    // Number of deletions, used to shift the RLE string accordingly when deletions are present
-            uint8_t n_insertions = 0;   // Number of insertions, used to shift the end position of the RLE string when insertions are present
+            uint8_t rle_set        = 0; // Know when to write info to array generally
+            uint8_t rle_gc         = 0; // Know when to write info to array when in GCH context
+            uint8_t n_deletions    = 0; // Number of deletions, used to shift the RLE string accordingly when deletions are present
+            uint8_t n_insertions   = 0; // Number of insertions, used to shift the end position of the RLE string when insertions are present
             uint8_t softclip_start = 0; // Number of soft clip bases occurring at start of read - used to adjust starting position
             char accessibility = '0';
 
@@ -561,6 +569,7 @@ static void *process_func(void *data) {
             uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
             uint32_t qpos  = 0;           // query position
 
+            // Handle read lengths for overlapping reads
             uint32_t read_length = bam_cigar2rlen(c->n_cigar, bam_get_cigar(b));
 
             uint32_t mate_length;
@@ -687,7 +696,7 @@ static void *process_func(void *data) {
                              *     read)
                              * Overlapping bases in both proper and improper pairs (if user requests these be
                              *     included) will be ignored
-                             *  
+                             *
                              * The filtering removes bases from read 2 (usually the read on the complement strand)
                              * that fall into the overlapped region.
                              */
@@ -736,7 +745,7 @@ static void *process_func(void *data) {
                                 }
                                 continue;
                             }
-                            
+
 
                             // reference is a G
                             if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
@@ -920,7 +929,7 @@ static void *process_func(void *data) {
                                 }
                             }
 
-                            // append SNP info if present
+                            // append snp info if present
                             uint32_t snp_ind = rpos+j-snp_beg;
                             if (snps && episnp_test(snps, snp_ind)) {
                                 push_char_v(snp_c, qb);
@@ -928,7 +937,7 @@ static void *process_func(void *data) {
 
                                 // Properly handle the old epiread format
                                 // This is going to take some thinking about how to handle this, as
-                                // CGs are always handled on the C, but SNPs could occur in the G
+                                // CGs are always handled on the C, but snps could occur in the G
                                 /*if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
                                  *    if (conf->is_nome) {
                                  *        if (rpos+j+1 <= rs->end) {
@@ -1040,7 +1049,7 @@ static void *process_func(void *data) {
                         &rec.s, chrm, &w, conf,
                         snp_p, hcg_p, gch_p, cg_p,
                         snp_c, hcg_c, gch_c, cg_c);
-            } 
+            }
             if (conf->epiread_old) {
                 format_epiread_old(
                         &rec.s, b, bsstrand, chrm, &w, snps, conf,
@@ -1082,12 +1091,11 @@ static void *process_func(void *data) {
 }
 
 episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
-
     episnp_chrom1_v *episnp = init_episnp_chrom1_v(2);
     kstring_t line;
     line.l = line.m = 0; line.s = 0;
 
-    // read SNP bed file
+    // Read snp bed file
     episnp_chrom1_t *episnp1 = 0;
     char *tok;
     gzFile fh = gzopen(snp_bed_fn, "r");
@@ -1169,13 +1177,13 @@ static int usage(conf_t *conf) {
 }
 
 int main_epiread(int argc, char *argv[]) {
-
     int c;
     char *reg = 0;
     char *outfn = 0;
     char *statsfn = 0;
     char *snp_bed_fn = 0;
 
+    // TODO: Make this a init function
     conf_t conf;
     memset(&conf, 0, sizeof(conf_t));
     conf.step = 100000;
