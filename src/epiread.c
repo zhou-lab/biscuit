@@ -432,6 +432,47 @@ static inline void print_first_g_warning() {
     fprintf(stderr, "       : an edge case that messes up a bunch of stuff otherwise.\n");
 }
 
+void skipped_base_old(
+        refcache_t *rs, char rb, uint8_t bss, uint32_t rj, uint32_t qj, conf_t *conf, char skip_epi,
+        int_v *hcg_p, int_v *gch_p, int_v *cg_p, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
+    if (bss && rb == 'G' && rj-1 >= rs->beg) {
+        if (conf->is_nome) {
+            if (rj+1 <= rs->end) {
+                char rb0 = refcache_getbase_upcase(rs, rj-1);
+                char rb1 = refcache_getbase_upcase(rs, rj+1);
+                if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
+                    push_int_v(hcg_p, (int) rj-1); push_char_v(hcg_c, skip_epi);
+                } else if (rb0 != 'C' && rb1 == 'C') {
+                    push_int_v(gch_p, (int) rj); push_char_v(gch_c, skip_epi);
+                }
+            }
+        } else {
+            char rb0 = refcache_getbase_upcase(rs, rj-1);
+            if (rb0 == 'C') {
+                push_int_v(cg_p, (int) rj-1); push_char_v(cg_c, skip_epi);
+            }
+        }
+    }
+    if (!bss && rb == 'C' && rj+1 <= rs->end) {
+        if (conf->is_nome) {
+            if (rj-1 >= rs->beg) {
+                char rb0 = refcache_getbase_upcase(rs, rj-1);
+                char rb1 = refcache_getbase_upcase(rs, rj+1);
+                if (rb0 != 'G' && rb1 == 'G') {
+                    push_int_v(hcg_p, (int) rj); push_char_v(hcg_c, skip_epi);
+                } else if (rb0 == 'G' && rb1 != 'G') {
+                    push_int_v(gch_p, (int) rj); push_char_v(gch_c, skip_epi);
+                }
+            }
+        } else {
+            char rb1 = refcache_getbase_upcase(rs, rj+1);
+            if (rb1 == 'G') {
+                push_int_v(cg_p, (int) rj); push_char_v(cg_c, skip_epi);
+            }
+        }
+    }
+}
+
 static void *process_func(void *data) {
     result_t *res  = (result_t*) data;
     conf_t   *conf = (conf_t*) res->conf;
@@ -605,44 +646,7 @@ static void *process_func(void *data) {
                                 rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
 
                                 // Properly handle the old epiread format
-                                // TODO: This exact same thing occurs three times for each of the filtering
-                                //       if-statements, this can be refactored into a function down the road
-                                if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
-                                    if (conf->is_nome) {
-                                        if (rpos+j+1 <= rs->end) {
-                                            char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                            char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
-                                                push_int_v(hcg_p, (int) rpos+j-1); push_char_v(hcg_c, skip_epi);
-                                            } else if (rb0 != 'C' && rb1 == 'C') {
-                                                push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
-                                            }
-                                        }
-                                    } else {
-                                        char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                        if (rb0 == 'C') {
-                                            push_int_v(cg_p, (int) rpos+j-1); push_char_v(cg_c, skip_epi);
-                                        }
-                                    }
-                                }
-                                if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
-                                    if (conf->is_nome) {
-                                        if (rpos+j-1 >= rs->beg) {
-                                            char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                            char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 != 'G' && rb1 == 'G') {
-                                                push_int_v(hcg_p, (int) rpos+j); push_char_v(hcg_c, skip_epi);
-                                            } else if (rb0 == 'G' && rb1 != 'G') {
-                                                push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
-                                            }
-                                        }
-                                    } else {
-                                        char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                        if (rb1 == 'G') {
-                                            push_int_v(cg_p, (int) rpos+j); push_char_v(cg_c, skip_epi);
-                                        }
-                                    }
-                                }
+                                skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, skip_epi, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
 
                                 continue;
                             }
@@ -654,42 +658,8 @@ static void *process_func(void *data) {
                                 rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
 
                                 // Properly handle the old epiread format
-                                if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
-                                    if (conf->is_nome) {
-                                        if (rpos+j+1 <= rs->end) {
-                                            char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                            char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
-                                                push_int_v(hcg_p, (int) rpos+j-1); push_char_v(hcg_c, skip_epi);
-                                            } else if (rb0 != 'C' && rb1 == 'C') {
-                                                push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
-                                            }
-                                        }
-                                    } else {
-                                        char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                        if (rb0 == 'C') {
-                                            push_int_v(cg_p, (int) rpos+j-1); push_char_v(cg_c, skip_epi);
-                                        }
-                                    }
-                                }
-                                if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
-                                    if (conf->is_nome) {
-                                        if (rpos+j-1 >= rs->beg) {
-                                            char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                            char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 != 'G' && rb1 == 'G') {
-                                                push_int_v(hcg_p, (int) rpos+j); push_char_v(hcg_c, skip_epi);
-                                            } else if (rb0 == 'G' && rb1 != 'G') {
-                                                push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
-                                            }
-                                        }
-                                    } else {
-                                        char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                        if (rb1 == 'G') {
-                                            push_int_v(cg_p, (int) rpos+j); push_char_v(cg_c, skip_epi);
-                                        }
-                                    }
-                                }
+                                skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, skip_epi, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
+
                                 continue;
                             }
 
@@ -710,42 +680,8 @@ static void *process_func(void *data) {
                                 rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
 
                                 // Properly handle the old epiread format
-                                if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
-                                    if (conf->is_nome) {
-                                        if (rpos+j+1 <= rs->end) {
-                                            char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                            char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
-                                                push_int_v(hcg_p, (int) rpos+j-1); push_char_v(hcg_c, skip_epi);
-                                            } else if (rb0 != 'C' && rb1 == 'C') {
-                                                push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
-                                            }
-                                        }
-                                    } else {
-                                        char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                        if (rb0 == 'C') {
-                                            push_int_v(cg_p, (int) rpos+j-1); push_char_v(cg_c, skip_epi);
-                                        }
-                                    }
-                                }
-                                if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
-                                    if (conf->is_nome) {
-                                        if (rpos+j-1 >= rs->beg) {
-                                            char rb0 = refcache_getbase_upcase(rs, rpos+j-1);
-                                            char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                            if (rb0 != 'G' && rb1 == 'G') {
-                                                push_int_v(hcg_p, (int) rpos+j); push_char_v(hcg_c, skip_epi);
-                                            } else if (rb0 == 'G' && rb1 != 'G') {
-                                                push_int_v(gch_p, (int) rpos+j); push_char_v(gch_c, skip_epi);
-                                            }
-                                        }
-                                    } else {
-                                        char rb1 = refcache_getbase_upcase(rs, rpos+j+1);
-                                        if (rb1 == 'G') {
-                                            push_int_v(cg_p, (int) rpos+j); push_char_v(cg_c, skip_epi);
-                                        }
-                                    }
-                                }
+                                skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, skip_epi, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
+
                                 continue;
                             }
 
@@ -938,9 +874,9 @@ static void *process_func(void *data) {
                                 push_char_v(snp_c, qb);
                                 push_int_v(snp_p, rpos+j);
 
-                                // Properly handle the old epiread format
-                                // This is going to take some thinking about how to handle this, as
-                                // CGs are always handled on the C, but snps could occur in the G
+                                // TODO: Properly handle the old epiread format
+                                //       This is going to take some thinking about how to handle this, as
+                                //       CGs are always handled on the C, but snps could occur in the G
                                 /*if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
                                  *    if (conf->is_nome) {
                                  *        if (rpos+j+1 <= rs->end) {
