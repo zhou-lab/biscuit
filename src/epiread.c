@@ -605,6 +605,8 @@ static void *process_func(void *data) {
             char unmethyl = 'U';
             char open_acc = 'O';
             char shut_acc = 'S';
+            char ambig_ga = 'R';
+            char ambig_ct = 'Y';
 
             uint32_t rpos  = c->pos  + 1; // 1-based reference position
             uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
@@ -871,9 +873,6 @@ static void *process_func(void *data) {
                             // append snp info if present
                             uint32_t snp_ind = rpos+j-snp_beg;
                             if (snps && episnp_test(snps, snp_ind)) {
-                                push_char_v(snp_c, qb);
-                                push_int_v(snp_p, rpos+j);
-
                                 // TODO: Properly handle the old epiread format
                                 //       This is going to take some thinking about how to handle this, as
                                 //       CGs are always handled on the C, but snps could occur in the G
@@ -915,8 +914,27 @@ static void *process_func(void *data) {
                                  *}
                                  */
 
-                                rle_arr_cg[qjd] = qb; rle_set = 1;
-                                rle_arr_gc[qjd] = qb; rle_set = 1;
+                                rle_set = 1;
+
+                                if (bsstrand && qb == 'A') {
+                                    push_char_v(snp_c, ambig_ga);
+                                    push_int_v(snp_p, rpos+j);
+
+                                    rle_arr_cg[qjd] = ambig_ga;
+                                    rle_arr_gc[qjd] = ambig_ga;
+                                } else if (!bsstrand && qb == 'T') {
+                                    push_char_v(snp_c, ambig_ct);
+                                    push_int_v(snp_p, rpos+j);
+
+                                    rle_arr_cg[qjd] = ambig_ct;
+                                    rle_arr_gc[qjd] = ambig_ct;
+                                } else {
+                                    push_char_v(snp_c, qb);
+                                    push_int_v(snp_p, rpos+j);
+
+                                    rle_arr_cg[qjd] = qb;
+                                    rle_arr_gc[qjd] = qb;
+                                }
                             }
 
                             // Fill out any locations that weren't filled during methylation/accessibility loops
