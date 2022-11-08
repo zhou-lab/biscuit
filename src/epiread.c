@@ -238,8 +238,10 @@ static void format_epi_bed(
 
             free(encoded_rle);
         } else {
-            fprintf(stderr, "Filtering CG read: %s\n", rle_arr_cg);
-            fprintf(stderr, "Filtering GC read: %s\n", rle_arr_gc);
+            if (conf->verbose) {
+                fprintf(stderr, "Filtering CG read: %s\n", rle_arr_cg);
+                fprintf(stderr, "Filtering GC read: %s\n", rle_arr_gc);
+            }
         }
     }
 }
