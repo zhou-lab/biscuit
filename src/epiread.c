@@ -436,9 +436,9 @@ void skipped_base_old(
         refcache_t *rs, char rb, uint8_t bss, uint32_t rj, uint32_t qj, conf_t *conf, char skip_epi,
         int_v *hcg_p, int_v *gch_p, int_v *cg_p, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
     if (bss && rb == 'G' && rj-1 >= rs->beg) {
+        char rb0 = refcache_getbase_upcase(rs, rj-1);
         if (conf->is_nome) {
             if (rj+1 <= rs->end) {
-                char rb0 = refcache_getbase_upcase(rs, rj-1);
                 char rb1 = refcache_getbase_upcase(rs, rj+1);
                 if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
                     push_int_v(hcg_p, (int) rj-1); push_char_v(hcg_c, skip_epi);
@@ -447,17 +447,16 @@ void skipped_base_old(
                 }
             }
         } else {
-            char rb0 = refcache_getbase_upcase(rs, rj-1);
             if (rb0 == 'C') {
                 push_int_v(cg_p, (int) rj-1); push_char_v(cg_c, skip_epi);
             }
         }
     }
     if (!bss && rb == 'C' && rj+1 <= rs->end) {
+        char rb1 = refcache_getbase_upcase(rs, rj+1);
         if (conf->is_nome) {
             if (rj-1 >= rs->beg) {
                 char rb0 = refcache_getbase_upcase(rs, rj-1);
-                char rb1 = refcache_getbase_upcase(rs, rj+1);
                 if (rb0 != 'G' && rb1 == 'G') {
                     push_int_v(hcg_p, (int) rj); push_char_v(hcg_c, skip_epi);
                 } else if (rb0 == 'G' && rb1 != 'G') {
@@ -465,7 +464,6 @@ void skipped_base_old(
                 }
             }
         } else {
-            char rb1 = refcache_getbase_upcase(rs, rj+1);
             if (rb1 == 'G') {
                 push_int_v(cg_p, (int) rj); push_char_v(cg_c, skip_epi);
             }
@@ -690,9 +688,9 @@ static void *process_func(void *data) {
 
                             // reference is a G
                             if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
+                                char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
                                 if (conf->is_nome) { // nome-seq
                                     if (rpos+j+1 <= rs->end) { // prevent overflow
-                                        char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
                                         char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
                                         if (rb0 == 'C' && rb1 != 'C' && qj > 0) { // HCG context, avoids when G is first base in read
                                             // Note: measure G in CpG context, record location of C
@@ -785,7 +783,6 @@ static void *process_func(void *data) {
                                         }
                                     }
                                 } else { // bs-seq
-                                    char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
                                     if (rb0 == 'C') { // CpG context
                                         // Note: measure G in CpG context, record location of C
                                         push_int_v(cg_p, (int) rpos+j-1);
@@ -824,10 +821,10 @@ static void *process_func(void *data) {
 
                             // reference is a C
                             if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
+                                char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
                                 if (conf->is_nome) { // nome-seq
                                     if (rpos+j-1 >= rs->beg) { // to prevent underflow
                                         char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
-                                        char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
                                         if (rb0 != 'G' && rb1 == 'G') { // HCG context
                                             // measure C in CpG context
                                             push_int_v(hcg_p, (int) rpos+j);
@@ -854,7 +851,6 @@ static void *process_func(void *data) {
                                         }
                                     }
                                 } else { // bs-seq
-                                    char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
                                     if (rb1 == 'G') { // CpG context
                                         push_int_v(cg_p, (int) rpos+j);
                                         if (qb == 'T') {
