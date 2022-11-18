@@ -28,6 +28,20 @@
 #include "pileup.h"
 #include "wzmisc.h"
 
+const char skip_epi = '-';
+const char skip_ins = 'i';
+const char skip_del = 'd';
+const char filtered = 'F';
+const char ignored  = 'x';
+const char deletion = 'D';
+const char softclip = 'P';
+const char methylat = 'M';
+const char unmethyl = 'U';
+const char open_acc = 'O';
+const char shut_acc = 'S';
+const char ambig_ga = 'R';
+const char ambig_ct = 'Y';
+
 // TODO: Work these variables into two variables in the conf_t type and can be set via CLI options
 // For short reads
 #define MAX_READ_LENGTH 302
@@ -177,7 +191,7 @@ void run_length_encode(char *str, char *out, conf_t *conf) {
 // Format one bam record into the epi-bed format (positions are 0-based)
 static void format_epi_bed(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, conf_t *conf,
-        char *rle_arr_cg, char *rle_arr_gc, uint32_t start, uint32_t end) {
+        char *rle_arr_cg, char *rle_arr_gc, char *rle_arr_vr, uint32_t start, uint32_t end) {
 
     // Set max read length
     uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
@@ -195,7 +209,9 @@ static void format_epi_bed(
     if (start > 0 && (unsigned) start >= print_w_beg && (unsigned) start < print_w_end) {
         uint8_t write_read_cg = 1;
         uint8_t write_read_gc = 1;
+        uint8_t write_read_vr = 1;
         int len_cg = (int)strlen(rle_arr_cg);
+        int len_vr = (int)strlen(rle_arr_vr);
         int len_gc = conf->is_nome ? (int)strlen(rle_arr_gc) : -1;
 
         // Check if RLE string is only composed of F's and x's and P's
@@ -205,13 +221,18 @@ static void format_epi_bed(
             size_t check_rle_cg = strspn(rle_arr_cg, filt_ignr_soft);
             if (len_cg == (int)check_rle_cg) { write_read_cg = 0; }
 
+            size_t check_rle_vr = strspn(rle_arr_vr, filt_ignr_soft);
+            if (len_vr == (int)check_rle_vr) { write_read_vr = 0; }
+
             if (conf->is_nome) {
                 size_t check_rle_gc = strspn(rle_arr_gc, filt_ignr_soft);
                 if (len_gc == (int)check_rle_gc) { write_read_gc = 0; }
+            } else {
+                write_read_gc = 0;
             }
         }
 
-        if (write_read_cg || write_read_gc) {
+        if (write_read_cg || write_read_gc || write_read_vr) {
             ksprintf(epi, "%s\t%d\t%d\t%s\t%c\t%c",
                     chrm,
                     start-1,
@@ -231,7 +252,13 @@ static void format_epi_bed(
                 run_length_encode(rle_arr_gc, encoded_rle_gc, conf);
                 ksprintf(epi, "\t%s", encoded_rle_gc);
                 free(encoded_rle_gc);
+            } else {
+                ksprintf(epi, "\t.");
             }
+
+            char *encoded_rle_vr = (char *) malloc(sizeof(char) * (2*len_vr+1));
+            run_length_encode(rle_arr_vr, encoded_rle_vr, conf);
+            ksprintf(epi, "\t%s", encoded_rle_vr);
 
             // end line
             kputc('\n', epi);
@@ -241,6 +268,7 @@ static void format_epi_bed(
             if (conf->verbose) {
                 fprintf(stderr, "Filtering CG read: %s\n", rle_arr_cg);
                 fprintf(stderr, "Filtering GC read: %s\n", rle_arr_gc);
+                fprintf(stderr, "Filtering variant read: %s\n", rle_arr_vr);
             }
         }
     }
@@ -473,6 +501,12 @@ void skipped_base_old(
     }
 }
 
+static inline void add_filtered(char *cg, char *var, char *gc, uint32_t idx) {
+    cg[idx]  = filtered;
+    var[idx] = filtered;
+    gc[idx]  = filtered;
+}
+
 static void *process_func(void *data) {
     result_t *res  = (result_t*) data;
     conf_t   *conf = (conf_t*) res->conf;
@@ -580,11 +614,14 @@ static void *process_func(void *data) {
             // Run length encoding strings
             char *rle_arr_cg; // use qpos+j to determine which index will be written
             char *rle_arr_gc;
+            char *rle_arr_vr;
             if (conf->is_long_read) {
                 rle_arr_cg = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
+                rle_arr_vr = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
                 rle_arr_gc = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
             } else {
                 rle_arr_cg = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
+                rle_arr_vr = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
                 rle_arr_gc = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
             }
 
@@ -595,18 +632,6 @@ static void *process_func(void *data) {
             uint8_t n_insertions   = 0; // Number of insertions, used to shift the end position of the RLE string when insertions are present
             uint8_t softclip_start = 0; // Number of soft clip bases occurring at start of read - used to adjust starting position
             char accessibility = '0';
-
-            char skip_epi = '-';
-            char filtered = 'F';
-            char ignored  = 'x';
-            char deletion = 'D';
-            char softclip = 'P';
-            char methylat = 'M';
-            char unmethyl = 'U';
-            char open_acc = 'O';
-            char shut_acc = 'S';
-            char ambig_ga = 'R';
-            char ambig_ct = 'Y';
 
             uint32_t rpos  = c->pos  + 1; // 1-based reference position
             uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
@@ -645,9 +670,9 @@ static void *process_func(void *data) {
 
                             // skip bases with low base quality
                             if (bam_get_qual(b)[qj] < conf->min_base_qual) {
-                                rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
+                                add_filtered(rle_arr_cg, rle_arr_vr, rle_arr_gc, qjd);
+                                rle_gc--;
 
-                                // Properly handle the old epiread format
                                 skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, skip_epi, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
 
                                 continue;
@@ -657,9 +682,9 @@ static void *process_func(void *data) {
                             // Follows the same form as pileup, so qpos is adjusted to be 1-based/1-indexed and
                             // filtering is done according to that, rather than being 0-based/0-indexed
                             if (qj+1 <= conf->min_dist_end_5p || c->l_qseq < (int32_t)(qj+1 + conf->min_dist_end_3p)) {
-                                rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
+                                add_filtered(rle_arr_cg, rle_arr_vr, rle_arr_gc, qjd);
+                                rle_gc--;
 
-                                // Properly handle the old epiread format
                                 skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, skip_epi, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
 
                                 continue;
@@ -675,13 +700,11 @@ static void *process_func(void *data) {
                              * The filtering removes bases from read 2 (usually the read on the complement strand)
                              * that fall into the overlapped region.
                              */
-                            if ((conf->filter_doublecnt) &&
-                                (c->flag & BAM_FREAD2) &&
-                                (rpos+j >= max(rpos, rmpos)) &&
-                                (rpos+j <= min(rend, rmend))) {
-                                rle_arr_cg[qjd] = filtered; rle_arr_gc[qjd] = filtered; rle_gc--;
+                            if ((conf->filter_doublecnt) && (c->flag & BAM_FREAD2) &&
+                                (rpos+j >= max(rpos, rmpos)) && (rpos+j <= min(rend, rmend))) {
+                                add_filtered(rle_arr_cg, rle_arr_vr, rle_arr_gc, qjd);
+                                rle_gc--;
 
-                                // Properly handle the old epiread format
                                 skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, skip_epi, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
 
                                 continue;
@@ -785,6 +808,7 @@ static void *process_func(void *data) {
                                         }
                                     }
                                 } else { // bs-seq
+                                    rle_arr_gc[qjd] = ignored;
                                     if (rb0 == 'C') { // CpG context
                                         // Note: measure G in CpG context, record location of C
                                         push_int_v(cg_p, (int) rpos+j-1);
@@ -853,6 +877,7 @@ static void *process_func(void *data) {
                                         }
                                     }
                                 } else { // bs-seq
+                                    rle_arr_gc[qjd] = ignored;
                                     if (rb1 == 'G') { // CpG context
                                         push_int_v(cg_p, (int) rpos+j);
                                         if (qb == 'T') {
@@ -914,24 +939,29 @@ static void *process_func(void *data) {
 
                                 rle_set = 1;
 
+                                rle_arr_cg[qjd] = ignored;
+                                rle_arr_gc[qjd] = ignored;
                                 if (bsstrand && qb == 'A') {
                                     push_char_v(snp_c, ambig_ga);
                                     push_int_v(snp_p, rpos+j);
 
-                                    rle_arr_cg[qjd] = ambig_ga;
-                                    rle_arr_gc[qjd] = ambig_ga;
+                                    rle_arr_vr[qjd] = ambig_ga;
                                 } else if (!bsstrand && qb == 'T') {
                                     push_char_v(snp_c, ambig_ct);
                                     push_int_v(snp_p, rpos+j);
 
-                                    rle_arr_cg[qjd] = ambig_ct;
-                                    rle_arr_gc[qjd] = ambig_ct;
+                                    rle_arr_vr[qjd] = ambig_ct;
                                 } else {
                                     push_char_v(snp_c, qb);
                                     push_int_v(snp_p, rpos+j);
 
-                                    rle_arr_cg[qjd] = qb;
-                                    rle_arr_gc[qjd] = qb;
+                                    rle_arr_vr[qjd] = qb;
+                                }
+                            } else {
+                                rle_arr_vr[qjd] = ignored;
+                                if (!rle_set) {
+                                    rle_arr_cg[qjd] = ignored;
+                                    rle_arr_gc[qjd] = ignored;
                                 }
                             }
 
@@ -965,8 +995,9 @@ static void *process_func(void *data) {
                             qj = qpos + j;
                             qjd = qj + n_deletions;
                             qb = bscall(b, qj);
-                            rle_arr_cg[qjd] = tolower(qb);
-                            rle_arr_gc[qjd] = tolower(qb);
+                            rle_arr_vr[qjd] = tolower(qb);
+                            rle_arr_cg[qjd] = skip_ins;
+                            rle_arr_gc[qjd] = skip_ins;
                         }
                         n_insertions += oplen;
                         qpos += oplen;
@@ -975,8 +1006,9 @@ static void *process_func(void *data) {
                         for (j=0; j<oplen; ++j) {
                             qj = qpos + j;
                             qjd = qj + n_deletions;
-                            rle_arr_cg[qjd] = deletion;
-                            rle_arr_gc[qjd] = deletion;
+                            rle_arr_cg[qjd] = skip_del;
+                            rle_arr_gc[qjd] = skip_del;
+                            rle_arr_vr[qjd] = deletion;
                         }
                         n_deletions += oplen;
                         rpos += oplen;
@@ -989,6 +1021,7 @@ static void *process_func(void *data) {
                                 softclip_start++;
                             rle_arr_cg[qjd] = softclip;
                             rle_arr_gc[qjd] = softclip;
+                            rle_arr_vr[qjd] = softclip;
                         }
                         qpos += oplen;
                         break;
@@ -1018,7 +1051,8 @@ static void *process_func(void *data) {
                         snp_c, hcg_c, gch_c, cg_c);
             }
             if (!conf->epiread_pair && !conf->epiread_old) {
-                format_epi_bed(&rec.s, b, bsstrand, chrm, &w, conf, rle_arr_cg, rle_arr_gc, start, end);
+                //fprintf(stderr, "%s %s %s\n", rle_arr_cg, rle_arr_gc, rle_arr_vr);
+                format_epi_bed(&rec.s, b, bsstrand, chrm, &w, conf, rle_arr_cg, rle_arr_gc, rle_arr_vr, start, end);
             }
 
             // clean up
