@@ -138,7 +138,7 @@ function biscuitQC {
             "samtools view -f 0x400 -q 40 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40_dup.tmp.bed"
 
         # Create cpg_all, cpg_q40
-        cat ${BISCUIT_CPGS} | parallel -j6 -k --tmpdir ${outdir} --pipe --tee {} ::: \
+        cat ${BISCUIT_CPGS} | parallel -j2 -k --tmpdir ${outdir} --pipe --tee {} ::: \
             "bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_all.tmp.bed -a stdin | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_all.tmp.bed" \
             "bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_q40.tmp.bed -a stdin | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_q40.tmp.bed"
 
