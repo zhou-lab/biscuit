@@ -94,6 +94,7 @@ static inline episnp_chrom1_t *get_n_insert_episnp1(episnp_chrom1_v *episnp, cha
         episnp1 = next_ref_episnp_chrom1_v(episnp);
         episnp1->chrm = strdup(chrm);
         episnp1->locs = NULL;
+        episnp1->meth = NULL;
         episnp1->n = 0;
     }
     return episnp1;
@@ -992,7 +993,13 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
 
                 // Adjust number of elements
                 episnp1->locs = realloc(episnp1->locs, (episnp1->n+1)*sizeof(uint32_t));
+                if (!episnp1->locs) {
+                    wzfatal("Failed to properly allocate space for SNP locations\n");
+                }
                 episnp1->meth = realloc(episnp1->meth, (episnp1->n+1)*sizeof(uint8_t));
+                if (!episnp1->meth) {
+                    wzfatal("Failed to properly allocate space for SNP methylation calls\n");
+                }
 
                 // Get start
                 tok = strtok(NULL, "\t"); // start
