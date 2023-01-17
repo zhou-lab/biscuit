@@ -1088,6 +1088,11 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf->max_nm);
     fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "Note, the -O (old epiread format) and -P (pairwise format for biscuit asm) are not guaranteed\n");
+    fprintf(stderr, "    to match output from biscuit pileup. These file formats have been left in for legacy purposes.\n");
+    fprintf(stderr, "    Default output with an unfiltered BISCUIT SNP BED file (biscuit pileup ...\n");
+    fprintf(stderr, "    -> biscuit vcf2bed -t snp ...) should have the same results in the epiBED as in pileup.\n");
+    fprintf(stderr, "\n");
 
     return 1;
 }
