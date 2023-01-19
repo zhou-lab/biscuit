@@ -21,7 +21,6 @@ the user's `PATH` environment variable:
   - [samtools](http://www.htslib.org/)
   - [bedtools](https://bedtools.readthedocs.io/en/latest/index.html)
   - [GNU awk](https://www.gnu.org/software/gawk/manual/gawk.html)
-  - [GNU parallel](https://www.gnu.org/software/parallel/)
 
 It is also useful to have [samblaster](https://github.com/GregoryFaust/samblaster)
 installed for marking duplicate reads during the alignment phase.
