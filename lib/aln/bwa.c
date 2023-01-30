@@ -1,7 +1,7 @@
 /* bwa alignment base
  *
  * Newly added copyright in 2022
- * Copyright (c) 2022- Jacob.Morrison@vai.org
+ * Copyright (c) 2022-2023 Jacob.Morrison@vai.org
  *
  * The MIT License
  *

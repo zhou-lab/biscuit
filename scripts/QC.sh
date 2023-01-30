@@ -38,7 +38,8 @@
 ##     - Adding PATH check for GNU awk
 ##   Jul 2021 -
 ##     - Create qc subcommand and integrate into QC.sh
-##   Jan 2022 -
+##   Jan 2023 -
+##     - Fix bug so new versions of GNU parallel work
 ##     - Remove GNU parallel dependency
 ##
 ################################################################################
