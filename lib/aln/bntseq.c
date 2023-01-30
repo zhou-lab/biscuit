@@ -2,7 +2,7 @@
 
    Copyright (c) 2008 Genome Research Ltd (GRL).
                  2016-2020 Wanding.Zhou@vai.org
-                 2021-2022 Jacob.Morrison@vai.org
+                 2021-2023 Jacob.Morrison@vai.org
 
    Permission is hereby granted, free of charge, to any person obtaining
    a copy of this software and associated documentation files (the
