@@ -7,7 +7,7 @@
 ## showing the different BISCUIT QC metrics
 ##
 ## Notes:
-##   1.) biscuit, samtools, bedtools, awk, and parallel all must be in PATH for
+##   1.) biscuit, samtools, bedtools, and awk all must be in PATH for
 ##       script to work
 ##
 ## Created by:
@@ -40,6 +40,7 @@
 ##     - Create qc subcommand and integrate into QC.sh
 ##   Jan 2023 -
 ##     - Fix bug so new versions of GNU parallel work
+##     - Remove GNU parallel dependency
 ##
 ################################################################################
 
@@ -77,19 +78,6 @@ function check_path {
           exit 1
       fi
   fi
-  if [[ `which parallel 2>&1 > /dev/null` ]]; then
-      >&2 echo "parallel does not exist in PATH"
-      >&2 echo "Make sure to add GNU parallel to PATH"
-      exit 1
-  else
-      if parallel --version | grep -q GNU; then
-          >&2 echo "Using GNU parallel found at: `which parallel`"
-      else
-          >&2 echo "It doesn't appear you are using GNU parallel."
-          >&2 echo "Try adding GNU parallel at the front of PATH"
-          exit 1
-      fi
-  fi
 }
 
 # Check that certain variables have been set and files exist
@@ -107,6 +95,18 @@ function check_variables {
             exit 1
         fi
     done
+}
+
+# Wait for jobs, exit if they're unsuccessful
+# Via: https://stackoverflow.com/questions/1131484/wait-for-bash-background-jobs-in-script-to-be-finished/
+function wait_for_jobs {
+    while true; do
+	wait -n || {
+	    code="$?"
+	    ([[ $code = "127" ]] && exit 0 || exit "$code")
+	    break
+	}
+    done;
 }
 
 # Workhorse function for processing BISCUIT QC
@@ -133,16 +133,19 @@ function biscuitQC {
 
     if [[ "${run_cov_qc}" == true ]]; then
         # Create genomecov_all, genomecov_q40, genomecov_all_dup, genomecov_q40_dup
-        samtools view -hb ${in_bam} | parallel -j4 -k --tmpdir ${outdir} --pipe --tee {} ::: \
-            "bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all.tmp.bed" \
-            "samtools view -q 40 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40.tmp.bed" \
-            "samtools view -f 0x400 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all_dup.tmp.bed" \
-            "samtools view -f 0x400 -q 40 -b | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40_dup.tmp.bed"
+        # Spawn these to the background
+        bedtools genomecov -bga -split -ibam ${in_bam} | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all.tmp.bed &
+        samtools view -q 40 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40.tmp.bed &
+        samtools view -f 0x400 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all_dup.tmp.bed &
+        samtools view -f 0x400 -q 40 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40_dup.tmp.bed &
+
+        wait_for_jobs
 
         # Create cpg_all, cpg_q40
-        cat ${BISCUIT_CPGS} | parallel -j2 -k --tmpdir ${outdir} --pipe --tee {} ::: \
-            "bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_all.tmp.bed -a stdin | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_all.tmp.bed" \
-            "bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_q40.tmp.bed -a stdin | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_q40.tmp.bed"
+        bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_all.tmp.bed -a ${BISCUIT_CPGS} | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_all.tmp.bed &
+        bedtools intersect -sorted -wo -b ${outdir}/${sample}_genomecov_q40.tmp.bed -a ${BISCUIT_CPGS} | bedtools groupby -g 1-3 -c 7 -o min > ${outdir}/${sample}_cpg_q40.tmp.bed &
+
+        wait_for_jobs
 
         # Coverage distributions and uniformity
         echo -e "BISCUITqc Uniformity Table" > ${outdir}/${sample}_cv_table.txt
