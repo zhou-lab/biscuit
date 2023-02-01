@@ -45,6 +45,8 @@
 ################################################################################
 
 set -euo pipefail
+# Improves sort/awk performance
+export LC_ALL=C
 
 # Check for biscuit, samtools, bedtools, awk in PATH
 function check_path {
@@ -134,10 +136,10 @@ function biscuitQC {
     if [[ "${run_cov_qc}" == true ]]; then
         # Create genomecov_all, genomecov_q40, genomecov_all_dup, genomecov_q40_dup
         # Spawn these to the background
-        bedtools genomecov -bga -split -ibam ${in_bam} | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all.tmp.bed &
-        samtools view -q 40 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40.tmp.bed &
-        samtools view -f 0x400 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all_dup.tmp.bed &
-        samtools view -f 0x400 -q 40 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | LC_ALL=C sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40_dup.tmp.bed &
+        bedtools genomecov -bga -split -ibam ${in_bam} | sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all.tmp.bed &
+        samtools view -q 40 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40.tmp.bed &
+        samtools view -f 0x400 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_all_dup.tmp.bed &
+        samtools view -f 0x400 -q 40 -b ${in_bam} | bedtools genomecov -bga -split -ibam stdin | sort -k1,1 -k2,2n -T ${outdir} > ${outdir}/${sample}_genomecov_q40_dup.tmp.bed &
 
         wait_for_jobs
 
