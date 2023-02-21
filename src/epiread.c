@@ -1080,7 +1080,7 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -5 INT    Minimum distance to 5' end of a read [%u]\n", conf->min_dist_end_5p);
     fprintf(stderr, "    -3 INT    Minimum distance to 3' end of a read [%u]\n", conf->min_dist_end_3p);
     fprintf(stderr, "    -E        NO filtering of empty epireads\n");
-    fprintf(stderr, "    -c        NO filtering secondary mapping\n");
+    //fprintf(stderr, "    -c        NO filtering secondary mapping\n");
     fprintf(stderr, "    -d        Double count cytosines in overlapping mate reads (avoided\n");
     fprintf(stderr, "                  by default)\n");
     fprintf(stderr, "    -u        NO filtering of duplicate\n");
