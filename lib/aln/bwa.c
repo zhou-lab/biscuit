@@ -362,6 +362,12 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
            for (i = 0; i < len; ++i) {
 
               /* to allow assymmetric CT and GA */
+              /* NOTE: For the MD tag, BISCUIT follows the SAM spec, so all C>T / G>A conversions will be marked as
+               *       mismatches relative to the reference genome. This allows for reconstruction of the reference
+               *       from the CIGAR string, the SEQ value, and the MD tag.
+               *       However, BISCUIT falls in the loophole laid out in the NM tag spec. BISCUIT writes out the
+               *       number of non-cytosine conversions as the value in the NM tag. To reconstruct the NM tag as
+               *       printed by samtools calmd, add the NM tag value and the ZC tag value. */
               unsigned char _q = query[x+i];
               unsigned char _r = rseq[y+i];
               if (_q == _r) {
@@ -369,9 +375,13 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
                  if (_q == 2) ++n_ret_g;
                  ++u;
               } else if (_q == 3 && _r == 1) {
-                 ++n_conv_ct; ++u;
+                 kputw(u, &str);
+                 kputc(int2base[_r], &str);
+                 ++n_conv_ct; u = 0;
               } else if (!parent && _q == 0 && _r == 2) {
-                 ++n_conv_ga; ++u;
+                 kputw(u, &str);
+                 kputc(int2base[_r], &str);
+                 ++n_conv_ga; u = 0;
               } else {
                  kputw(u, &str);
                  kputc(int2base[_r], &str);
