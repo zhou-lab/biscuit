@@ -165,8 +165,8 @@ release:
 
 # removes git history, for release internal use
 cleanse : purge
-	rm -f **/*.o .travis.yml .gitmodules .gitignore
-	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
+	rm -f **/*.o .gitmodules .gitignore
+	rm -rf .git .github $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
 
 
 

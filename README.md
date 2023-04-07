@@ -1,4 +1,4 @@
-# BISCUIT [![Travis-CI Build Status](https://travis-ci.org/huishenlab/biscuit.svg?branch=master)](https://travis-ci.org/huishenlab/biscuit) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.48262.svg)](http://dx.doi.org/10.5281/zenodo.48262)
+# BISCUIT [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.48262.svg)](http://dx.doi.org/10.5281/zenodo.48262)
 
 BISulfite-seq CUI Toolkit (BISCUIT) is a utility for analyzing sodium bisulfite
 conversion-based DNA methylation/modification data. It was written to perform

@@ -1,0 +1,36 @@
+name: Check Build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-ubuntu:
+    name: Check Ubuntu Build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Check build
+      run: make
+
+    # These haven't been generated yet, so uncomment when ready
+    # - name: Run tests
+    #   run: make check
+
+  build-mac:
+    name: Check macOS Build
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Check build
+      run: make
+
+    # These haven't been generated yet, so uncomment when ready
+    # - name: Run tests
+    #   run: make check
