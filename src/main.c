@@ -129,8 +129,8 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Using:\n");
       fprintf(stderr, "\thtslib version: zwdzwd/htslib at commit f29fa32\n");
       fprintf(stderr, "\tklib   version: zwdzwd/klib   at commit ca862f8\n");
-      fprintf(stderr, "\tsgsl   version: zwdzwd/sgsl   at commit a0ddc77\n");
-      fprintf(stderr, "\tutils  version: zwdzwd/utils  at commit 332459b\n");
+      fprintf(stderr, "\tsgsl   version: huishenlab/sgsl   at commit a0ddc77\n");
+      fprintf(stderr, "\tutils  version: huishenlab/utils  at commit 332459b\n");
       fprintf(stderr, "\nLibraries found at: https://github.com/huishenlab/biscuit/tree/master/lib\n");
       return 0;
   }
