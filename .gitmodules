@@ -1,6 +1,3 @@
-[submodule "lib/utils"]
-	path = lib/utils
-	url = https://github.com/zwdzwd/utils.git
 [submodule "lib/sgsl"]
 	path = lib/sgsl
 	url = https://github.com/zwdzwd/sgsl.git
