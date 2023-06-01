@@ -7,3 +7,6 @@
 [submodule "lib/htslib"]
 	path = lib/htslib
 	url = https://github.com/zwdzwd/htslib.git
+[submodule "lib/utils"]
+	path = lib/utils
+	url = https://github.com/huishenlab/utils.git
