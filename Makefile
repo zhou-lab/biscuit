@@ -102,7 +102,7 @@ src/tview.o: src/tview.c
 	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 
 src/vcf2bed.o: src/vcf2bed.c
-	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) $< -o $@
 
 src/epiread.o: src/epiread.c
 	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
