@@ -26,6 +26,25 @@
 
 #include "bc.h"
 
+void extract_barcodes(kseq_t *ks1, kseq_t *ks2) {
+    while (kseq_read(ks1) >= 0) {
+        fprintf(stdout, "%s", ks1->name.s);
+        if (ks2 && kseq_read(ks2) < 0) { // read 2 has fewer reads
+            fprintf(stderr, "read 2 has fewer sequences\n");
+            break;
+        }
+
+        if (ks2) {
+            fprintf(stdout, " %s", ks2->name.s);
+        }
+
+        fprintf(stdout, "\n");
+    }
+    if (ks2 && kseq_read(ks2) >= 0) {
+        fprintf(stderr, "read 1 has fewer sequences\n");
+    }
+}
+
 static void usage() {
     fprintf(stderr, "\n");
     fprintf(stderr, "Usage: biscuit bc [options] <FASTQ 1> <FASTQ 2>\n");
@@ -102,24 +121,13 @@ int main_bc(int argc, char *argv[]) {
         ks2 = NULL;
     }
 
-    if (fh1) {
-        gzclose(fh1);
-    }
-    if (fh2) {
-        gzclose(fh2);
-    }
+    extract_barcodes(ks1, ks2);
 
-    while (kseq_read(ks1) >= 0) {
-        if (ks2 && kseq_read(ks2) < 0) { // read 2 has fewer reads
-            fprintf(stderr, "read 2 has fewer sequences\n");
-            break;
-        }
-
-        fprintf(stdout, "%s %s\n", ks1->name.s, ks2->name.s);
-    }
-    if (ks2 && kseq_read(ks2) >= 0) {
-        fprintf(stderr, "read 1 has fewer sequences\n");
-    }
+    // Clean up
+    if (ks2) { kseq_destroy(ks2); }
+    if (ks1) { kseq_destroy(ks1); }
+    if (fh2) { gzclose(fh2); }
+    if (fh1) { gzclose(fh1); }
 
     return 0;
 }

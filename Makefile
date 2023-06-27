@@ -151,7 +151,7 @@ src/qc.o: src/qc.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
 
 src/bc.o: src/bc.c
-	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LKLIB_DIR) $< -o $@
 
 # ####### general #######
 

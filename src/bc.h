@@ -30,10 +30,14 @@
 #include <stdio.h>
 #include <zlib.h>
 #include <stdint.h>
+
 #include "kseq.h"
+KSEQ_INIT(gzFile, gzread)
 
 typedef struct {
     uint8_t single_end;
 } bc_conf_t;
+
+void extract_barcodes(kseq_t *ks1, kseq_t *ks2);
 
 #endif /* _BC_H_ */
