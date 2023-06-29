@@ -46,7 +46,7 @@ gzFile setup_output(const char *ofile) {
 
     gzFile out = gzopen(ofile, mode);
     if (!out) {
-        fprintf(stderr, "ERROR: Could not open output file: %s\n", ofile);
+        fprintf(stderr, "ERROR: could not open output file: %s\n", ofile);
         return NULL;
     }
 
@@ -57,7 +57,7 @@ void extract_barcodes(kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2) {
     while (kseq_read(ks1) >= 0) {
         //fprintf(stdout, "%s", ks1->name.s);
         if (ks2 && kseq_read(ks2) < 0) { // read 2 has fewer reads
-            fprintf(stderr, "read 2 has fewer sequences\n");
+            fprintf(stderr, "WARNING: read 2 has fewer sequences\n");
             break;
         }
 
@@ -68,7 +68,7 @@ void extract_barcodes(kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2) {
         //fprintf(stdout, "\n");
     }
     if (ks2 && kseq_read(ks2) >= 0) {
-        fprintf(stderr, "read 1 has fewer sequences\n");
+        fprintf(stderr, "WARNING: read 1 has fewer sequences\n");
     }
 }
 
@@ -129,11 +129,11 @@ int main_bc(int argc, char *argv[]) {
                 return 0;
             case ':':
                 usage();
-                fprintf(stderr, "Option needs an argument: -%c\n", optopt);
+                fprintf(stderr, "ERROR: option needs an argument: -%c\n", optopt);
                 return 1;
             case '?':
                 usage();
-                fprintf(stderr, "Unrecognized option: -%c\n", optopt);
+                fprintf(stderr, "ERROR: unrecognized option: -%c\n", optopt);
                 return 1;
             default:
                 usage();
@@ -144,14 +144,14 @@ int main_bc(int argc, char *argv[]) {
     // Handle input errors
     if (conf.mate < 1 || conf.mate > 2) {
         usage();
-        fprintf(stderr, "-m,--mate must be 1 or 2\n");
+        fprintf(stderr, "ERROR: -m,--mate must be 1 or 2\n");
         return 1;
     }
 
     // Init files and handle read errors
     if (optind >= argc) {
         usage();
-        fprintf(stderr, "No read FASTQ files provided\n");
+        fprintf(stderr, "ERROR: no read FASTQ files provided\n");
         return 1;
     }
 
@@ -160,7 +160,7 @@ int main_bc(int argc, char *argv[]) {
 
     fh1 = gzopen(argv[optind], "r");
     if (!fh1) {
-        fprintf(stderr, "Could not open input file: %s\n", argv[optind]);
+        fprintf(stderr, "ERROR: could not open input file: %s\n", argv[optind]);
         return 1;
     }
     ks1 = kseq_init(fh1);
@@ -170,7 +170,7 @@ int main_bc(int argc, char *argv[]) {
     if (optind+1 < argc) {
         fh2 = gzopen(argv[optind+1], "r");
         if (!fh2) {
-            fprintf(stderr, "Could not open input file: %s\n", argv[optind+1]);
+            fprintf(stderr, "ERROR: could not open input file: %s\n", argv[optind+1]);
             return 1;
         }
         ks2 = kseq_init(fh2);
