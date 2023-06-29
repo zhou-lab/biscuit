@@ -26,50 +26,119 @@
 
 #include "bc.h"
 
-gzFile setup_output(const char *ofile) {
-    // Length of file name, handle case where it's too short to do something with
-    int len = strlen(ofile);
-    if (len < 3) {
-        fprintf(stderr, "ERROR: output file name not long enough to determine compression\n");
-        return NULL;
+gzFile setup_output(const char *ofile, uint8_t read_num) {
+    char *fname = (char *)calloc(strlen(ofile)+N_EXTRA, sizeof(char));
+    memcpy(fname, ofile, strlen(ofile));
+    if (read_num == 0) {
+        strcat(fname, ".fq.gz");
+    } else if (read_num == 1) {
+        strcat(fname, "_R1.fq.gz");
+    } else {
+        strcat(fname, "_R2.fq.gz");
     }
 
-    // Default to writing with standard compression
-    char *mode = "w6";
-
-    // Change compression if not ".gz" file
-    const char *ext = &ofile[len-3];
-    if (strcmp(ext, ".gz") != 0) {
-        mode = "w0";
-    }
-    fprintf(stdout, "mode: %s\n", mode);
-
-    gzFile out = gzopen(ofile, mode);
+    gzFile out = gzopen(fname, "w6");
     if (!out) {
         fprintf(stderr, "ERROR: could not open output file: %s\n", ofile);
+        free(fname);
         return NULL;
     }
+
+    free(fname);
 
     return out;
 }
 
-void extract_barcodes(kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2) {
+int prepare_read(kseq_t *k, kstring_t *s, bc_conf_t *conf, uint8_t remove_bc) {
+    // Pre-allocate space, or expand space ahead of time, to reduce the number of allocations
+    size_t str_len = k->name.l + k->comment.l + k->seq.l + k->qual.l + (size_t)N_EXTRA;
+
+    if (str_len > s->m) {
+        int err = ks_resize(s, str_len);
+        if (err < 0) {
+            fprintf(stderr, "ERROR: Unable to allocate sufficient space\n");
+            return -1;
+        }
+    }
+
+    // Read name
+    ksprintf(s, "@%s", k->name.s);
+
+    // Read comment
+    ksprintf(s, " %s", k->comment.s);
+
+    // Sequence
+    ksprintf(s, "\n%s\n+\n", k->seq.s);
+
+    // Quality
+    ksprintf(s, "%s\n", k->qual.s);
+
+    return 0;
+}
+
+void extract_barcodes(bc_conf_t *conf, kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2) {
+    // Allocate strings
+    kstring_t *s1 = (kstring_t *)calloc(1, sizeof(kstring_t));
+    kstring_t *s2 = (kstring_t *)calloc(1, sizeof(kstring_t));
+
+    // Process reads
     while (kseq_read(ks1) >= 0) {
-        //fprintf(stdout, "%s", ks1->name.s);
         if (ks2 && kseq_read(ks2) < 0) { // read 2 has fewer reads
             fprintf(stderr, "WARNING: read 2 has fewer sequences\n");
             break;
         }
 
-        //if (ks2) {
-        //    fprintf(stdout, " %s", ks2->name.s);
-        //}
+        if (conf->bc_start + conf->bc_length > ks1->seq.l) {
+            fprintf(stderr, "WARNING: read is too short to extract barcode, dropping\n");
+            continue;
+        }
 
-        //fprintf(stdout, "\n");
+        uint8_t r1_has_bc = conf->mate == 1 ? 1 : 0;
+        int err = prepare_read(ks1, s1, conf, r1_has_bc);
+        if (err < 0) {
+            break;
+        }
+        if (oh1) {
+            if (gzwrite(oh1, s1->s, s1->l) == 0) {
+                fprintf(stderr, "ERROR: unsuccessful write to FASTQ\n");
+                break;
+            }
+        } else {
+            fprintf(stdout, "%s", s1->s);
+        }
+
+        // Reset kstring for next read
+        s1->s[0] = '\0';
+        s1->l = 0;
+
+        if (ks2) {
+            int err = prepare_read(ks2, s2, conf, !r1_has_bc);
+            if (err < 0) {
+                break;
+            }
+            if (oh2) {
+                if (gzwrite(oh2, s2->s, s2->l) == 0) {
+                    fprintf(stderr, "ERROR: unsuccessful write to FASTQ\n");
+                    break;
+                }
+            } else {
+                fprintf(stdout, "%s", s2->s);
+            }
+
+            // Reset kstring for next read
+            s2->s[0] = '\0';
+            s2->l = 0;
+        }
     }
     if (ks2 && kseq_read(ks2) >= 0) {
         fprintf(stderr, "WARNING: read 1 has fewer sequences\n");
     }
+
+    // Clean up
+    free(s2->s);
+    free(s2);
+    free(s1->s);
+    free(s1);
 }
 
 static void usage() {
@@ -80,14 +149,16 @@ static void usage() {
     fprintf(stderr, "Usage: biscuit bc [options] <FASTQ 1> [FASTQ 2]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Processing Options:\n");
-    fprintf(stderr, "    -m, --mate INT         which mate the barcode is in (1 or 2) [%u]\n", conf.mate);
-    fprintf(stderr, "    -s, --bc-start INT     start position of barcode in read (1-based) [%u]\n", conf.bc_start);
-    fprintf(stderr, "    -l, --bc-length INT    length of barcode [%u]\n", conf.bc_length);
+    fprintf(stderr, "    -m, --mate INT             which mate the barcode is in (1 or 2) [%u]\n", conf.mate);
+    fprintf(stderr, "    -s, --bc-start INT         start position of barcode in read (1-based) [%u]\n", conf.bc_start);
+    fprintf(stderr, "    -l, --bc-length INT        length of barcode [%u]\n", conf.bc_length);
     fprintf(stderr, "Output Options:\n");
-    fprintf(stderr, "    -o, --output1 STR      name of output file for read 1 (NULL writes to stdout) [NULL]\n");
-    fprintf(stderr, "    -O, --output2 STR      name of output file for read 2 (NULL writes to stdout) [NULL]\n");
+    fprintf(stderr, "    -o, --output-prefix STR    prefix for output files (NULL writes to stdout) [NULL]\n");
+    fprintf(stderr, "    -z, --gz                   write output files as gzipped FASTQs [off]\n");
     fprintf(stderr, "General Options:\n");
     fprintf(stderr, "    -h, --help             This help\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Note: When writing to stdout, reads 1 and 2 will alternate (i.e., are interleaved)\n");
     fprintf(stderr, "\n");
 }
 
@@ -100,14 +171,14 @@ int main_bc(int argc, char *argv[]) {
         {"mate"     , required_argument, NULL, 'm'},
         {"bc-start" , required_argument, NULL, 's'},
         {"bc-length", required_argument, NULL, 'l'},
-        {"output1"  , required_argument, NULL, 'o'},
-        {"output2"  , required_argument, NULL, 'O'},
+        {"output"   , required_argument, NULL, 'o'},
+        {"gz"       , required_argument, NULL, 'z'},
         {"help"     , no_argument      , NULL, 'h'},
         {NULL, 0, NULL, 0}
     };
 
     if (argc < 2) { usage(); return 1; }
-    while ((c = getopt_long(argc, argv, ":l:m:o:s:O:h", loptions, NULL)) >= 0) {
+    while ((c = getopt_long(argc, argv, ":l:m:o:s:h", loptions, NULL)) >= 0) {
         switch(c) {
             case 'l':
                 conf.bc_length = (uint8_t)atoi(optarg);
@@ -116,13 +187,10 @@ int main_bc(int argc, char *argv[]) {
                 conf.mate = (uint8_t)atoi(optarg);
                 break;
             case 'o':
-                conf.ofile1 = optarg;
+                conf.ofile = optarg;
                 break;
             case 's':
                 conf.bc_start = (int8_t)atoi(optarg);
-                break;
-            case 'O':
-                conf.ofile2 = optarg;
                 break;
             case 'h':
                 usage();
@@ -141,11 +209,18 @@ int main_bc(int argc, char *argv[]) {
         }
     }
 
-    // Handle input errors
+    // Handle inputs
     if (conf.mate < 1 || conf.mate > 2) {
         usage();
         fprintf(stderr, "ERROR: -m,--mate must be 1 or 2\n");
         return 1;
+    }
+
+    if (conf.bc_start == 0) {
+        fprintf(stderr, "ERROR: barcode start position should be 1-based, did you mean -s 1?\n");
+        return 1;
+    } else {
+        conf.bc_start--;
     }
 
     // Init files and handle read errors
@@ -165,8 +240,6 @@ int main_bc(int argc, char *argv[]) {
     }
     ks1 = kseq_init(fh1);
 
-    oh1 = setup_output(conf.ofile1);
-
     if (optind+1 < argc) {
         fh2 = gzopen(argv[optind+1], "r");
         if (!fh2) {
@@ -174,18 +247,23 @@ int main_bc(int argc, char *argv[]) {
             return 1;
         }
         ks2 = kseq_init(fh2);
-        //oh2 = setup_output(conf.ofile2);
+    }
+
+    if (conf.ofile) {
+        oh1 = setup_output(conf.ofile, (ks2) ? 1 : 0);
+        if (ks2) {
+            oh2 = setup_output(conf.ofile, 2);
+        }
     }
 
     // Process
-    extract_barcodes(ks1, ks2, oh1, oh2);
+    extract_barcodes(&conf, ks1, ks2, oh1, oh2);
 
     // Clean up
+    if (oh2) { gzclose(oh2); }
     if (oh1) { gzclose(oh1); }
     if (ks2) { kseq_destroy(ks2); }
     if (ks1) { kseq_destroy(ks1); }
-    //if (oh2) { gzclose(oh2); }
-    //if (oh1) { gzclose(oh1); }
     if (fh2) { gzclose(fh2); }
     if (fh1) { gzclose(fh1); }
 

@@ -32,8 +32,12 @@
 #include <getopt.h>
 #include <zlib.h>
 
+#include "kstring.h"
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
+
+// Number of extra bytes to allocate
+#define N_EXTRA 32
 
 // uint8_t should be large enough for now, but if barcodes start to occur
 // in locations further in from the start of the read or barcode lengths
@@ -42,20 +46,18 @@ typedef struct {
     uint8_t  mate;      /* which read the barcode is on (1 or 2) */
     uint8_t  bc_start;  /* start position of barcode (1-based) */
     uint8_t  bc_length; /* length of barcode */
-    char    *ofile1;    /* output file name for read 1, NULL writes to stdout */
-    char    *ofile2;    /* output file name for read 2, NULL writes to stdout */
+    char    *ofile;     /* prefix for output files, NULL writes to stdout */
 } bc_conf_t;
 
 static inline void bc_conf_init(bc_conf_t *conf) {
     conf->mate      = 1;
-    conf->bc_start  = 0;
+    conf->bc_start  = 1;
     conf->bc_length = 0;
-    conf->ofile1    = NULL;
-    conf->ofile2    = NULL;
+    conf->ofile     = NULL;
 }
 
-gzFile setup_output(const char *ofile);
+gzFile setup_output(const char *ofile, uint8_t read_num);
 
-void extract_barcodes(kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2);
+void extract_barcodes(bc_conf_t *conf, kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2);
 
 #endif /* _BC_H_ */
