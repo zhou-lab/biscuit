@@ -58,6 +58,8 @@ static inline void bc_conf_init(bc_conf_t *conf) {
 
 gzFile setup_output(const char *ofile, uint8_t read_num);
 
+int prepare_read_se(kseq_t *k, kstring_t *s, bc_conf_t *conf);
+
 void extract_barcodes(bc_conf_t *conf, kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2);
 
 #endif /* _BC_H_ */

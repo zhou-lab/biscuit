@@ -49,32 +49,43 @@ gzFile setup_output(const char *ofile, uint8_t read_num) {
     return out;
 }
 
-int prepare_read(kseq_t *k, kstring_t *s, bc_conf_t *conf, uint8_t remove_bc) {
+int prepare_read_se(kseq_t *k, kstring_t *s, bc_conf_t *conf) {
+    // Make sure the read is long enough to extract a barcode from
+    if (conf->bc_start+conf->bc_length > k->seq.l) {
+        return 1;
+    }
+
     // Pre-allocate space, or expand space ahead of time, to reduce the number of allocations
     size_t str_len = k->name.l + k->comment.l + k->seq.l + k->qual.l + (size_t)N_EXTRA;
 
     if (str_len > s->m) {
         int err = ks_resize(s, str_len);
         if (err < 0) {
-            fprintf(stderr, "ERROR: Unable to allocate sufficient space\n");
             return -1;
         }
     }
 
-    // Read name
-    ksprintf(s, "@%s", k->name.s);
-
-    // Read comment
-    ksprintf(s, " %s", k->comment.s);
-
-    // Sequence
-    ksprintf(s, "\n%s\n+\n", k->seq.s);
-
-    // Quality
-    ksprintf(s, "%s\n", k->qual.s);
+    // Create read entry
+    ksprintf(
+        s,
+        "@%s %s:%.*s\n%.*s%s\n+\n%.*s%s\n",
+        k->name.s, k->comment.s,
+        conf->bc_length, k->seq.s+conf->bc_start,
+        conf->bc_start, k->seq.s, k->seq.s+conf->bc_start+conf->bc_length,
+        conf->bc_start, k->qual.s, k->qual.s+conf->bc_start+conf->bc_length
+    );
 
     return 0;
 }
+
+//int prepare_read_pe() {
+//    // Extract barcode and remove corresponding qual string (if applicable)
+//    char *bc = (char *)calloc(conf->bc_length+1, sizeof(char));
+//    if (conf->bc_start == 0) {
+//        strncpy(bc, k->seq.s, conf->bc_length);
+//    }
+//    fprintf(stdout, "barcode: %s\n", bc);
+//}
 
 void extract_barcodes(bc_conf_t *conf, kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzFile oh2) {
     // Allocate strings
@@ -88,47 +99,54 @@ void extract_barcodes(bc_conf_t *conf, kseq_t *ks1, kseq_t *ks2, gzFile oh1, gzF
             break;
         }
 
-        if (conf->bc_start + conf->bc_length > ks1->seq.l) {
-            fprintf(stderr, "WARNING: read is too short to extract barcode, dropping\n");
-            continue;
-        }
-
-        uint8_t r1_has_bc = conf->mate == 1 ? 1 : 0;
-        int err = prepare_read(ks1, s1, conf, r1_has_bc);
-        if (err < 0) {
-            break;
-        }
-        if (oh1) {
-            if (gzwrite(oh1, s1->s, s1->l) == 0) {
-                fprintf(stderr, "ERROR: unsuccessful write to FASTQ\n");
-                break;
-            }
-        } else {
-            fprintf(stdout, "%s", s1->s);
-        }
-
-        // Reset kstring for next read
-        s1->s[0] = '\0';
-        s1->l = 0;
-
-        if (ks2) {
-            int err = prepare_read(ks2, s2, conf, !r1_has_bc);
+        if (!ks2) {
+            // single-end
+            int err = prepare_read_se(ks1, s1, conf);
             if (err < 0) {
+                fprintf(stderr, "ERROR: Unable to allocate sufficient space\n");
                 break;
+            } else if (err == 1) {
+                fprintf(stderr, "WARNING: read is too short to extract barcode, dropping read\n");
+                continue;
             }
-            if (oh2) {
-                if (gzwrite(oh2, s2->s, s2->l) == 0) {
+
+            if (oh1) {
+                if (gzwrite(oh1, s1->s, s1->l) == 0) {
                     fprintf(stderr, "ERROR: unsuccessful write to FASTQ\n");
                     break;
                 }
             } else {
-                fprintf(stdout, "%s", s2->s);
+                fprintf(stdout, "%s", s1->s);
             }
-
-            // Reset kstring for next read
-            s2->s[0] = '\0';
-            s2->l = 0;
+        } else {
+            // paired-end
+            // TODO: Pick up with handling paired reads on Wednesday
         }
+
+        //uint8_t r1_has_bc = conf->mate == 1 ? 1 : 0;
+
+        //// Reset kstring for next read
+        //s1->s[0] = '\0';
+        //s1->l = 0;
+
+        //if (ks2) {
+        //    int err = prepare_read(ks2, s2, conf, !r1_has_bc);
+        //    if (err < 0) {
+        //        break;
+        //    }
+        //    if (oh2) {
+        //        if (gzwrite(oh2, s2->s, s2->l) == 0) {
+        //            fprintf(stderr, "ERROR: unsuccessful write to FASTQ\n");
+        //            break;
+        //        }
+        //    } else {
+        //        fprintf(stdout, "%s", s2->s);
+        //    }
+
+        //    // Reset kstring for next read
+        //    s2->s[0] = '\0';
+        //    s2->l = 0;
+        //}
     }
     if (ks2 && kseq_read(ks2) >= 0) {
         fprintf(stderr, "WARNING: read 1 has fewer sequences\n");
@@ -247,6 +265,9 @@ int main_bc(int argc, char *argv[]) {
             return 1;
         }
         ks2 = kseq_init(fh2);
+    }
+    if (conf.mate == 2 && !ks2) {
+        conf.mate = 1;
     }
 
     if (conf.ofile) {
