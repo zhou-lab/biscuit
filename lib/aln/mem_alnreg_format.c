@@ -272,7 +272,9 @@ void mem_alnreg_formatSAM(
     // print up to CIGAR
     int l_name = strlen(s->name);
     ks_resize(str, str->l + s->l_seq0 + l_name + (s->qual ? s->l_seq0 : 0) + 20);
-    kputsn(s->name, l_name, str); kputc('\t', str); // read name, QNAME
+    kputsn(s->name, l_name, str); // read name, QNAME
+    if (s->comment) { kputc('_', str); kputs(s->comment, str); } // add comment if available to QNAME
+    kputc('\t', str);
     kputw((p.flag & 0xffff) | (p.flag & 0x10000 ? 0x100 : 0), str); kputc('\t', str); // FLAG
     if (p.rid >= 0) { // with coordinate
         kputs(bns->anns[p.rid].name, str); kputc('\t', str); // reference/chromosome name, RNAME
@@ -387,7 +389,6 @@ void mem_alnreg_formatSAM(
 
     // XA and XB: alternative (secondary) alignment
     if (regs0) mem_alnreg_tagXAXB(opt, bns, pac, s, p0, regs0, str);
-    if (s->comment) { kputc('\t', str); kputs(s->comment, str); }
     // XR: reference/chromosome annotation
     if ((opt->flag&MEM_F_REF_HDR) && p.rid >= 0 && bns->anns[p.rid].anno != 0 && bns->anns[p.rid].anno[0] != 0) {
         int tmp;
