@@ -228,7 +228,6 @@ static void usage() {
     fprintf(stderr, "    -l, --bc-length INT        length of barcode [%u]\n", conf.bc_length);
     fprintf(stderr, "Output Options:\n");
     fprintf(stderr, "    -o, --output-prefix STR    prefix for output files (NULL writes to stdout) [NULL]\n");
-    fprintf(stderr, "    -z, --gz                   write output files as gzipped FASTQs [off]\n");
     fprintf(stderr, "General Options:\n");
     fprintf(stderr, "    -h, --help             This help\n");
     fprintf(stderr, "\n");
@@ -246,7 +245,6 @@ int main_bc(int argc, char *argv[]) {
         {"bc-start" , required_argument, NULL, 's'},
         {"bc-length", required_argument, NULL, 'l'},
         {"output"   , required_argument, NULL, 'o'},
-        {"gz"       , required_argument, NULL, 'z'},
         {"help"     , no_argument      , NULL, 'h'},
         {NULL, 0, NULL, 0}
     };
