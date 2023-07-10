@@ -295,6 +295,11 @@ int main_bc(int argc, char *argv[]) {
         conf.bc_start--;
     }
 
+    if (conf.bc_length == 0) {
+        fprintf(stderr, "ERROR: barcode length must be at least 1\n");
+        return 1;
+    }
+
     // Init files and handle read errors
     if (optind >= argc) {
         usage();

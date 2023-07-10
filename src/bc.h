@@ -52,7 +52,7 @@ typedef struct {
 static inline void bc_conf_init(bc_conf_t *conf) {
     conf->mate      = 1;
     conf->bc_start  = 1;
-    conf->bc_length = 0;
+    conf->bc_length = 8;
     conf->ofile     = NULL;
 }
 
