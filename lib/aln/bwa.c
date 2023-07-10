@@ -763,7 +763,7 @@ bseq1_t *bis_create_bseq1(char *seq1, char *seq2, int *n) {
   return s2;
 }
 
-static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
+static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s, uint8_t has_bc)
 { // TODO: it would be better to allocate one chunk of memory, but probably it does not matter in practice
   s->name = strdup(ks->name.s);
   s->comment = ks->comment.l? strdup(ks->comment.s) : 0;
@@ -781,7 +781,7 @@ static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
   bseq1_code_nt4(s);
 }
 
-bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_) {
+bseq1_t *bis_bseq_read(int chunk_size, uint8_t has_bc, int *n_, void *ks1_, void *ks2_) {
 
   kseq_t *ks = (kseq_t*)ks1_, *ks2 = (kseq_t*)ks2_;
   int size = 0, m, n;
@@ -797,12 +797,12 @@ bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_) {
       seqs = realloc(seqs, m * sizeof(bseq1_t));
     }
     trim_readno(&ks->name);
-    bis_kseq2bseq1(ks, &seqs[n]);
+    bis_kseq2bseq1(ks, &seqs[n], has_bc);
     seqs[n].id = n;
     size += seqs[n++].l_seq;
     if (ks2) {
       trim_readno(&ks2->name);
-      bis_kseq2bseq1(ks2, &seqs[n]);
+      bis_kseq2bseq1(ks2, &seqs[n], has_bc);
       seqs[n].id = n;
       size += seqs[n++].l_seq;
     }

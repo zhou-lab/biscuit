@@ -119,6 +119,10 @@ mem_opt_t *mem_opt_init() {
    o->clip5 = 0;
    o->clip3 = 0;
    o->min_base_qual = 0;
+
+   // barcode
+   o->has_bc = 0;
+
    return o;
 }
 
