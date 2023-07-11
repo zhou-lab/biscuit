@@ -153,7 +153,7 @@ static void *process(void *shared, int step, void *_data) {
   } else if (step == 2) {
     for (i = 0; i < data->n_seqs; ++i) {
       if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
-      free(data->seqs[i].name); free(data->seqs[i].comment);
+      free(data->seqs[i].name); free(data->seqs[i].comment); free(data->seqs[i].barcode);
       free(data->seqs[i].seq0); free(data->seqs[i].qual); free(data->seqs[i].sam);
       /* bisulfite free, the pointers can be NULL */
       free(data->seqs[i].bisseq[0]);
