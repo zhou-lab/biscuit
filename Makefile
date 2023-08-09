@@ -110,7 +110,7 @@ LALNOBJ=$(patsubst %.c,%.o,$(wildcard $(LALND)/*.c))
 lib/aln/libaln.a: $(LALNOBJ)
 	ar -csru $@ $(LALNOBJ)
 $(LALND)/%.o: $(LALND)/%.c
-	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(INCLUDE)/klib $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) $< -o $@
 clean_aln:
 	rm -f $(LALND)/*.o lib/aln/libaln.a
 
