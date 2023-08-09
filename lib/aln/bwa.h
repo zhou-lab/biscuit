@@ -51,7 +51,7 @@ typedef struct {
 
 typedef struct {
    int l_seq, id;                /* check if l_seq can be unsigned? */
-   char *name, *comment, *qual, *sam; /* sam stored the end output of sam record */
+   char *name, *comment, *barcode, *qual, *sam; /* sam stored the end output of sam record */
    uint8_t *seq, *bisseq[2];
    uint8_t *seq0;              /* pointer to sequence beginning before clipping */
    int l_seq0;                 /* the original l_seq before clipping */
@@ -72,7 +72,7 @@ extern "C" {
   bseq1_t *bis_create_bseq1(char *seq1, char *seq2, int *n);
 
   bseq1_t *bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_);
-  bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_);
+  bseq1_t *bis_bseq_read(int chunk_size, uint8_t has_bc, int *n_, void *ks1_, void *ks2_);
   void bseq_classify(int n, bseq1_t *seqs, int m[2], bseq1_t *sep[2]);
 
   void bwa_fill_scmat(int a, int b, int8_t mat[25]);

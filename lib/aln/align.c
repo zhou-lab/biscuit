@@ -79,7 +79,7 @@ static void *process(void *shared, int step, void *_data) {
       if (aux->_seq2)  aux->opt->flag |= MEM_F_PE;
       aux->__processed = 1;
     } else { // read from file
-      ret->seqs = bis_bseq_read(aux->actual_chunk_size, &ret->n_seqs, aux->ks, aux->ks2);
+      ret->seqs = bis_bseq_read(aux->actual_chunk_size, aux->opt->has_bc, &ret->n_seqs, aux->ks, aux->ks2);
       if (ret->seqs == 0) {
         free(ret);
         return 0;
@@ -153,7 +153,7 @@ static void *process(void *shared, int step, void *_data) {
   } else if (step == 2) {
     for (i = 0; i < data->n_seqs; ++i) {
       if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
-      free(data->seqs[i].name); free(data->seqs[i].comment);
+      free(data->seqs[i].name); free(data->seqs[i].comment); free(data->seqs[i].barcode);
       free(data->seqs[i].seq0); free(data->seqs[i].qual); free(data->seqs[i].sam);
       /* bisulfite free, the pointers can be NULL */
       free(data->seqs[i].bisseq[0]);
@@ -257,6 +257,7 @@ int usage(mem_opt_t *opt) {
     fprintf(stderr, "    -S              Skip mate rescue\n");
     fprintf(stderr, "    -P              Skip pairing - mate rescue performed unless -S also given\n");
     fprintf(stderr, "    -e              Discard full-length exact matches\n");
+    fprintf(stderr, "    -9              Extract barcode from read comment\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Scoring options:\n");
     fprintf(stderr, "    -A INT          Score for a sequence match, scales options -TdBOELU unless\n");
@@ -334,7 +335,7 @@ int main_align(int argc, char *argv[]) {
   memset(&opt0, 0, sizeof(mem_opt_t));
   int auto_infer_alt_chrom = 1;
   if (argc < 2) return usage(opt);
-  while ((c = getopt(argc, argv, ":@:1:2:3:5:ab:c:d:ef:g:hijk:m:pqr:s:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
+  while ((c = getopt(argc, argv, ":@:1:2:3:5:9ab:c:d:ef:g:hijk:m:pqr:s:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
       if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
       else if (c == '1') aux._seq1 = strdup(optarg);
       else if (c == '2') aux._seq2 = strdup(optarg);
@@ -385,6 +386,7 @@ int main_align(int argc, char *argv[]) {
       } else if (c == 'z') opt->min_base_qual = atoi(optarg);
       else if (c == '5') opt->clip5 = atoi(optarg);
       else if (c == '3') opt->clip3 = atoi(optarg);
+      else if (c == '9') opt->has_bc = 1;
       else if (c == 'X') opt->mask_level = atof(optarg);
       else if (c == 'g') {
           opt0.max_XA_hits = opt0.max_XA_hits_alt = 1;
