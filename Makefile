@@ -10,7 +10,7 @@ else
 	CLIB += -lrt -ltinfo
 endif
 
-INCLUDE = include
+INCLUDE = lib
 
 ########################
 ### different modes ####
