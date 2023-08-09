@@ -28,7 +28,6 @@
 #define _QC_H_
 
 #include <errno.h>
-#include "wstr.h"
 #include "bamfilter.h"
 #include "bsstrand.h"
 #include "bsconv.h"

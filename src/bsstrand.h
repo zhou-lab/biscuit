@@ -29,7 +29,6 @@
 #define _BSSTRAND_H_
 
 #include <unistd.h>
-#include "wstr.h"
 #include "wzmisc.h"
 #include "refcache.h"
 #include "sam.h"
