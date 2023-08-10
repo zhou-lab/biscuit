@@ -39,6 +39,7 @@
 #include "utils.h"
 #include "bntseq.h"
 #include "kseq.h"
+#include "kthread.h"
 #include "wzmisc.h"
 KSEQ_DECLARE(gzFile)
 

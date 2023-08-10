@@ -49,11 +49,6 @@ LHTSLIB = $(LHTSLIB_DIR)/libhts.a
 $(LHTSLIB) :
 	make -C $(LHTSLIB_DIR) libhts.a
 
-LKLIB_DIR = lib/klib
-LKLIB = $(LKLIB_DIR)/klib2.a
-$(LKLIB) :
-	make -C $(LKLIB_DIR) klib2.a
-
 LUTILS_DIR = lib/utils
 LUTILS = $(LUTILS_DIR)/libutils.a
 $(LUTILS):
@@ -87,12 +82,11 @@ LIBS= \
 	  src/qc.o \
 	  src/bc.o \
 	  $(LUTILS) \
-	  $(LKLIB) \
 	  $(LHTSLIB) \
 	  $(LSGSL)
 
 biscuit: $(LIBS) src/main.o
-	$(CC) $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
+	$(CC) $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln $(LIBS) $(CLIB)
 
 clean_biscuit:
 	rm -f biscuit
@@ -102,7 +96,7 @@ clean_biscuit:
 ###################
 
 src/main.o: src/main.c
-	$(CC) -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LKLIB_DIR)
+	$(CC) -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE)
 
 LALND = lib/aln
 LALNOBJ=$(patsubst %.c,%.o,$(wildcard $(LALND)/*.c))
@@ -169,7 +163,6 @@ clean :
 
 ## clean src and library objects
 purge : clean
-	make -C $(LKLIB_DIR) purge
 	make -C $(LHTSLIB_DIR) clean
 	make -C $(LUTILS_DIR) purge
 	make -C $(LSGSL_DIR) purge
@@ -188,7 +181,7 @@ release:
 # removes git history, for release internal use
 cleanse : purge
 	rm -f **/*.o .gitmodules .gitignore
-	rm -rf .git .github $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
+	rm -rf .git .github $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
 
 
 

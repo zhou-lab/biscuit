@@ -40,6 +40,7 @@
 #include "mem_alnreg.h"
 #include "bntseq.h"
 #include "ksw.h"
+#include "kthread.h"
 #include "kvec.h"
 #include "ksort.h"
 #include "utils.h"
@@ -307,7 +308,7 @@ static void read_clipping(bseq1_t *seq, uint8_t *adaptor, int l_adaptor, const m
  * @param tid thread id
  * @return w->regs[i] mem_alnreg_v*
  */
-static void bis_worker1(void *data, int i, int tid) {
+static void bis_worker1(void *data, long i, int tid) {
    
    worker_t *w = (worker_t*)data;
    mem_alnreg_v *regs; const mem_opt_t *opt=w->opt;
@@ -377,7 +378,7 @@ static void bis_worker1(void *data, int i, int tid) {
  * @param i i-th read is under consideration
  * @param tid thread id
  */
-static void bis_worker2(void *data, int i, int tid) {
+static void bis_worker2(void *data, long i, int tid) {
   (void) tid;
   worker_t *w = (worker_t*)data;
 
@@ -433,7 +434,6 @@ void mem_process_seqs(
    const uint8_t *pac, int64_t n_processed, int n,
    bseq1_t *seqs, const mem_pestat_t *pes0) {
 
-   extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);
    int i;
 
    double ctime, rtime;
