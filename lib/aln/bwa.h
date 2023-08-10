@@ -1,3 +1,30 @@
+/* bwa alignment base
+ *
+ * Newly added copyright in 2022
+ * Copyright (c) 2022-2023 Jacob.Morrison@vai.org
+ *
+ * The MIT License
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #ifndef BWA_H_
 #define BWA_H_
 
@@ -24,7 +51,7 @@ typedef struct {
 
 typedef struct {
    int l_seq, id;                /* check if l_seq can be unsigned? */
-   char *name, *comment, *qual, *sam; /* sam stored the end output of sam record */
+   char *name, *comment, *barcode, *qual, *sam; /* sam stored the end output of sam record */
    uint8_t *seq, *bisseq[2];
    uint8_t *seq0;              /* pointer to sequence beginning before clipping */
    int l_seq0;                 /* the original l_seq before clipping */
@@ -45,7 +72,7 @@ extern "C" {
   bseq1_t *bis_create_bseq1(char *seq1, char *seq2, int *n);
 
   bseq1_t *bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_);
-  bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_);
+  bseq1_t *bis_bseq_read(int chunk_size, uint8_t has_bc, int *n_, void *ks1_, void *ks2_);
   void bseq_classify(int n, bseq1_t *seqs, int m[2], bseq1_t *sep[2]);
 
   void bwa_fill_scmat(int a, int b, int8_t mat[25]);

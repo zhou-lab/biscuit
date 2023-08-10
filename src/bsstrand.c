@@ -1,9 +1,9 @@
-/* 
- * Correct bisulfite strand information if it is very inconsistent with C2T/G2A count
+/* Correct bisulfite strand information if it is very inconsistent with C2T/G2A count 
+ *
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
- *               2021      Jacob.Morrison@vai.org
+ *               2021-2023 Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,7 +50,7 @@ conversion_tag_t bam_tag_get_bsstrand(bam1_t *b) {
     if (s) {
         s++;
         if (strcmp((char*)s, "CT")==0) return TAG_BSW;
-        else if (strcmp((char*)s, "GA")) return TAG_BSC;
+        else if (strcmp((char*)s, "GA")==0) return TAG_BSC;
     }
 
     /* otherwise, guess the bsstrand from nCT and nGA */
@@ -195,8 +195,8 @@ int main_bsstrand(int argc, char *argv[]) {
             case 'y': conf.output_count = 1; break;
             case 'c': conf.correct_bsstrand = 1; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

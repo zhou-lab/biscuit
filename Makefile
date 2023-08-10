@@ -71,9 +71,28 @@ $(LSGSL):
 BISCUITSRCS := $(wildcard src/*.c)
 BISCUITLIBS := $(BISCUITSRCS:.c=.o)
 
-LIBS=lib/aln/libaln.a src/pileup.o src/vcf2bed.o src/epiread.o src/asm_pairwise.o src/tview.o src/bsstrand.o src/cinread.o src/mergecg.o src/bsconv.o src/bamfilter.o src/epiread_rectangle.o src/qc.o $(LUTILS) $(LKLIB) $(LHTSLIB) $(LSGSL)
+LIBS= \
+	  lib/aln/libaln.a \
+	  src/pileup.o \
+	  src/vcf2bed.o \
+	  src/epiread.o \
+	  src/asm_pairwise.o \
+	  src/tview.o \
+	  src/bsstrand.o \
+	  src/cinread.o \
+	  src/mergecg.o \
+	  src/bsconv.o \
+	  src/bamfilter.o \
+	  src/epiread_rectangle.o \
+	  src/qc.o \
+	  src/bc.o \
+	  $(LUTILS) \
+	  $(LKLIB) \
+	  $(LHTSLIB) \
+	  $(LSGSL)
+
 biscuit: $(LIBS) src/main.o
-	gcc $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
+	$(CC) $(CFLAGS) src/main.o -o $@ -I$(INCLUDE)/aln -I$(INCLUDE)/klib $(LIBS) $(CLIB)
 
 clean_biscuit:
 	rm -f biscuit
@@ -83,7 +102,7 @@ clean_biscuit:
 ###################
 
 src/main.o: src/main.c
-	gcc -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LKLIB_DIR)
+	$(CC) -c $(CFLAGS) src/main.c -o $@ -I$(LUTILS_DIR) -I$(LKLIB_DIR)
 
 LALND = lib/aln
 LALNOBJ=$(patsubst %.c,%.o,$(wildcard $(LALND)/*.c))
@@ -91,18 +110,18 @@ LALNOBJ=$(patsubst %.c,%.o,$(wildcard $(LALND)/*.c))
 lib/aln/libaln.a: $(LALNOBJ)
 	ar -csru $@ $(LALNOBJ)
 $(LALND)/%.o: $(LALND)/%.c
-	gcc -c $(CFLAGS) -I$(LUTILS_DIR) -I$(INCLUDE)/klib $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(INCLUDE)/klib $< -o $@
 clean_aln:
 	rm -f $(LALND)/*.o lib/aln/libaln.a
 
 src/pileup.o: src/pileup.c
-	gcc -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 
 src/tview.o: src/tview.c
 	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
 
 src/vcf2bed.o: src/vcf2bed.c
-	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LKLIB_DIR) $< -o $@
+	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) $< -o $@
 
 src/epiread.o: src/epiread.c
 	$(CC) -c $(CFLAGS) -I$(LHTSLIB_INCLUDE) -I$(LUTILS_DIR) $< -o $@
@@ -131,12 +150,15 @@ src/epiread_rectangle.o: src/epiread_rectangle.c
 src/qc.o: src/qc.c
 	$(CC) -c $(CFLAGS) -I$(LUTILS_DIR) -I$(LHTSLIB_INCLUDE) $< -o $@
 
+src/bc.o: src/bc.c
+	$(CC) -c $(CFLAGS) -I$(LKLIB_DIR) $< -o $@
+
 # ####### general #######
 
 # VPATH = src
 
 # src/%.o: %.c
-# 	gcc -c $(CFLAGS) $< -o $@
+# 	$(CC) -c $(CFLAGS) $< -o $@
 
 ####### clean #######
 
@@ -165,8 +187,8 @@ release:
 
 # removes git history, for release internal use
 cleanse : purge
-	rm -f **/*.o .travis.yml .gitmodules .gitignore
-	rm -rf .git $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
+	rm -f **/*.o .gitmodules .gitignore
+	rm -rf .git .github $(LKLIB_DIR)/.git $(LHTSLIB_DIR)/.git $(LUTILS_DIR)/.git $(LSGSL_DIR)/.git docker
 
 
 

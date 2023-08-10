@@ -1,3 +1,30 @@
+/* bwa alignment base
+ *
+ * Newly added copyright in 2022
+ * Copyright (c) 2022-2023 Jacob.Morrison@vai.org
+ *
+ * The MIT License
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #include <string.h>
 #include <stdio.h>
 #include <zlib.h>
@@ -335,6 +362,12 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
            for (i = 0; i < len; ++i) {
 
               /* to allow assymmetric CT and GA */
+              /* NOTE: For the MD tag, BISCUIT follows the SAM spec, so all C>T / G>A conversions will be marked as
+               *       mismatches relative to the reference genome. This allows for reconstruction of the reference
+               *       from the CIGAR string, the SEQ value, and the MD tag.
+               *       However, BISCUIT falls in the loophole laid out in the NM tag spec. BISCUIT writes out the
+               *       number of non-cytosine conversions as the value in the NM tag. To reconstruct the NM tag as
+               *       printed by samtools calmd, add the NM tag value and the ZC tag value. */
               unsigned char _q = query[x+i];
               unsigned char _r = rseq[y+i];
               if (_q == _r) {
@@ -342,9 +375,13 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
                  if (_q == 2) ++n_ret_g;
                  ++u;
               } else if (_q == 3 && _r == 1) {
-                 ++n_conv_ct; ++u;
+                 kputw(u, &str);
+                 kputc(int2base[_r], &str);
+                 ++n_conv_ct; u = 0;
               } else if (!parent && _q == 0 && _r == 2) {
-                 ++n_conv_ga; ++u;
+                 kputw(u, &str);
+                 kputc(int2base[_r], &str);
+                 ++n_conv_ga; u = 0;
               } else {
                  kputw(u, &str);
                  kputc(int2base[_r], &str);
@@ -726,10 +763,17 @@ bseq1_t *bis_create_bseq1(char *seq1, char *seq2, int *n) {
   return s2;
 }
 
-static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
+static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s, uint8_t has_bc)
 { // TODO: it would be better to allocate one chunk of memory, but probably it does not matter in practice
   s->name = strdup(ks->name.s);
   s->comment = ks->comment.l? strdup(ks->comment.s) : 0;
+  if (has_bc && ks->comment.l) {
+    // No checks are performed here, so we have to rely on the user to have done the proper
+    // preprocessing before processing with barcodes
+    s->barcode = strdup(strrchr(ks->comment.s, ':') + 1);
+  } else {
+      s->barcode = 0;
+  }
   s->seq = (uint8_t*) strdup(ks->seq.s);
   s->seq0 = s->seq;
   s->qual = ks->qual.l? strdup(ks->qual.s) : 0;
@@ -744,7 +788,7 @@ static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s)
   bseq1_code_nt4(s);
 }
 
-bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_) {
+bseq1_t *bis_bseq_read(int chunk_size, uint8_t has_bc, int *n_, void *ks1_, void *ks2_) {
 
   kseq_t *ks = (kseq_t*)ks1_, *ks2 = (kseq_t*)ks2_;
   int size = 0, m, n;
@@ -760,11 +804,13 @@ bseq1_t *bis_bseq_read(int chunk_size, int *n_, void *ks1_, void *ks2_) {
       seqs = realloc(seqs, m * sizeof(bseq1_t));
     }
     trim_readno(&ks->name);
-    bis_kseq2bseq1(ks, &seqs[n]);
+    bis_kseq2bseq1(ks, &seqs[n], has_bc);
+    seqs[n].id = n;
     size += seqs[n++].l_seq;
     if (ks2) {
       trim_readno(&ks2->name);
-      bis_kseq2bseq1(ks2, &seqs[n]);
+      bis_kseq2bseq1(ks2, &seqs[n], has_bc);
+      seqs[n].id = n;
       size += seqs[n++].l_seq;
     }
     if (size >= chunk_size && (n&1) == 0) break;

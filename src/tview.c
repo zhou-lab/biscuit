@@ -3,7 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
- *               2021      Jacob.Morrison@vai.org
+ *               2021-2023 Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,7 +57,7 @@ static int get_bsstrand(bam1_t *b) {
   if (s) {
     s++;
     if (strcmp((char*)s, "CT")==0) return 0;
-    else if (strcmp((char*)s, "GA")) return 1;
+    else if (strcmp((char*)s, "GA")==0) return 1;
   }
 
   /* otherwise, return failure */
@@ -717,8 +717,8 @@ int main_tview(int argc, char *argv[]) {
           case 'n': read_name = strdup(optarg); break;
           case 'f': buf_flank = atoi(optarg); break;
           case 'h': usage(); return 1;
-          case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-          case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+          case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+          case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
           default: usage(); return 1;
       }
   }

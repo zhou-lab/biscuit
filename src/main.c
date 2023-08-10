@@ -1,8 +1,8 @@
-/**
- * main.c
+/* main.c
+ *
  * The MIT License (MIT)
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
- *               2021      Jacob.Morrison@vai.org
+ *               2021-2023 Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,6 +59,7 @@ int main_bsconv(int argc, char *argv[]);
 int main_mergecg(int argc, char *argv[]);
 int main_rectangle(int argc, char *argv[]);
 int main_qc(int argc, char *argv[]);
+int main_bc(int argc, char *argv[]);
 
 static int usage()
 {
@@ -94,6 +95,7 @@ static int usage()
   fprintf(stderr, " -- Other\n");
   fprintf(stderr, "    version      Print BISCUIT and library versions\n");
   fprintf(stderr, "    qc           Generate QC files from BAM\n");
+  fprintf(stderr, "    bc           Extract barcodes from FASTQ files\n");
   /* fprintf(stderr, "    ndr          Call nucleosome depletion region (NDR) from NOMe-seq\n"); */
   fprintf(stderr, "\n");
 
@@ -124,6 +126,7 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "bsconv") == 0) ret = main_bsconv(argc-1, argv+1);
   else if (strcmp(argv[1], "rectangle") == 0) ret = main_rectangle(argc-1, argv+1);
   else if (strcmp(argv[1], "qc") == 0) ret = main_qc(argc-1, argv+1);
+  else if (strcmp(argv[1], "bc") == 0) ret = main_bc(argc-1, argv+1);
   else if (strcmp(argv[1], "version") == 0) {
       fprintf(stderr, "BISCUIT Version: %s\n\n", PACKAGE_VERSION);
       fprintf(stderr, "Using:\n");

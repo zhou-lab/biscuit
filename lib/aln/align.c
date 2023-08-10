@@ -1,3 +1,30 @@
+/* entry point for alignment
+ *
+ * Newly added copyright in 2022
+ * Copyright (c) 2022-2023 Jacob.Morrison@vai.org
+ *
+ * The MIT License
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #include <zlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -52,7 +79,7 @@ static void *process(void *shared, int step, void *_data) {
       if (aux->_seq2)  aux->opt->flag |= MEM_F_PE;
       aux->__processed = 1;
     } else { // read from file
-      ret->seqs = bis_bseq_read(aux->actual_chunk_size, &ret->n_seqs, aux->ks, aux->ks2);
+      ret->seqs = bis_bseq_read(aux->actual_chunk_size, aux->opt->has_bc, &ret->n_seqs, aux->ks, aux->ks2);
       if (ret->seqs == 0) {
         free(ret);
         return 0;
@@ -99,6 +126,22 @@ static void *process(void *shared, int step, void *_data) {
         for (i = 0; i < n_sep[1]; ++i)
           data->seqs[sep[1][i].id].sam = sep[1][i].sam;
       }
+
+      // clean up
+      if (n_sep[0]) {
+          for (i = 0; i < n_sep[0]; ++i) {
+              /* bisulfite free, the pointers can be NULL */
+              free(sep[0][i].bisseq[0]);
+              free(sep[0][i].bisseq[1]);
+          }
+      }
+      if (n_sep[1]) {
+          for (i = 0; i < n_sep[1]; ++i) {
+              /* bisulfite free, the pointers can be NULL */
+              free(sep[1][i].bisseq[0]);
+              free(sep[1][i].bisseq[1]);
+          }
+      }
       free(sep[0]); free(sep[1]);
     } else {
       mem_process_seqs(opt, idx->bwt, idx->bns, idx->pac, aux->n_processed, data->n_seqs, data->seqs, aux->pes0);
@@ -110,7 +153,7 @@ static void *process(void *shared, int step, void *_data) {
   } else if (step == 2) {
     for (i = 0; i < data->n_seqs; ++i) {
       if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
-      free(data->seqs[i].name); free(data->seqs[i].comment);
+      free(data->seqs[i].name); free(data->seqs[i].comment); free(data->seqs[i].barcode);
       free(data->seqs[i].seq0); free(data->seqs[i].qual); free(data->seqs[i].sam);
       /* bisulfite free, the pointers can be NULL */
       free(data->seqs[i].bisseq[0]);
@@ -214,6 +257,7 @@ int usage(mem_opt_t *opt) {
     fprintf(stderr, "    -S              Skip mate rescue\n");
     fprintf(stderr, "    -P              Skip pairing - mate rescue performed unless -S also given\n");
     fprintf(stderr, "    -e              Discard full-length exact matches\n");
+    fprintf(stderr, "    -9              Extract barcode from read comment\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Scoring options:\n");
     fprintf(stderr, "    -A INT          Score for a sequence match, scales options -TdBOELU unless\n");
@@ -291,7 +335,7 @@ int main_align(int argc, char *argv[]) {
   memset(&opt0, 0, sizeof(mem_opt_t));
   int auto_infer_alt_chrom = 1;
   if (argc < 2) return usage(opt);
-  while ((c = getopt(argc, argv, ":@:1:2:3:5:ab:c:d:ef:g:hijk:m:pqr:s:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
+  while ((c = getopt(argc, argv, ":@:1:2:3:5:9ab:c:d:ef:g:hijk:m:pqr:s:v:w:x:y:z:A:B:CD:E:FG:H:I:J:K:L:MN:O:PQ:R:ST:U:VW:X:Y")) >= 0) {
       if (c == 'k') opt->min_seed_len = atoi(optarg), opt0.min_seed_len = 1;
       else if (c == '1') aux._seq1 = strdup(optarg);
       else if (c == '2') aux._seq2 = strdup(optarg);
@@ -342,6 +386,7 @@ int main_align(int argc, char *argv[]) {
       } else if (c == 'z') opt->min_base_qual = atoi(optarg);
       else if (c == '5') opt->clip5 = atoi(optarg);
       else if (c == '3') opt->clip3 = atoi(optarg);
+      else if (c == '9') opt->has_bc = 1;
       else if (c == 'X') opt->mask_level = atof(optarg);
       else if (c == 'g') {
           opt0.max_XA_hits = opt0.max_XA_hits_alt = 1;

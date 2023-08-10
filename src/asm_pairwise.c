@@ -3,7 +3,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2016-2020 Wanding.Zhou@vai.org
- *               2021      Jacob.Morrison@vai.org
+ *               2021-2023 Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -78,11 +78,11 @@ void test_asm(int *cross, char *chrm, int snp_loc, int cg_loc) {
     double pchisq = gsl_cdf_chisq_Q(two_by_two_chisq(cross[smax[0]*5+cmax[0]],
                                                      cross[smax[0]*5+cmax[1]],
                                                      cross[smax[1]*5+cmax[0]],
-                                                     cross[smax[1]*5+cmax[1]]), 2);
+                                                     cross[smax[1]*5+cmax[1]]), 1);
     if (snp_loc != cg_loc &&
         nt256int8_to_nt256char_table[cmax[0]] != 'N' &&
         nt256int8_to_nt256char_table[cmax[1]] != 'N') {
-      fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%f\t%f\n",
+      fprintf(stdout, "%s\t%d\t%d\t%c/%c\t%c/%c\t%d\t%d\t%d\t%d\t%e\t%e\n",
               chrm, snp_loc, cg_loc,
               nt256int8_to_nt256char_table[smax[0]],
               nt256int8_to_nt256char_table[smax[1]],
@@ -112,7 +112,7 @@ int main_asm(int argc, char *argv[]) {
     while ((c = getopt(argc, argv, ":h")) >= 0) {
         switch(c) {
             case 'h': usage(); return 1;
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

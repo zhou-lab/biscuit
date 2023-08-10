@@ -1,4 +1,4 @@
-# BISCUIT [![Travis-CI Build Status](https://travis-ci.org/huishenlab/biscuit.svg?branch=master)](https://travis-ci.org/huishenlab/biscuit) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.48262.svg)](http://dx.doi.org/10.5281/zenodo.48262)
+# BISCUIT [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.48262.svg)](http://dx.doi.org/10.5281/zenodo.48262)
 
 BISulfite-seq CUI Toolkit (BISCUIT) is a utility for analyzing sodium bisulfite
 conversion-based DNA methylation/modification data. It was written to perform
@@ -21,7 +21,6 @@ the user's `PATH` environment variable:
   - [samtools](http://www.htslib.org/)
   - [bedtools](https://bedtools.readthedocs.io/en/latest/index.html)
   - [GNU awk](https://www.gnu.org/software/gawk/manual/gawk.html)
-  - [GNU parallel](https://www.gnu.org/software/parallel/)
 
 It is also useful to have [samblaster](https://github.com/GregoryFaust/samblaster)
 installed for marking duplicate reads during the alignment phase.

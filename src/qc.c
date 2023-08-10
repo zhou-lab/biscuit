@@ -2,7 +2,7 @@
  * 
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Jacob.Morrison@vai.org
+ * Copyright (c) 2021-2023 Jacob.Morrison@vai.org
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -200,8 +200,8 @@ int main_qc(int argc, char *argv[]) {
         switch (c) {
             case 's': conf.single_end = 1; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }

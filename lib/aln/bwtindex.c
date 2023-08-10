@@ -1,6 +1,7 @@
 /* The MIT License
 
    Copyright (c) 2008 Genome Research Ltd (GRL).
+                 2022-2023 Jacob.Morrison@vai.org
 
    Permission is hereby granted, free of charge, to any person obtaining
    a copy of this software and associated documentation files (the
@@ -223,8 +224,8 @@ int main_biscuit_index(int argc, char *argv[]) {
             case 'p': prefix = strdup(optarg); break;
             case '6': is_64 = 1; break;
             case 'h': usage(); return 1;
-            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt);
-            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt);
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
             default: usage(); return 1;
         }
     }
