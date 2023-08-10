@@ -241,41 +241,6 @@ SOFTWARE.
   to a notice that reads "Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010,
   2011, 2012".]
 
------------------------------- lib/klib/ directory -----------------------------
-
-[ Files in the lib/klib/ directory are distributed according to the terms of the
-  MIT License. ]
-
-[ Files distributed in the lib/klib/ directory that fall under the MIT License
-  can be found in following, as well as the copyright holders. The MIT License
-  text can be found above. ]
-
-  * lib/klib/kstring.h
-        Copyright (c) by Attractive Chaos <attractor@live.co.uk> 
-  * lib/klib/lua/klib.lua
-        Copyright (c) 2011, Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/knetfile.c
-        Copyright (c) 2008 by Genome Research Ltd (GRL).
-                      2010 by Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/khash.h
-        Copyright (c) 2008, 2009, 2011 by Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/ksw.c
-        Copyright (c) 2011 by Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/bgzf.h
-        Copyright (c) 2008 Broad Institute / Massachusetts Institute of Technology
-                      2011 Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/klist.h
-        Copyright (c) 2008-2009, by Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/bgzf.c
-        Copyright (c) 2008 Broad Institute / Massachusetts Institute of Technology
-                      2011 Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/ksort.h
-        Copyright (c) 2008, 2011 Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/kseq.h
-        Copyright (c) 2008, 2009, 2011 Attractive Chaos <attractor@live.co.uk>
-  * lib/klib/kvec.h
-        Copyright (c) 2008, by Attractive Chaos <attractor@live.co.uk>
-
 ------------------------------ lib/sgsl/ directory -----------------------------
 
 [ Files in the lib/sgsl/ directory are distributed according to the terms of the

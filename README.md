@@ -45,5 +45,4 @@ Any issues with BISCUIT can be submitted on the Issues page:
 
  * lib/aln was adapted from Heng Li's BWA-mem code.
  * lib/htslib was subtree-ed from the htslib library.
- * lib/klib was subtree-ed from Heng Li's klib.
  * This work is supported by NIH/NCI R37CA230748 and U24CA210969.
