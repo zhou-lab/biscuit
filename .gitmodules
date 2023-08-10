@@ -1,6 +1,3 @@
-[submodule "lib/klib"]
-	path = lib/klib
-	url = https://github.com/zwdzwd/klib.git
 [submodule "lib/htslib"]
 	path = lib/htslib
 	url = https://github.com/zwdzwd/htslib.git
