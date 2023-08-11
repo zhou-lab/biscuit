@@ -375,9 +375,11 @@ mem_chain_v mem_chain(
    kv_resize(mem_chain_t, chains, kb_size(tree));
 
    /* traverse tree and build mem_chain_v *chain */
-#define traverse_func(p_) (chains.a[chains.n++] = *(p_))
-   __kb_traverse(mem_chain_t, tree, traverse_func);
-#undef traverse_func
+   kbitr_t itr;
+   kb_itr_first(chn, tree, &itr); // iterator pointing to the first element
+   for (; kb_itr_valid(&itr); kb_itr_next(chn, tree, &itr)) { // iterate
+       chains.a[chains.n++] = kb_itr_key(mem_chain_t, &itr);
+   }
 
    for (i = 0; i < chains.n; ++i) chains.a[i].frac_rep = (float)l_rep / bseq->l_seq;
    if (bwa_verbose >= 4) {
