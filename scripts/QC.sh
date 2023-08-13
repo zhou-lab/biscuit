@@ -163,10 +163,12 @@ function biscuitQC {
                 sum_cov += cnt[cov]*cov
                 sum_cnt += cnt[cov]
             }
-            mu = sum_cov / sum_cnt
-            for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-            sigma = sqrt(sum_var / sum_cnt)
-            print "all_base\t"mu"\t"sigma"\t"sigma/mu >> output
+            if (sum_cnt > 0 && sum_cov > 0) {
+                mu = sum_cov / sum_cnt
+                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                sigma = sqrt(sum_var / sum_cnt)
+                print "all_base\t"mu"\t"sigma"\t"sigma/mu >> output
+            }
         }' | \
         sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_covdist_all_base_table.txt
 
@@ -180,10 +182,12 @@ function biscuitQC {
                 sum_cov += cnt[cov]*cov
                 sum_cnt += cnt[cov]
             }
-            mu = sum_cov / sum_cnt
-            for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-            sigma = sqrt(sum_var / sum_cnt)
-            print "all_cpg\t"mu"\t"sigma"\t"sigma/mu >> output
+            if (sum_cnt > 0 && sum_cov > 0) {
+                mu = sum_cov / sum_cnt
+                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                sigma = sqrt(sum_var / sum_cnt)
+                print "all_cpg\t"mu"\t"sigma"\t"sigma/mu >> output
+            }
         }' | \
         sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_covdist_all_cpg_table.txt
 
@@ -197,10 +201,12 @@ function biscuitQC {
                 sum_cov += cnt[cov]*cov
                 sum_cnt += cnt[cov]
             }
-            mu = sum_cov / sum_cnt
-            for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-            sigma = sqrt(sum_var / sum_cnt)
-            print "q40_base\t"mu"\t"sigma"\t"sigma/mu >> output
+            if (sum_cnt > 0 && sum_cov > 0) {
+                mu = sum_cov / sum_cnt
+                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                sigma = sqrt(sum_var / sum_cnt)
+                print "q40_base\t"mu"\t"sigma"\t"sigma/mu >> output
+            }
         }' | \
         sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_covdist_q40_base_table.txt
 
@@ -214,10 +220,12 @@ function biscuitQC {
                 sum_cov += cnt[cov]*cov
                 sum_cnt += cnt[cov]
             }
-            mu = sum_cov / sum_cnt
-            for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-            sigma = sqrt(sum_var / sum_cnt)
-            print "q40_cpg\t"mu"\t"sigma"\t"sigma/mu >> output
+            if (sum_cnt > 0 && sum_cov > 0) {
+                mu = sum_cov / sum_cnt
+                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                sigma = sqrt(sum_var / sum_cnt)
+                print "q40_cpg\t"mu"\t"sigma"\t"sigma/mu >> output
+            }
         }' | \
         sort -k1,1n -T ${outdir} >> ${outdir}/${sample}_covdist_q40_cpg_table.txt
 
@@ -235,10 +243,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "all_base_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "all_base_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_all_base_topgc_table.txt
@@ -256,10 +266,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "all_cpg_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "all_cpg_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_all_cpg_topgc_table.txt
@@ -277,10 +289,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "q40_base_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "q40_base_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_q40_base_topgc_table.txt
@@ -298,10 +312,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "q40_cpg_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "q40_cpg_topgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_q40_cpg_topgc_table.txt
@@ -319,10 +335,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "all_base_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "all_base_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_all_base_botgc_table.txt
@@ -340,10 +358,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "all_cpg_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "all_cpg_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_all_cpg_botgc_table.txt
@@ -361,10 +381,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "q40_base_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "q40_base_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_q40_base_botgc_table.txt
@@ -382,10 +404,12 @@ function biscuitQC {
                     sum_cov += cnt[cov]*cov
                     sum_cnt += cnt[cov]
                 }
-                mu = sum_cov / sum_cnt
-                for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
-                sigma = sqrt(sum_var / sum_cnt)
-                print "q40_cpg_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                if (sum_cnt > 0 && sum_cov > 0) {
+                    mu = sum_cov / sum_cnt
+                    for (cov in cnt) { sum_var += cnt[cov]*((cov-mu)^2) }
+                    sigma = sqrt(sum_var / sum_cnt)
+                    print "q40_cpg_botgc\t"mu"\t"sigma"\t"sigma/mu >> output
+                }
             }' | \
             sort -k1,1n -T ${outdir} \
                 >> ${outdir}/${sample}_covdist_q40_cpg_botgc_table.txt
