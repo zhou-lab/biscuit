@@ -272,7 +272,8 @@ typedef struct {
 	}																	\
 	void ks_sample_##name(size_t n, size_t r, type_t a[]) /* FIXME: NOT TESTED!!! */ \
 	{ /* reference: http://code.activestate.com/recipes/272884/ */ \
-		int i, k, pop = n; \
+		int i, pop = n; \
+		size_t k; \
 		for (i = (int)r, k = 0; i >= 0; --i) { \
 			double z = 1., x = drand48(); \
 			type_t tmp; \
