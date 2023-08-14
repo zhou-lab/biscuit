@@ -233,6 +233,7 @@ static void mem_alnreg_tagSA(const mem_opt_t *opt, const bntseq_t *bns, const ui
 // mate is set at final stage because the mate might be asymmetric with alternative mappings
 // It doesn't change the mem_alnreg_t inputs, since one alignment may be paired 
 // with multiple other alignments 
+// TODO: update function to handle failed allocation return value from ks_resize
 void mem_alnreg_formatSAM(
         const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac,
         kstring_t *str, bseq1_t *s, const mem_alnreg_t *p0, const mem_alnreg_t *m0,
