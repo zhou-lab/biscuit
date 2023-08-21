@@ -174,8 +174,10 @@ int main_mergecg(int argc, char *argv[]) {
         refcache_fetch_chrm(rc, tid2name(bed->targets, b->tid));
         bd = (bed_data_meth_t*) b->data;
         bd->ref = refcache_getbase_upcase(rc, b->end);
-        b_base_before = refcache_getbase_upcase(rc, b->end-1);
-        b_base_after = refcache_getbase_upcase(rc, b->end+1);
+        if (b->end-1 < 0) b_base_before = 'N';
+        else b_base_before = refcache_getbase_upcase(rc, b->end-1);
+        if (b->end == rc->end) b_base_after = 'N';
+        else b_base_after = refcache_getbase_upcase(rc, b->end+1);
         if (bd->ref == 'G') { // correct based on the actual reference base
             memcpy(bd->g_betas, bd->c_betas, bd->nsamples*sizeof(double));
             memcpy(bd->g_depts, bd->c_depts, bd->nsamples*sizeof(int));
