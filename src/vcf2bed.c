@@ -29,6 +29,7 @@
 #include <string.h>
 #include <strings.h>
 #include <errno.h>
+#include <math.h>
 #include <zlib.h>
 #include "wzbed.h"
 #include "wzvcf.h"
@@ -38,6 +39,7 @@ typedef struct conf_t {
     char target[5];
     int mincov;
     int showctxt;
+    int showmu;
 } conf_t;
 
 typedef struct bed_data_t {
@@ -170,8 +172,13 @@ static void vcf2bed_ctxt(vcf_file_t *vcf, conf_t *conf, const char *cx) {
             // betas
             if (bd->betas[i] < 0) fputs("\t.", stdout);
             else fprintf(stdout, "\t%1.3f", bd->betas[i]);
-            // coverage
-            fprintf(stdout, "\t%d", bd->covs[i]);
+            if (conf->showmu) {
+                int M = (int) round(bd->covs[i]*bd->betas[i]);
+                fprintf(stdout, "\t%d\t%d", M, bd->covs[i] - M);
+            } else {
+                // coverage
+                fprintf(stdout, "\t%d", bd->covs[i]);
+            }
         }
         if (fputc('\n', stdout) < 0 && errno == EPIPE) exit(1);
     }
@@ -301,6 +308,7 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -e        Show context (reference base, context group {CG,CHG,CHH},\n");
     fprintf(stderr, "                  2-base {CA,CC,CG,CT} and 5-base context) before beta\n");
     fprintf(stderr, "                  value and coverage column\n");
+    fprintf(stderr, "    -c        Output Beta-M-U instead of Beta-Cov.\n");
     fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
 
@@ -308,13 +316,13 @@ static int usage(conf_t *conf) {
 }
 
 int main_vcf2bed(int argc, char *argv[]) {
-    conf_t conf = {.mincov=3, .showctxt=0};
+    conf_t conf = {.mincov=3, .showctxt=0, .showmu=0};
     strcpy(conf.target, "CG");
     char *target_samples = NULL;
 
     int c;
     if (argc<2) return usage(&conf);
-    while ((c = getopt(argc, argv, ":t:k:s:eh")) >= 0) {
+    while ((c = getopt(argc, argv, ":t:k:s:ech")) >= 0) {
         switch (c) {
             case 'k': conf.mincov = atoi(optarg); break;
             case 't': {
@@ -324,6 +332,7 @@ int main_vcf2bed(int argc, char *argv[]) {
                       }
             case 's': target_samples = strdup(optarg); break;
             case 'e': conf.showctxt = 1; break;
+        	case 'c': conf.showmu = 1; break;
             case 'h': return usage(&conf); break;
             case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt); break;
             case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt); break;
