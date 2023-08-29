@@ -117,7 +117,7 @@ void format_output(bed1_t *p, char *chrm, char base_before, char base_after, con
             float g_ret = rintf(pd->g_betas[i]*pd->g_depts[i]);
             int M = c_ret + g_ret;
             if (conf.show_mu) {
-                printf("\t%1.3f\t%d\t%d", M / (double) cov, M, cov - M);
+                printf("\t%d\t%d\t%d", (int) round(M / (double) cov * 100), M, cov - M);
             } else {
                 printf("\t%1.3f\t%d", M / (double) cov, cov);
             }

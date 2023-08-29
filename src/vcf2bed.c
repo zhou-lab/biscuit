@@ -169,15 +169,15 @@ static void vcf2bed_ctxt(vcf_file_t *vcf, conf_t *conf, const char *cx) {
         if (conf->showctxt) fprintf(stdout, "\t%c\t%s\t%.2s\t%.5s", bd->ref, bd->cx?bd->cx:"NA", bd->n5+2, bd->n5);
         int i;
         for (i=0; i<bd->nsamples; ++i) {
-            // betas
-            if (bd->betas[i] < 0) fputs("\t.", stdout);
-            else fprintf(stdout, "\t%1.3f", bd->betas[i]);
             if (conf->showmu) {
-                int M = (int) round(bd->covs[i]*bd->betas[i]);
-                fprintf(stdout, "\t%d\t%d", M, bd->covs[i] - M);
+              int M = (int) round(bd->covs[i]*bd->betas[i]);
+              if (bd->betas[i] < 0) fputs("\t.", stdout);
+              else fprintf(stdout, "\t%d", (int) round(bd->betas[i]*100));
+              fprintf(stdout, "\t%d\t%d", M, bd->covs[i] - M);
             } else {
-                // coverage
-                fprintf(stdout, "\t%d", bd->covs[i]);
+              if (bd->betas[i] < 0) fputs("\t.", stdout);
+              else fprintf(stdout, "\t%1.3f", bd->betas[i]);
+              fprintf(stdout, "\t%d", bd->covs[i]);
             }
         }
         if (fputc('\n', stdout) < 0 && errno == EPIPE) exit(1);
