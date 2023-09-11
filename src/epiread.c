@@ -984,6 +984,10 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
 
     while (1) {
         int c = gzgetc(fh);
+        if (c < 0) {
+            free(line.s);
+            wzfatal("SNP BED (%s) is empty\n", snp_bed_fn);
+        }
         if (c=='\n' || c==EOF) {
             if (strcount_char(line.s, '\t')==8) {
                 // Get chromosome
