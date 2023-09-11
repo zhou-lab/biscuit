@@ -42,6 +42,12 @@ typedef struct bed_data_meth_t {
     int *g_depts;
 } bed_data_meth_t;
 
+typedef struct conf_t {
+    int nome_mode;
+    int min_depth;
+    int show_mu;
+} conf_t;
+
 void init_data_meth(bed1_t *b, void *aux_data) {
     (void) aux_data;
     b->data = calloc(1, sizeof(bed_data_meth_t));
@@ -81,7 +87,7 @@ void parse_data_meth(bed1_t *b, char **fields, int nfields) {
     }
 }
 
-void format_output(bed1_t *p, char *chrm, char base_before, char base_after, int min_depth) {
+void format_output(bed1_t *p, char *chrm, char base_before, char base_after, conf_t conf) {
     // skip reporting if all sample has zero coverage
     int i; int max_depth = 0;
     bed_data_meth_t *pd = (bed_data_meth_t*) p->data;
@@ -90,7 +96,7 @@ void format_output(bed1_t *p, char *chrm, char base_before, char base_after, int
             max_depth = pd->c_depts[i] + pd->g_depts[i];
         }
     }
-    if (max_depth == 0 || max_depth < min_depth) return;
+    if (max_depth == 0 || max_depth < conf.min_depth) return;
 
     // if p is in CpG contxt, adjust the coordinates
     if (pd->ref == 'C' && base_after == 'G') p->end++;
@@ -100,12 +106,21 @@ void format_output(bed1_t *p, char *chrm, char base_before, char base_after, int
     for (i=0; i<pd->nsamples; ++i) {
         int cov = pd->c_depts[i] + pd->g_depts[i];
         if (cov == 0) {
-            fputs("\t.\t0", stdout);
+            if (conf.show_mu) {
+                fputs("\t.\t0\t0", stdout);
+            } else {
+                fputs("\t.\t0", stdout);
+            }
         } else {
             // Calculate merged beta value from count values to reduce error in beta value
             float c_ret = rintf(pd->c_betas[i]*pd->c_depts[i]);
             float g_ret = rintf(pd->g_betas[i]*pd->g_depts[i]);
-            printf("\t%1.3f\t%d", (c_ret + g_ret) / (double) cov, cov);
+            int M = c_ret + g_ret;
+            if (conf.show_mu) {
+                printf("\t%d\t%d\t%d", (int) round(M / (double) cov * 100), M, cov - M);
+            } else {
+                printf("\t%1.3f\t%d", M / (double) cov, cov);
+            }
         }
         if (pd->c_depts[i] == 0) {
             fputs("\tC:.:0", stdout);
@@ -127,6 +142,7 @@ static int usage(int min_depth) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    -N        NOMe-seq mode, only merge C,G both in HCGD context\n");
+    fprintf(stderr, "    -c        Output Beta-M-U instead of Beta-Cov (input is still Beta-Cov).\n");
     fprintf(stderr, "    -k INT    Minimum depth after merging - applies to the maximum depth\n");
     fprintf(stderr, "                  across samples [%d]\n", min_depth);
     fprintf(stderr, "    -h        This help\n");
@@ -143,22 +159,22 @@ static int usage(int min_depth) {
 int main_mergecg(int argc, char *argv[]) {
 
     int c;
-    int nome_mode = 0;
-    int min_depth = 0;
-    if (argc<2) return usage(min_depth); 
-    while ((c = getopt(argc, argv, ":k:hN"))>=0) {
+    conf_t conf = {0};
+    if (argc<2) return usage(conf.min_depth); 
+    while ((c = getopt(argc, argv, ":k:hNc"))>=0) {
         switch (c) {
-            case 'N': nome_mode=1; break;
-            case 'k': min_depth = atoi(optarg); break;
-            case 'h': return usage(min_depth); break;
-            case ':': usage(min_depth); wzfatal("Option needs an argument: -%c\n", optopt); break;
-            case '?': usage(min_depth); wzfatal("Unrecognized option: -%c\n", optopt); break;
-            default: usage(min_depth); wzfatal("Unrecognized option: %c.\n", c); break;
+            case 'N': conf.nome_mode=1; break;
+            case 'k': conf.min_depth = atoi(optarg); break;
+            case 'h': return usage(conf.min_depth); break;
+        	case 'c': conf.show_mu = 1; break;
+            case ':': usage(conf.min_depth); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(conf.min_depth); wzfatal("Unrecognized option: -%c\n", optopt); break;
+            default: usage(conf.min_depth); wzfatal("Unrecognized option: %c.\n", c); break;
         }
     }
 
     if (optind + 2 > argc) { 
-        usage(min_depth); 
+        usage(conf.min_depth); 
         wzfatal("Please supply reference file and sorted bed file.\n"); 
     }
 
@@ -174,8 +190,10 @@ int main_mergecg(int argc, char *argv[]) {
         refcache_fetch_chrm(rc, tid2name(bed->targets, b->tid));
         bd = (bed_data_meth_t*) b->data;
         bd->ref = refcache_getbase_upcase(rc, b->end);
-        b_base_before = refcache_getbase_upcase(rc, b->end-1);
-        b_base_after = refcache_getbase_upcase(rc, b->end+1);
+        if (b->end-1 < 0) b_base_before = 'N';
+        else b_base_before = refcache_getbase_upcase(rc, b->end-1);
+        if (b->end == rc->end) b_base_after = 'N';
+        else b_base_after = refcache_getbase_upcase(rc, b->end+1);
         if (bd->ref == 'G') { // correct based on the actual reference base
             memcpy(bd->g_betas, bd->c_betas, bd->nsamples*sizeof(double));
             memcpy(bd->g_depts, bd->c_depts, bd->nsamples*sizeof(int));
@@ -188,7 +206,7 @@ int main_mergecg(int argc, char *argv[]) {
         if (b->tid == p->tid && 
                 b->beg == p->beg+1 && b->end == p->end+1 && 
                 bd->ref == 'G' && pd->ref == 'C' &&
-                (!nome_mode ||
+                (!conf.nome_mode ||
                  (p_base_before != 'G' && b_base_after != 'C'))) {
             if (pd->nsamples != bd->nsamples) wzfatal("Missing sample at %s:%u-%u.\n", rc->chrm, b->beg, b->end);
             memcpy(pd->g_betas, bd->g_betas, bd->nsamples*sizeof(double));
@@ -197,13 +215,13 @@ int main_mergecg(int argc, char *argv[]) {
         }
 
         // report p
-        if (p->tid >= 0) format_output(p, tid2name(bed->targets, p->tid), p_base_before, p_base_after, min_depth);
+        if (p->tid >= 0) format_output(p, tid2name(bed->targets, p->tid), p_base_before, p_base_after, conf);
         bed1_t *tmp = p; p = b; b = tmp;
         p_base_before = b_base_before; p_base_after = b_base_after;
     }
 
     // report last p
-    if (p->tid >= 0) format_output(p, tid2name(bed->targets, p->tid), p_base_before, p_base_after, min_depth);
+    if (p->tid >= 0) format_output(p, tid2name(bed->targets, p->tid), p_base_before, p_base_after, conf);
     free_bed1(b, free_data_meth);
     free_bed1(p, free_data_meth);
     free_refcache(rc);
