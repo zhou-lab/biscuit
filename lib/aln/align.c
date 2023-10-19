@@ -544,6 +544,10 @@ int main_align(int argc, char *argv[]) {
       return 1;
     }
     fp = gzdopen(fd, "r");
+    if (!fp) {
+      if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 1]);
+      return 1;
+    }
     aux.ks = kseq_init(fp);
     if (optind + 2 < argc) {
       if (opt->flag&MEM_F_PE) {
@@ -556,6 +560,10 @@ int main_align(int argc, char *argv[]) {
           return 1;
         }
         fp2 = gzdopen(fd2, "r");
+        if (!fp2) {
+            if (bwa_verbose >= 1) fprintf(stderr, "[E::%s] fail to open file `%s'.\n", __func__, argv[optind + 2]);
+            return 1;
+        }
         aux.ks2 = kseq_init(fp2);
         opt->flag |= MEM_F_PE;
       }

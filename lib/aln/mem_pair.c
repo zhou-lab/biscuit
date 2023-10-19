@@ -133,7 +133,7 @@ mem_pestat_t mem_pestat(const mem_opt_t *opt, const bntseq_t *bns, int n, const 
   pes.high = (int)(p75 + MAPPING_BOUND * (p75 - p25) + .499);
   if (pes.low > pes.avg - MAX_STDDEV * pes.std) 
     pes.low  = (int)(pes.avg - MAX_STDDEV * pes.std + .499);
-  if (pes.high < pes.avg - MAX_STDDEV * pes.std) 
+  if (pes.high < pes.avg + MAX_STDDEV * pes.std)
     pes.high = (int)(pes.avg + MAX_STDDEV * pes.std + .499);
   // if (pes.low < 1) pes.low = 1;
 

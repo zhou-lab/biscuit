@@ -114,6 +114,7 @@ int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
                     else if (retention == 'R')
                         idx_retn = 1;
 
+                    if (idx_qpos > CIN_READ_LEN) continue; // only look at the first few bases, not helpful for long reads
                     d->counts[idx_read][idx_qpos][idx_retn]++;
 
                     if (!(conf->skip_printing)) {

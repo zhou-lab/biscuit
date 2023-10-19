@@ -236,7 +236,7 @@ int main_bsconv(int argc, char *argv[]) {
 
     char *reffn = optind < argc ? argv[optind++] : NULL;
     char *infn  = optind < argc ? argv[optind++] : NULL;
-    char *outfn = optind < argc ? argv[optind++] : NULL;
+    char *outfn = optind < argc ? argv[optind++] : "-";
     if (!reffn || !infn) {
         usage();
         wzfatal("Please provide reference and input bam.\n");
