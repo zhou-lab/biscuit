@@ -300,7 +300,16 @@ static void format_epiread_old(
     uint32_t k;
 
     if (conf->is_nome) { // nome-seq
-        int first_epi = get_int_v(hcg_p, 0) < get_int_v(gch_p, 0) ? get_int_v(hcg_p, 0) : get_int_v(gch_p, 0);
+        // TODO: This solution has the same issues as those in the bsseq option in the else-block of this
+        //       if-statement
+        int first_epi = 0;
+        if (hcg_p->size > 0 && gch_p->size > 0) {
+            first_epi = get_int_v(hcg_p, 0) < get_int_v(gch_p, 0) ? get_int_v(hcg_p, 0) : get_int_v(gch_p, 0);
+        } else if (hcg_p->size > 0 && gch_p->size == 0) {
+            first_epi = get_int_v(hcg_p, 0);
+        } else if (hcg_p->size == 0 && gch_p->size > 0) {
+            first_epi = get_int_v(gch_p, 0);
+        }
 
         // Avoid double counting between windows
         if (first_epi > 0 && (unsigned) first_epi >= print_w_beg && (unsigned) first_epi < print_w_end) {
@@ -362,7 +371,13 @@ static void format_epiread_old(
         }
     } else { // bs-seq
         // Avoid double counting between windows
-        if (get_int_v(cg_p, 0) > 0 && (unsigned) get_int_v(cg_p, 0) >= print_w_beg && (unsigned) get_int_v(cg_p, 0) < print_w_end) {
+        // TODO: While this removes the problem with depending on a potentially unitialized value in the
+        //       if-statement, it means that any time we have a cg vector that is empty, we won't print
+        //       anything. I think the desired output is that empty CGs will have "\t.\t." printed, which
+        //       I don't think will happen in this fix. As this is the old format, I'm not too concerned
+        //       about getting the same output as this would ideally be deprecated/removed in the future.
+        int cg_start = cg_p->size > 0 ? get_int_v(cg_p, 0) : 0;
+        if (cg_start > 0 && (unsigned) cg_start >= print_w_beg && (unsigned) cg_start < print_w_end) {
             ksprintf(epi, "%s\t%s\t%c\t%c",
                     chrm,
                     bam_get_qname(b),
