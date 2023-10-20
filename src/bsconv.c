@@ -50,8 +50,8 @@ int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
     // TODO: this requires "-" input be input with "samtools view -h", drop this
     refcache_fetch(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
-    uint32_t rpos=c->pos+1, qpos=0;
-    int i; unsigned j;
+    uint32_t i, rpos=c->pos+1, qpos=0;
+    unsigned j;
     char rb, qb;
     uint8_t bsstrand = get_bsstrand(d->rs, b, 0, conf->filter_u);
     if (bsstrand == 2) {
