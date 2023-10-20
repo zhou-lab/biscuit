@@ -72,8 +72,7 @@ int bsstrand_func(bam1_t *b, samFile *out, bam_hdr_t *header, void *data) {
     }
 
     refcache_fetch(d->rs, header->target_name[c->tid], c->pos, bam_endpos(b)+1);
-    uint32_t rpos=c->pos+1, qpos=0;
-    int i;
+    uint32_t i, rpos=c->pos+1, qpos=0;
     int32_t nC2T = 0, nG2A = 0;
     uint32_t j;
     char rbase, qbase;
