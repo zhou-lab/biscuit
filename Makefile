@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -W -Wall -finline-functions -fPIC -std=gnu99 -Wno-unused-result -O3
-CLIB = -lncurses -lpthread -lz -lm
+CLIB = -lncurses -lpthread -lz -lm -lcurl -llzma -lbz2
 CF_OPTIMIZE = 1
 
 OS := $(shell uname)
