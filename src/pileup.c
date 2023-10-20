@@ -267,10 +267,10 @@ uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
     /* infer bsstrand from nC2T and nG2A on high quality bases */
 
     bam1_core_t *c = &b->core;
-    uint32_t rpos = c->pos+1, qpos = 0;
+    uint32_t i, rpos = c->pos+1, qpos = 0;
     uint32_t op, oplen;
     char rb, qb;
-    int i, nC2T=0, nG2A=0; unsigned j;
+    int nC2T=0, nG2A=0; unsigned j;
     for (i=0; i<c->n_cigar; ++i) {
         op = bam_cigar_op(bam_get_cigar(b)[i]);
         oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
@@ -792,10 +792,10 @@ uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand) {
     uint32_t cnt = 0;
 
     bam1_core_t *c = &b->core;
-    uint32_t rpos = c->pos+1, qpos = 0;
+    uint32_t i, rpos = c->pos+1, qpos = 0;
     uint32_t op, oplen;
     char rb, qb;
-    int i; unsigned j;
+    unsigned j;
     for (i=0; i<c->n_cigar; ++i) {
         op = bam_cigar_op(bam_get_cigar(b)[i]);
         oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
@@ -834,7 +834,7 @@ uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand) {
     return cnt;
 }
 
-uint32_t get_mate_length(char *m_cigar, bam_hdr_t *hdr) {
+uint32_t get_mate_length(char *m_cigar) {
     // reference length of mate read (excludes clipping and insertions)
     uint32_t length = 0;
 
@@ -853,13 +853,13 @@ uint32_t get_mate_length(char *m_cigar, bam_hdr_t *hdr) {
         if (n_cigar == 0)       { wzfatal("No CIGAR operations found in MC tag\n"); }
         if (n_cigar >= 65536)   { wzfatal("Too many CIGAR operations found in MC tag\n"); }
 
-        unsigned int i;
+        uint32_t i;
         int op;
         uint32_t *cigar = malloc(n_cigar * sizeof(uint32_t));
         for (i = 0; i < n_cigar; ++i, ++query) {
             cigar[i] = strtol(query, &query, 10) << BAM_CIGAR_SHIFT;
 
-            op = (uint8_t)*query >= 128? -1 : hdr->cigar_tab[(int)*query];
+            op = (uint8_t)*query >= 128? -1 : bam_cigar_table[(int)*query];
             if (op < 0) { wzfatal("Unrecognized CIGAR operator\n"); }
 
             cigar[i] |= op;
@@ -903,19 +903,8 @@ static void *process_func(void *_result) {
     //       This is probably okay to assume, but it's better to use the respective headers for each BAM
     bam_hdr_t *bam_hdr = sam_hdr_read(in_fhs[0]);
 
-    // Need to define the cigar tab for parsing the MC tags
-    if (bam_hdr->cigar_tab == 0) {
-        bam_hdr->cigar_tab = (int8_t*) malloc(128);
-
-        int i;
-        for (i = 0; i < 128; ++i)
-            bam_hdr->cigar_tab[i] = -1;
-        for (i = 0; BAM_CIGAR_STR[i]; ++i)
-            bam_hdr->cigar_tab[(int)BAM_CIGAR_STR[i]] = i;
-    }
-
     refcache_t *rs = init_refcache(res->ref_fn, 1000, 1000);
-    int i; unsigned j;
+    uint32_t i; unsigned j;
 
     record_t rec;
     window_t w;
@@ -981,7 +970,7 @@ static void *process_func(void *_result) {
                 uint8_t *mc = bam_aux_get(b, "MC");
                 if (mc) {
                     mc++;
-                    mate_length = get_mate_length((char *)mc, bam_hdr);
+                    mate_length = get_mate_length((char *)mc);
                 } else {
                     // If MC tag is missing, then assume reads are the same length
                     mate_length = read_length;
