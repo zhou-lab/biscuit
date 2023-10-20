@@ -519,18 +519,6 @@ static void *process_func(void *data) {
     }
     bam_hdr_t *header = sam_hdr_read(in);
 
-    // Need to define the cigar tab for parsing the MC tags
-    if (header->cigar_tab == 0) {
-        int c_size = 128;
-        header->cigar_tab = (int8_t*) malloc((size_t)c_size);
-
-        int i;
-        for (i = 0; i < c_size; ++i)
-            header->cigar_tab[i] = -1;
-        for (i = 0; BAM_CIGAR_STR[i]; ++i)
-            header->cigar_tab[(int)BAM_CIGAR_STR[i]] = i;
-    }
-
     refcache_t *rs = init_refcache(res->ref_fn, 1000, 1000);
     uint32_t j;
 
@@ -627,7 +615,7 @@ static void *process_func(void *data) {
                 rle_arr_gc = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
             }
 
-            int i; uint32_t j;
+            uint32_t i, j;
             uint8_t rle_set        = 0; // Know when to write info to array generally
             uint8_t n_deletions    = 0; // Number of deletions, used to shift the RLE string accordingly when deletions are present
             uint8_t n_insertions   = 0; // Number of insertions, used to shift the end position of the RLE string when insertions are present
@@ -646,7 +634,7 @@ static void *process_func(void *data) {
             uint8_t *mc = bam_aux_get(b, "MC");
             if (mc) {
                 mc++;
-                mate_length = get_mate_length((char *)mc, header);
+                mate_length = get_mate_length((char *)mc);
             } else {
                 // If MC tag is missing, then assume reads are the same length
                 mate_length = read_length;
