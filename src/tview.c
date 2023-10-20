@@ -326,9 +326,9 @@ static void btv_reload_data(btview_t *tv) {
 static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
 
   bam1_t *b = nd->b; bam1_core_t *c = &b->core;
-  uint32_t rpos = c->pos, qpos = 0;
+  uint32_t i, rpos = c->pos, qpos = 0;
   char qb, rb;
-  int attr, i, x, isconv; unsigned j;
+  int attr, x, isconv; unsigned j;
   for (i=0; i<c->n_cigar; ++i) {
     uint32_t op = bam_cigar_op(bam_get_cigar(b)[i]);
     uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
@@ -409,7 +409,7 @@ char *sam_short_format1(const bam_hdr_t *h, const bam1_t *b) {
    kstring_t str;
    str.l = str.m = 0; str.s = NULL;
 
-   int i;
+   uint32_t i;
    const bam1_core_t *c = &b->core;
    kputw(c->flag, &str); kputc('|', &str); // flag
    if (c->tid >= 0) { // chr
