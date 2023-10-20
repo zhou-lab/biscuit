@@ -267,6 +267,7 @@ static void format_epi_bed(
             // end line
             kputc('\n', epi);
 
+            free(encoded_rle_vr);
             free(encoded_rle);
         } else {
             if (conf->verbose) {
@@ -924,6 +925,7 @@ static void *process_func(void *data) {
 
             // clean up
             free(rle_arr_gc);
+            free(rle_arr_vr);
             free(rle_arr_cg);
             free_int_v(snp_p); free_char_v(snp_c);
             if (conf->is_nome) {
@@ -941,6 +943,7 @@ static void *process_func(void *data) {
 
         bam_destroy1(b);
         hts_itr_destroy(iter);
+        free(meth);
         free(snps);
     }
 
