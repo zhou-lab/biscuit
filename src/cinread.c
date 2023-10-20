@@ -59,8 +59,8 @@ int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
 
     // TODO: this requires "-" input be input with "samtools view -h", drop this
     refcache_fetch(d->rs, hdr->target_name[c->tid], max(1,c->pos-10), bam_endpos(b)+10);
-    uint32_t rpos=c->pos+1, qpos=0;
-    int i, k; unsigned j;
+    uint32_t i, rpos=c->pos+1, qpos=0;
+    int k; unsigned j;
     char rb, qb;
     char retention = 'N';
     uint8_t bsstrand = get_bsstrand(d->rs, b, 0, 0);
@@ -123,8 +123,8 @@ int cinread_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
                             switch(conf->tp_names[k]) {
                                 case TP_QNAME: fputs(bam_get_qname(b), conf->out); break;
                                 case TP_QPAIR: fputc((c->flag&BAM_FREAD2)?'2':'1', conf->out); break;
-                                case TP_QBEG: fprintf(conf->out, "%d", c->pos+1); break;
-                                case TP_QEND: fprintf(conf->out, "%d", bam_endpos(b)); break;
+                                case TP_QBEG: fprintf(conf->out, "%ld", c->pos+1); break;
+                                case TP_QEND: fprintf(conf->out, "%ld", bam_endpos(b)); break;
                                 case TP_STRAND: fputc((c->flag&BAM_FREVERSE)?'-':'+', conf->out); break;
                                 case TP_BSSTRAND: fputc(bsstrand?'-':'+', conf->out); break;
                                 case TP_MAPQ: fprintf(conf->out, "%d", c->qual); break;
