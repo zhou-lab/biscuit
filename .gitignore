@@ -35,3 +35,10 @@ biscuit
 
 # Mac files
 *.DS_Store
+
+# CMake-related files
+lib/*.bz2
+lib/htslib
+lib/sgsl
+lib/utils
+build
