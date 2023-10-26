@@ -96,6 +96,7 @@ static int usage()
   fprintf(stderr, "\n");
   fprintf(stderr, " -- Other\n");
   fprintf(stderr, "    version      Print BISCUIT and library versions\n");
+  fprintf(stderr, "    help         Print usage and exit\n");
   fprintf(stderr, "    qc           Generate QC files from BAM\n");
   fprintf(stderr, "    bc           Extract barcodes from FASTQ files\n");
   /* fprintf(stderr, "    ndr          Call nucleosome depletion region (NDR) from NOMe-seq\n"); */
@@ -128,6 +129,10 @@ int main(int argc, char *argv[]) {
   else if (strcmp(argv[1], "rectangle") == 0) ret = main_rectangle(argc-1, argv+1);
   else if (strcmp(argv[1], "qc") == 0) ret = main_qc(argc-1, argv+1);
   else if (strcmp(argv[1], "bc") == 0) ret = main_bc(argc-1, argv+1);
+  else if (strcmp(argv[1], "help") == 0) {
+      usage();
+      return 0;
+  }
   else if (strcmp(argv[1], "version") == 0) {
       fprintf(stderr, "BISCUIT Version: %s\n\n", PACKAGE_VERSION);
       fprintf(stderr, "Using:\n");
