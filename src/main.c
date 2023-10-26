@@ -133,10 +133,9 @@ int main(int argc, char *argv[]) {
     else if (strcmp(argv[1], "version") == 0) {
         fprintf(stderr, "BISCUIT Version: %s\n\n", PACKAGE_VERSION);
         fprintf(stderr, "Using:\n");
-        fprintf(stderr, "\thtslib version: %s\n", HTS_VERSION_TEXT);
-        fprintf(stderr, "\tklib   version: zwdzwd/klib   at commit ca862f8\n");
-        fprintf(stderr, "\tsgsl   version: huishenlab/sgsl   at commit a0ddc77\n");
-        fprintf(stderr, "\tutils  version: huishenlab/utils  at commit 332459b\n");
+        fprintf(stderr, "\thtslib : version %s\n", HTS_VERSION_TEXT);
+        fprintf(stderr, "\tsgsl   : huishenlab/sgsl  at commit 6533277\n");
+        fprintf(stderr, "\tutils  : huishenlab/utils at commit 5f4aeab\n");
         fprintf(stderr, "\nLibraries found at: https://github.com/huishenlab/biscuit/tree/master/lib\n");
         return 0;
     }
