@@ -115,7 +115,6 @@ int main(int argc, char *argv[]) {
   if (strcmp(argv[1], "index") == 0) ret = main_biscuit_index(argc-1, argv+1);
   else if (strcmp(argv[1], "align") == 0) ret = main_align(argc-1, argv+1);
   else if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
-  /* else if (strcmp(argv[1], "ndr") == 0) ret = main_ndr(argc-1, argv+1); */
   else if (strcmp(argv[1], "vcf2bed") == 0) ret = main_vcf2bed(argc-1, argv+1);
   else if (strcmp(argv[1], "epiread") == 0) ret = main_epiread(argc-1, argv+1);
   else if (strcmp(argv[1], "asm") == 0) ret = main_asm(argc-1, argv+1);
