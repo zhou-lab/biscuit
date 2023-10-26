@@ -73,21 +73,39 @@ set(htslib_base "htslib-${htslib_version}")
 
 # NOTE: Will make CRAM files potentially unreadable.
 #       If planning to add CRAM functionality in the future, will need to remove --disable-bz2 and --disable-lzma
-ExternalProject_Add(htslib
-    DOWNLOAD_DIR ${LIB_DIR}
-    DOWNLOAD_COMMAND curl --silent --show-error -k -L https://github.com/samtools/htslib/releases/download/${htslib_version}/${htslib_base}.tar.bz2 -o ${htslib_base}.tar.bz2 &&
-        ${SHA_CHECK} ${htslib_base}.tar.bz2 f1ab53a593a2320a1bfadf4ef915dae784006c5b5c922c8a8174d7530a9af18f &&
-        mkdir -p ${htslib_base} &&
-        tar -jxf ${htslib_base}.tar.bz2 --strip-components=1 -C ${htslib_base} &&
-        rm -rf htslib &&
-        mv -f ${htslib_base} htslib
-    SOURCE_DIR ${LIB_DIR}/htslib
-    INSTALL_DIR ${LIB_DIR}/install
-    CONFIGURE_COMMAND ${LIB_DIR}/htslib/configure --prefix=<INSTALL_DIR> --disable-bz2 --disable-lzma --disable-libcurl
-    BUILD_COMMAND make lib-static
-    INSTALL_COMMAND ""
-    BUILD_IN_SOURCE 1
-    )
+if(APPLE)
+    ExternalProject_Add(htslib
+        DOWNLOAD_DIR ${LIB_DIR}
+        DOWNLOAD_COMMAND curl --silent --show-error -k -L https://github.com/samtools/htslib/releases/download/${htslib_version}/${htslib_base}.tar.bz2 -o ${htslib_base}.tar.bz2 &&
+            echo "Building on macOS, skipping verification" &&
+            mkdir -p ${htslib_base} &&
+            tar -jxf ${htslib_base}.tar.bz2 --strip-components=1 -C ${htslib_base} &&
+            rm -rf htslib &&
+            mv -f ${htslib_base} htslib
+        SOURCE_DIR ${LIB_DIR}/htslib
+        INSTALL_DIR ${LIB_DIR}/install
+        CONFIGURE_COMMAND ${LIB_DIR}/htslib/configure --prefix=<INSTALL_DIR> --disable-bz2 --disable-lzma --disable-libcurl
+        BUILD_COMMAND make lib-static
+        INSTALL_COMMAND ""
+        BUILD_IN_SOURCE 1
+        )
+else()
+    ExternalProject_Add(htslib
+        DOWNLOAD_DIR ${LIB_DIR}
+        DOWNLOAD_COMMAND curl --silent --show-error -k -L https://github.com/samtools/htslib/releases/download/${htslib_version}/${htslib_base}.tar.bz2 -o ${htslib_base}.tar.bz2 &&
+            ${SHA_CHECK} ${htslib_base}.tar.bz2 f1ab53a593a2320a1bfadf4ef915dae784006c5b5c922c8a8174d7530a9af18f &&
+            mkdir -p ${htslib_base} &&
+            tar -jxf ${htslib_base}.tar.bz2 --strip-components=1 -C ${htslib_base} &&
+            rm -rf htslib &&
+            mv -f ${htslib_base} htslib
+        SOURCE_DIR ${LIB_DIR}/htslib
+        INSTALL_DIR ${LIB_DIR}/install
+        CONFIGURE_COMMAND ${LIB_DIR}/htslib/configure --prefix=<INSTALL_DIR> --disable-bz2 --disable-lzma --disable-libcurl
+        BUILD_COMMAND make lib-static
+        INSTALL_COMMAND ""
+        BUILD_IN_SOURCE 1
+        )
+endif(APPLE)
 
 # Include directories
 include_directories(${utils_PREFIX} ${sgsl_PREFIX} ${htslib_PREFIX}/htslib)
