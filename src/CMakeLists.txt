@@ -7,12 +7,12 @@ file(GLOB headers *.h)
 
 # main.c is what executable is compiled from
 list(REMOVE_ITEM sources main.c)
-list(REMOVE_ITEM sources test.c)
 
 # Add directories for included libraries
 include_directories(../lib/utils)
 include_directories(../lib/sgsl)
 include_directories(../lib/htslib/htslib)
+include_directories(../lib/aln)
 
 # Need to create a core library that gets linked with the executable
 add_library(biscuit_core ${sources} ${headers})
@@ -27,6 +27,7 @@ target_link_libraries(biscuit
     ${LIB_DIR}/utils/libutils.a
     ${LIB_DIR}/sgsl/libgsl.a
     ${LIB_DIR}/htslib/libhts.a
+    aln_static
     )
 
 find_package(ZLIB REQUIRED)

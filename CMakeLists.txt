@@ -93,6 +93,7 @@ ExternalProject_Add(htslib
 include_directories(${utils_PREFIX} ${sgsl_PREFIX} ${htslib_PREFIX}/htslib)
 
 # Build subcommands
+add_subdirectory(${LIB_DIR}/aln)
 add_subdirectory(src)
 include_directories(${LIB_DIR})
 
