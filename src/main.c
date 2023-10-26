@@ -47,8 +47,8 @@ static double realtime() {
     return tp.tv_sec + tp.tv_usec * 1e-6;
 }
 
-//int main_biscuit_index(int argc, char *argv[]);
-//int main_align(int argc, char *argv[]);
+int main_biscuit_index(int argc, char *argv[]);
+int main_align(int argc, char *argv[]);
 int main_pileup(int argc, char *argv[]);
 int main_vcf2bed(int argc, char *argv[]);
 int main_epiread(int argc, char *argv[]);
@@ -103,18 +103,18 @@ static int usage() {
 }
 
 int main(int argc, char *argv[]) {
-    //extern char *bwa_pg;
+    extern char *bwa_pg;
     int i, ret;
     double t_real;
     kstring_t pg = {0,0,0};
     t_real = realtime();
     ksprintf(&pg, "@PG\tID:biscuit\tPN:biscuit\tVN:%s\tCL:%s", PACKAGE_VERSION, argv[0]);
     for (i = 1; i < argc; ++i) ksprintf(&pg, " %s", argv[i]);
-    //bwa_pg = pg.s;
+    bwa_pg = pg.s;
     if (argc < 2) return usage();
-    //if (strcmp(argv[1], "index") == 0) ret = main_biscuit_index(argc-1, argv+1);
-    //else if (strcmp(argv[1], "align") == 0) ret = main_align(argc-1, argv+1);
-    if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
+    if (strcmp(argv[1], "index") == 0) ret = main_biscuit_index(argc-1, argv+1);
+    else if (strcmp(argv[1], "align") == 0) ret = main_align(argc-1, argv+1);
+    else if (strcmp(argv[1], "pileup") == 0) ret = main_pileup(argc-1, argv+1);
     else if (strcmp(argv[1], "vcf2bed") == 0) ret = main_vcf2bed(argc-1, argv+1);
     else if (strcmp(argv[1], "epiread") == 0) ret = main_epiread(argc-1, argv+1);
     else if (strcmp(argv[1], "asm") == 0) ret = main_asm(argc-1, argv+1);
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, " %s", argv[i]);
         fprintf(stderr, "\n[%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__, realtime()-t_real, cputime());
     }
-    //free(bwa_pg);
+    free(bwa_pg);
 
     return ret;
 }
