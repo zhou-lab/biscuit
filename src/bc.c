@@ -65,14 +65,16 @@ int prepare_read_se(kseq_t *k, kstring_t *s, bc_conf_t *conf) {
         }
     }
 
+    // Remove "/1" or "/2" from the end of the read name
+    remove_read_number(k);
+
     // Create read entry
     // NOTE: This assumes there was a FASTQ comment, it may be worth it to look into how
     //       to handle cases where there aren't comments to start with
     ksprintf(
         s,
-        "@%s %s:%.*s\n%.*s%s\n+\n%.*s%s\n",
-        k->name.s, k->comment.s,
-        conf->bc_length, k->seq.s+conf->bc_start,
+        "@%s_%.*s_AAAAAAAA %s\n%.*s%s\n+\n%.*s%s\n",
+        k->name.s, conf->bc_length, k->seq.s+conf->bc_start, k->comment.s,
         conf->bc_start, k->seq.s, k->seq.s+conf->bc_start+conf->bc_length,
         conf->bc_start, k->qual.s, k->qual.s+conf->bc_start+conf->bc_length
     );
@@ -112,14 +114,17 @@ int prepare_read_pe(kseq_t *k1, kseq_t *k2, kstring_t *s1, kstring_t *s2, bc_con
         }
     }
 
+    // Remove "/1" or "/2" from the end of the read name
+    remove_read_number(k_has_bc);
+    remove_read_number(k_not_bc);
+
     // Create entry for read with barcode
     // NOTE: This assumes there was a FASTQ comment, it may be worth it to look into how
     //       to handle cases where there aren't comments to start with
     ksprintf(
         s_has_bc,
-        "@%s %s:%.*s\n%.*s%s\n+\n%.*s%s\n",
-        k_has_bc->name.s, k_has_bc->comment.s,
-        conf->bc_length, k_has_bc->seq.s+conf->bc_start,
+        "@%s_%.*s_AAAAAAAA %s\n%.*s%s\n+\n%.*s%s\n",
+        k_has_bc->name.s, conf->bc_length, k_has_bc->seq.s+conf->bc_start, k_has_bc->comment.s,
         conf->bc_start, k_has_bc->seq.s, k_has_bc->seq.s+conf->bc_start+conf->bc_length,
         conf->bc_start, k_has_bc->qual.s, k_has_bc->qual.s+conf->bc_start+conf->bc_length
     );
@@ -129,9 +134,8 @@ int prepare_read_pe(kseq_t *k1, kseq_t *k2, kstring_t *s1, kstring_t *s2, bc_con
     //       to handle cases where there aren't comments to start with
     ksprintf(
         s_not_bc,
-        "@%s %s:%.*s\n%s\n+\n%s\n",
-        k_not_bc->name.s, k_not_bc->comment.s,
-        conf->bc_length, k_has_bc->seq.s+conf->bc_start,
+        "@%s_%.*s_AAAAAAAA %s\n%s\n+\n%s\n",
+        k_not_bc->name.s, conf->bc_length, k_has_bc->seq.s+conf->bc_start, k_not_bc->comment.s,
         k_not_bc->seq.s, k_not_bc->qual.s
     );
 
@@ -231,7 +235,9 @@ static void usage() {
     fprintf(stderr, "General Options:\n");
     fprintf(stderr, "    -h, --help             This help\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "Note: When writing to stdout, reads 1 and 2 will alternate (i.e., are interleaved)\n");
+    fprintf(stderr, "Note 1: When writing to stdout, reads 1 and 2 will alternate (i.e., are interleaved)\n");
+    fprintf(stderr, "Note 2: Also adds an artificial UMI (AAAAAAAA) for compatibility purposes and to serve\n");
+    fprintf(stderr, "        as a placeholder for future UMI work\n");
     fprintf(stderr, "\n");
 }
 

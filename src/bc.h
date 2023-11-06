@@ -37,7 +37,7 @@
 KSEQ_INIT(gzFile, gzread)
 
 // Number of extra bytes to allocate
-#define N_EXTRA 32
+#define N_EXTRA 64
 
 // uint8_t should be large enough for now, but if barcodes start to occur
 // in locations further in from the start of the read or barcode lengths
@@ -57,6 +57,15 @@ static inline void bc_conf_init(bc_conf_t *conf) {
 }
 
 gzFile setup_output(const char *ofile, uint8_t read_num);
+
+// Remove "/1" and "/2" from read name
+static inline void remove_read_number(kseq_t *k) {
+    size_t len = k->name.l;
+    if (len > 2 && k->name.s[len-2] == '/' && (k->name.s[len-1] == '1' || k->name.s[len-1] == '2')) {
+        k->name.s[len-2] = '\0';
+        k->name.l = len-2;
+    }
+}
 
 int prepare_read_se(kseq_t *k, kstring_t *s, bc_conf_t *conf);
 
