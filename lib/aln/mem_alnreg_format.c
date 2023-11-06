@@ -401,8 +401,12 @@ void mem_alnreg_formatSAM(
     }
 
     if (s->barcode) {
-        kputsn("\tCR:Z:", 6, str);
+        kputsn("\tCB:Z:", 6, str);
         kputs(s->barcode, str);
+    }
+    if (s->umi) {
+        kputsn("\tRX:Z:", 6, str);
+        kputs(s->umi, str);
     }
 
     // MC/MQ: CIGAR string for mate/next segment (MC) and Mapping quality for mate/next segment (MQ)

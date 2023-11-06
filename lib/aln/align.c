@@ -153,7 +153,7 @@ static void *process(void *shared, int step, void *_data) {
   } else if (step == 2) {
     for (i = 0; i < data->n_seqs; ++i) {
       if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
-      free(data->seqs[i].name); free(data->seqs[i].comment); free(data->seqs[i].barcode);
+      free(data->seqs[i].name); free(data->seqs[i].comment); free(data->seqs[i].barcode); free(data->seqs[i].umi);
       free(data->seqs[i].seq0); free(data->seqs[i].qual); free(data->seqs[i].sam);
       /* bisulfite free, the pointers can be NULL */
       free(data->seqs[i].bisseq[0]);
@@ -257,7 +257,7 @@ int usage(mem_opt_t *opt) {
     fprintf(stderr, "    -S              Skip mate rescue\n");
     fprintf(stderr, "    -P              Skip pairing - mate rescue performed unless -S also given\n");
     fprintf(stderr, "    -e              Discard full-length exact matches\n");
-    fprintf(stderr, "    -9              Extract barcode from read comment\n");
+    fprintf(stderr, "    -9              Extract barcode and UMI from read name\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Scoring options:\n");
     fprintf(stderr, "    -A INT          Score for a sequence match, scales options -TdBOELU unless\n");
