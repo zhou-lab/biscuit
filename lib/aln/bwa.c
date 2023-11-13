@@ -767,12 +767,38 @@ static void bis_kseq2bseq1(const kseq_t *ks, bseq1_t *s, uint8_t has_bc)
 { // TODO: it would be better to allocate one chunk of memory, but probably it does not matter in practice
   s->name = strdup(ks->name.s);
   s->comment = ks->comment.l? strdup(ks->comment.s) : 0;
-  if (has_bc && ks->comment.l) {
-    // No checks are performed here, so we have to rely on the user to have done the proper
+  if (has_bc) {
+    // Minimal checks are performed here, so we have to rely on the user to have done the proper
     // preprocessing before processing with barcodes
-    s->barcode = strdup(strrchr(ks->comment.s, ':') + 1);
+    char *temp_string = strdup(ks->name.s);
+    char *temp_tok = NULL;
+    char *bc = NULL;
+    char *umi = NULL;
+
+    // Pull out first entry
+    temp_tok = strtok(temp_string, "_");
+
+    if (!temp_tok) {
+        fprintf(stderr, "[W::%s] barcode and UMI extraction requested but could not include be extracted\n", __func__);
+    }
+
+    // barcode
+    bc = strtok(NULL, "_");
+
+    // umi
+    umi = strtok(NULL, "_");
+
+    while ((temp_tok = strtok(NULL, "_")) != NULL) {
+        bc = umi;
+        umi = temp_tok;
+    }
+
+    s->barcode = strdup(bc);
+    s->umi = strdup(umi);
+    free(temp_string);
   } else {
       s->barcode = 0;
+      s->umi = 0;
   }
   s->seq = (uint8_t*) strdup(ks->seq.s);
   s->seq0 = s->seq;

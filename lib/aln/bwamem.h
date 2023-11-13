@@ -120,7 +120,7 @@ typedef struct {
    int clip5;                   /* extra clip from 5'-end */
    int clip3;                   /* extra clip from 3'-end */
    int min_base_qual;           /* minimum base quality */
-   uint8_t has_bc;              /* read comment has barcode in it */
+   uint8_t has_bc;              /* read comment has barcode and UMI in it */
 } mem_opt_t;
 
 typedef struct {
