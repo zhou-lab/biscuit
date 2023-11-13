@@ -42,3 +42,8 @@ lib/htslib
 lib/sgsl
 lib/utils
 build
+
+# BISCUIT release files
+biscuit-release
+biscuit_*_linux_amd64
+release-source.zip
