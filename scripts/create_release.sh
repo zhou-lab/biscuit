@@ -258,12 +258,13 @@ update_version_file ${VERSION_MAJOR} ${VERSION_MINOR} ${VERSION_PATCH} ${VERSION
 # Commit new version
 MSG=`print_version`
 message $(make_green "Creating commit with message:") ${MSG}
-# TODO: actually add and commit new version
+git add ${VERSION_FILE}
+git commit -m "${MSG}"
 
 # Create tag for new version (x.y.z.YYYYMMDD)
 TAG="v${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.`date +%Y%m%d`"
 message $(make_green "Creating tag:") ${TAG}
-# TODO: create tag for new version
+git tag "${TAG}"
 
 # Create release zip file with extra git files/dirs removed
 RELEASE_DIR=biscuit-release
@@ -291,5 +292,6 @@ update_version_file ${VERSION_MAJOR} ${VERSION_MINOR} ${VERSION_PATCH} ${VERSION
 # Commit devel version
 MSG=`print_version`
 message $(make_green "Creating commit with message:") ${MSG}
-# TODO: actually add and commit new devel version
+git add ${VERSION_FILE}
+git commit -m "${MSG}"
 #-----------------------------------------------------------------------------------------------------------------------
