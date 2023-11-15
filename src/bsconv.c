@@ -176,7 +176,7 @@ OUTPUT:
         }
     } else {
         s.m = s.l = 0; s.s = 0;
-        sam_format1(hdr, b, &s);
+        if (sam_format1(hdr, b, &s) < 0) wzfatal("ERROR: Unable to append to SAM output");
         if (puts(s.s) < 0)
             if (errno == EPIPE) exit(1);
         free(s.s);
