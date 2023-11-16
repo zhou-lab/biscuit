@@ -24,9 +24,7 @@
  * SOFTWARE.
  *
  */
-#include <zlib.h>
-#include "pileup.h"
-#include "wzmisc.h"
+#include "epiread.h"
 
 const char SKIP_EPI = '-';
 const char SKIP_INS = 'i';
@@ -109,8 +107,19 @@ typedef struct {
     episnp_chrom1_v  *snp;    /* vector of snp locations */
     wqueue_t(window) *q;      /* queue window */
     wqueue_t(record) *rq;     /* queue records */
-    conf_t           *conf;   /* config variables */
+    epiread_conf_t           *conf;   /* config variables */
 } result_t;
+
+typedef struct {
+    wqueue_t(record) *q;
+    int n_bams;
+    char **bam_fns;
+    char *outfn;
+    char *statsfn;
+    char *header;
+    target_v *targets;
+    epiread_conf_t *conf;
+} writer_conf_t;
 
 static void *epiread_write_func(void *data) {
     writer_conf_t *c = (writer_conf_t*) data;
@@ -155,7 +164,7 @@ static void *epiread_write_func(void *data) {
     return 0;
 }
 
-void run_length_encode(char *str, char *out, conf_t *conf) {
+void run_length_encode(char *str, char *out, epiread_conf_t *conf) {
     int run_len;
     char *count;
     if (conf->is_long_read) {
@@ -194,7 +203,7 @@ void run_length_encode(char *str, char *out, conf_t *conf) {
 // Format one bam record into the epi-bed format (positions are 0-based)
 // TODO: This function is getting verbose, refactor/cleanup?
 static void format_epi_bed(
-        kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, conf_t *conf,
+        kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, epiread_conf_t *conf,
         char *rle_arr_cg, char *rle_arr_gc, char *rle_arr_vr, uint32_t start, uint32_t end) {
 
     // Set max read length
@@ -282,7 +291,7 @@ static void format_epi_bed(
 // Format one bam record into the old epiread format (positions are 0-based)
 // TODO: This function is getting verbose, refactor/cleanup?
 static void format_epiread_old(
-        kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, conf_t *conf,
+        kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, uint8_t *snps, epiread_conf_t *conf,
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
@@ -425,7 +434,7 @@ static void format_epiread_old(
 // Format one bam record to pairwise format (positions are 1-based)
 // TODO: This function is getting verbose, refactor/cleanup?
 static void format_epiread_pairwise(
-        kstring_t *epi, char *chrm, window_t *w, conf_t *conf,
+        kstring_t *epi, char *chrm, window_t *w, epiread_conf_t *conf,
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
@@ -478,7 +487,7 @@ static void format_epiread_pairwise(
 }
 
 void skipped_base_old(
-        refcache_t *rs, char rb, uint8_t bss, uint32_t rj, uint32_t qj, conf_t *conf, char skip_epi,
+        refcache_t *rs, char rb, uint8_t bss, uint32_t rj, uint32_t qj, epiread_conf_t *conf, char skip_epi,
         int_v *hcg_p, int_v *gch_p, int_v *cg_p, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
     if (bss && rb == 'G' && rj-1 >= rs->beg) {
         char rb0 = refcache_getbase_upcase(rs, rj-1);
@@ -524,7 +533,7 @@ static inline void add_filtered(char *cg, char *var, char *gc, uint32_t idx) {
 
 static void *process_func(void *data) {
     result_t *res  = (result_t*) data;
-    conf_t   *conf = (conf_t*) res->conf;
+    epiread_conf_t   *conf = (epiread_conf_t*) res->conf;
 
     htsFile   *in  = hts_open(res->bam_fn, "rb");
     hts_idx_t *idx = sam_index_load(in, res->bam_fn);
@@ -1062,7 +1071,21 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
     return episnp;
 }
 
-static int usage(conf_t *conf) {
+void epiread_conf_init(epiread_conf_t *conf) {
+    conf->comm = bisc_common_init();
+    conf->bt = bisc_threads_init();
+    conf->filt = meth_filter_init();
+
+    conf->epiread_reg_start = 0;
+    conf->epiread_reg_end = 0;
+    conf->filter_empty_epiread = 1;
+    conf->is_long_read = 0;
+    conf->epiread_old = 0;
+    conf->epiread_pair = 0;
+    conf->print_all_locations = 0;
+}
+
+static int usage(epiread_conf_t *conf) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Usage: biscuit epiread [options] <ref.fa> <in.bam>\n");
     fprintf(stderr, "\n");
@@ -1113,22 +1136,8 @@ int main_epiread(int argc, char *argv[]) {
     char *outfn = 0;
     char *statsfn = 0;
     char *snp_bed_fn = 0;
-
-    // TODO: Make this a init function
-    conf_t conf;
-    memset(&conf, 0, sizeof(conf_t));
-    conf.comm = bisc_common_init();
-    conf.bt = bisc_threads_init();
-    conf.filt = meth_filter_init();
-
-    conf.epiread_old = 0;
-    conf.print_all_locations = 0;
-    conf.is_long_read = 0;
-    conf.epiread_pair = 0;
-    conf.epiread_reg_start = 0;
-    conf.epiread_reg_end = 0;
-    conf.filter_empty_epiread = 1;
-    conf.n_g_first = 0;
+    epiread_conf_t conf;
+    epiread_conf_init(&conf);
 
     if (argc<2) return usage(&conf);
     while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANLEcduOPpvh"))>=0) {
@@ -1270,11 +1279,6 @@ int main_epiread(int argc, char *argv[]) {
 
     for (i=0; i<conf.bt.n_threads; ++i) {
         pthread_join(processors[i], NULL);
-    }
-
-    if (conf.n_g_first > 0) {
-        fprintf(stderr, "There were occurrences where the first base in a OB/CTOB read is a G in a CG context.\n");
-        fprintf(stderr, "There were %u reads where this happened.\n", conf.n_g_first);
     }
 
     record_t rec = { .block_id = RECORD_QUEUE_END };

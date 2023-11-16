@@ -61,8 +61,19 @@ typedef struct {
     char *ref_fn;
     wqueue_t(window) *q;
     wqueue_t(record) *rq;
-    conf_t *conf;
+    pileup_conf_t *conf;
 } result_t;
+
+typedef struct {
+    wqueue_t(record) *q;
+    int n_bams;
+    char **bam_fns;
+    char *outfn;
+    char *statsfn;
+    char *header;
+    target_v *targets;
+    pileup_conf_t *conf;
+} writer_conf_t;
 
 void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record) {
     uint64_t i;
@@ -516,7 +527,7 @@ static void redistribute_cnts(int *cnts_base, int n_bams, uint8_t rb_code) {
     }
 }
   
-static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts_meth, int *cnts_base) {
+static void plp_getcnts(pileup_data_v *dv, pileup_conf_t *conf, int *cnts_meth, int *cnts_base) {
 
     if (!dv) return;
 
@@ -533,7 +544,7 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts_meth, int *cn
     }
 }
 
-void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq) {
+void pileup_genotype(int cref, int altsupp, pileup_conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq) {
 
     double gl0=-1, gl1=-1, gl2=-1, gq=-1;
     if (cref >=0 || altsupp >= 0) {
@@ -559,7 +570,7 @@ void pileup_genotype(int cref, int altsupp, conf_t *conf, char gt[4], double *_g
     *_gl0 = gl0; *_gl1 = gl1; *_gl2 = gl2; *_gq = gq;
 }
 
-static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, conf_t *conf,
+static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v *dv, pileup_conf_t *conf,
         record_t *rec, int n_bams, int *cnts_meth, int *cnts_base, int *cnts_base_redist) {
 
     kstring_t *s = &rec->s;
@@ -876,7 +887,7 @@ uint32_t get_mate_length(char *m_cigar) {
 static void *process_func(void *_result) {
 
     result_t *res = (result_t*) _result;
-    conf_t *conf = (conf_t*) res->conf;
+    pileup_conf_t *conf = (pileup_conf_t*) res->conf;
 
     /* TODO: protect against res->n_bams == 0 */
 
@@ -1103,7 +1114,7 @@ static void head_append_verbose(char *pb, char b, kstring_t *s) {
     ksprintf(s, "##FORMAT=<ID=Rret%c,Number=1,Type=String;Description=\"Number of retention in read, %s\">\n", b, pb);
 }
 
-char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, conf_t *conf, char **in_fns, int n_fns) {
+char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, pileup_conf_t *conf, char **in_fns, int n_fns) {
 
     kstring_t header; header.l = header.m = 0; header.s = 0;
     kputs("##fileformat=VCFv4.1\n", &header);
@@ -1173,12 +1184,12 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
     return header.s;
 }
 
-void pileup_conf_init(conf_t *conf) {
+void pileup_conf_init(pileup_conf_t *conf) {
     conf->comm = bisc_common_init();
     conf->bt = bisc_threads_init();
     conf->filt = meth_filter_init();
 
-    conf->ambi_redist = 1; // by default ambiguous redistribution is on
+    conf->ambi_redist = 1;
 
     /* genotyping */
     conf->somatic = 0;
@@ -1194,7 +1205,7 @@ void pileup_conf_init(conf_t *conf) {
     if (conf->prior2 < 0) { fprintf(stderr, "[Error] genotype prior2 (%1.3f) must be from 0 to 1. \n", conf->prior2); exit(1); }
 }
 
-static int usage(conf_t *conf) {
+static int usage(pileup_conf_t *conf) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Usage: biscuit pileup [options] <ref.fa> <in1.bam> [in2.bam in3.bam ...]\n");
     fprintf(stderr, "Som. Mode Usage: biscuit pileup [options] <-S -T tum.bam -I norm.bam> <ref.fa>\n");
@@ -1251,7 +1262,7 @@ int main_pileup(int argc, char *argv[]) {
     char *nor = 0;
     char *outfn = 0;
     char *statsfn = 0;
-    conf_t conf;
+    pileup_conf_t conf;
     pileup_conf_init(&conf);
 
     if (argc<2) return usage(&conf);
