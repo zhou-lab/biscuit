@@ -28,6 +28,7 @@
 #include <inttypes.h>
 
 #include "wqueue.h"
+#include "wvec.h"
 
 // Common parameters used in biscuit subcommands
 typedef struct {
@@ -111,5 +112,18 @@ typedef struct {
 } window_t;
 
 DEFINE_WQUEUE(window, window_t)
+
+// Contig info
+typedef struct {
+    int32_t   tid;  /* contig ID number */
+    char     *name; /* contig name */
+    uint32_t  len;  /* contig length */
+} target_t;
+
+DEFINE_VECTOR(target_v, target_t);
+
+static inline int compare_targets(const void *a, const void *b) {
+    return strcmp(((target_t*)a)->name, ((target_t*)b)->name);
+}
 
 #endif /* _BISC_UTILS_H_ */

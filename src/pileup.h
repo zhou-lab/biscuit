@@ -117,18 +117,6 @@ uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allo
 
 uint32_t get_mate_length(char *m_cigar);
 
-typedef struct {
-    int32_t tid;
-    char *name;
-    uint32_t len;
-} target_t;
-
-DEFINE_VECTOR(target_v, target_t);
-
-static inline int compare_targets(const void *a, const void *b) {
-    return strcmp(((target_t*)a)->name, ((target_t*)b)->name);
-}
-
 cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc);
 
 #define max(a,b)                \
