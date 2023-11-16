@@ -42,21 +42,86 @@
 #include "stats.h"
 #include "biscuit.h"
 
+// Common parameters used in biscuit subcommands
 typedef struct {
-    int step;
-    int n_threads;
-    uint32_t min_base_qual;
-    uint32_t max_retention;
-    uint32_t min_read_len;
-    uint8_t min_dist_end_5p;
-    uint8_t min_dist_end_3p;
-    uint8_t min_mapq;
-    int max_nm;
-    uint8_t filter_ppair:1;     /* filter BAM_FPROPER_PAIR */
-    uint8_t filter_secondary:1;
-    uint8_t filter_doublecnt:1; /* stop double-counting cytosine in overlapping mate reads */
-    uint8_t filter_duplicate:1;
-    uint8_t filter_qcfail:1;
+    uint8_t is_nome:1; /* input data is NOMe-seq */
+    uint8_t verbose:1; /* print out extra information during processing */
+} bisc_common_t;
+
+static inline bisc_common_t bisc_common_init() {
+    bisc_common_t out;
+
+    out.is_nome = 0;
+    out.verbose = 0;
+
+    return out;
+}
+
+// Multithreading specific parameters
+// TODO: can probably merge this into bisc_common_t
+typedef struct {
+    int step;      /* step size of window dispatching */
+    int n_threads; /* number of processing threads */
+} bisc_threads_t;
+
+static inline bisc_threads_t bisc_threads_init() {
+    bisc_threads_t out;
+
+    out.step = 100000;
+    out.n_threads = 3;
+
+    return out;
+}
+
+// parameters affecting methylation extraction
+typedef struct {
+    // minimum values
+    uint32_t min_base_qual;      /* minimum base quality */
+    uint32_t min_read_len;       /* minimum read length */
+    uint8_t  min_dist_end_5p;    /* minimum distance to 5' end of read to be included in methylation count */
+    uint8_t  min_dist_end_3p;    /* minimum distance to 3' end of read to be included in methylation count */
+    uint8_t  min_mapq;           /* minimum MAPQ score to include read */
+    int      min_score;          /* minimum alignment score (from AS tag) */
+
+    // maximum values
+    int      max_nm;             /* maximum number of non-cytosine-conversion mismatches (from NM tag) */
+    uint32_t max_retention;      /* maximum cytosine retention in read */
+
+    // filter flags
+    uint8_t  filter_ppair:1;     /* only use BAM_FPROPER_PAIR reads (hidden CLI option) */
+    uint8_t  filter_secondary:1; /* don't include BAM_FSECONDARY reads (hidden CLI option) */
+    uint8_t  filter_duplicate:1; /* don't include BAM_FDUP reads */
+    uint8_t  filter_qcfail:1;    /* don't include BAM_FQCFAIL reads */
+    uint8_t  filter_doublecnt:1; /* stop double-counting cytosine in overlapping mate reads */
+} meth_filter_t;
+
+static inline meth_filter_t meth_filter_init() {
+    meth_filter_t out;
+
+    out.min_base_qual = 20;
+    out.min_read_len = 10;
+    out.min_dist_end_5p = 3;
+    out.min_dist_end_3p = 3;
+    out.min_mapq = 40;
+    out.min_score = 40;
+    out.max_nm = 999999;
+    out.max_retention = 999999;
+    out.filter_ppair = 1;
+    out.filter_secondary = 1;
+    out.filter_duplicate = 1;
+    out.filter_qcfail = 1;
+    out.filter_doublecnt = 1;
+
+    return out;
+}
+
+typedef struct {
+    bisc_common_t comm; /* common parameters across subcommands */
+    bisc_threads_t bt;  /* multithreading parameters */
+    meth_filter_t filt; /* methylation extraction filters */
+
+    // pileup only
+    int somatic;                    /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
     uint8_t noheader:1;
     uint8_t ambi_redist:1;
     double error;
@@ -66,21 +131,19 @@ typedef struct {
     double prior0;
     double prior1;
     double prior2;
-    uint8_t verbose;
+
+    // epiread only
     int epiread_old;         /* print old BISCUIT epiread format */
     int print_all_locations; /* print all CpG and SNP locations in location column of epiread format */
-    int is_nome;
     uint8_t is_long_read;           /* data is from long read sequencing */
-    int somatic;                    /* call somatic mutation by assuming sample 1 is tumor and sample 2 is normal */
     int epiread_pair;               /* pair output mode in epireads, doesn't mean "paired-end" */
     uint32_t epiread_reg_start;     /* first location of region provided to epiread */
     uint32_t epiread_reg_end;       /* final location of region provided to epiread */
     uint8_t filter_empty_epiread:1; /* remove epireads that only have F/x/P */
-    int min_score;                  /* minimum score from AS tag */
     uint32_t n_g_first;             /* number of OB/CTOB reads with a G in a CG context as first base, only incremented if not already filtered */
 } conf_t;
 
-void conf_init(conf_t *conf);
+void pileup_conf_init(conf_t *conf);
 
 typedef struct {
     int64_t block_id;

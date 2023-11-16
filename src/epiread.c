@@ -216,7 +216,7 @@ static void format_epi_bed(
         uint8_t write_read_vr = 1;
         int len_cg = (int)strlen(rle_arr_cg);
         int len_vr = (int)strlen(rle_arr_vr);
-        int len_gc = conf->is_nome ? (int)strlen(rle_arr_gc) : -1;
+        int len_gc = conf->comm.is_nome ? (int)strlen(rle_arr_gc) : -1;
 
         // Check if RLE string is only composed of F's and x's and P's
         if (conf->filter_empty_epiread) {
@@ -228,7 +228,7 @@ static void format_epi_bed(
             size_t check_rle_vr = strspn(rle_arr_vr, filt_ignr_soft);
             if (len_vr == (int)check_rle_vr) { write_read_vr = 0; }
 
-            if (conf->is_nome) {
+            if (conf->comm.is_nome) {
                 size_t check_rle_gc = strspn(rle_arr_gc, filt_ignr_soft);
                 if (len_gc == (int)check_rle_gc) { write_read_gc = 0; }
             } else {
@@ -250,7 +250,7 @@ static void format_epi_bed(
             run_length_encode(rle_arr_cg, encoded_rle, conf);
             ksprintf(epi, "\t%s", encoded_rle);
 
-            if (conf->is_nome) {
+            if (conf->comm.is_nome) {
                 // Encoded string can be no larger than 2 times the original string length
                 char *encoded_rle_gc = (char *) malloc(sizeof(char) * (2*len_gc+1));
                 run_length_encode(rle_arr_gc, encoded_rle_gc, conf);
@@ -270,7 +270,7 @@ static void format_epi_bed(
             free(encoded_rle_vr);
             free(encoded_rle);
         } else {
-            if (conf->verbose) {
+            if (conf->comm.verbose) {
                 fprintf(stderr, "Filtering CG read: %s\n", rle_arr_cg);
                 fprintf(stderr, "Filtering GC read: %s\n", rle_arr_gc);
                 fprintf(stderr, "Filtering variant read: %s\n", rle_arr_vr);
@@ -299,7 +299,7 @@ static void format_epiread_old(
 
     uint32_t k;
 
-    if (conf->is_nome) { // nome-seq
+    if (conf->comm.is_nome) { // nome-seq
         // TODO: This solution has the same issues as those in the bsseq option in the else-block of this
         //       if-statement
         int first_epi = 0;
@@ -446,7 +446,7 @@ static void format_epiread_pairwise(
         if (!((unsigned) get_int_v(snp_p, k) >= print_w_beg && (unsigned) get_int_v(snp_p, k) < print_w_end))
             continue;
 
-        if (conf->is_nome) { // nome-seq
+        if (conf->comm.is_nome) { // nome-seq
             for (j=0; j<hcg_p->size; ++j) { // snp and HCG context
                 ksprintf(epi, "%s\t%d\t%d\t%c\t%c\n",
                         chrm,
@@ -482,7 +482,7 @@ void skipped_base_old(
         int_v *hcg_p, int_v *gch_p, int_v *cg_p, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
     if (bss && rb == 'G' && rj-1 >= rs->beg) {
         char rb0 = refcache_getbase_upcase(rs, rj-1);
-        if (conf->is_nome) {
+        if (conf->comm.is_nome) {
             if (rj+1 <= rs->end) {
                 char rb1 = refcache_getbase_upcase(rs, rj+1);
                 if (rb0 == 'C' && rb1 != 'C' && qj > 0) {
@@ -499,7 +499,7 @@ void skipped_base_old(
     }
     if (!bss && rb == 'C' && rj+1 <= rs->end) {
         char rb1 = refcache_getbase_upcase(rs, rj+1);
-        if (conf->is_nome) {
+        if (conf->comm.is_nome) {
             if (rj-1 >= rs->beg) {
                 char rb0 = refcache_getbase_upcase(rs, rj-1);
                 if (rb0 != 'G' && rb1 == 'G') {
@@ -583,31 +583,31 @@ static void *process_func(void *data) {
         while ((ret = sam_itr_next(in, iter, b))>0) {
             // Read-based filtering
             bam1_core_t *c = &b->core;
-            if (c->qual < conf->min_mapq) continue;
-            if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->min_read_len) continue;
+            if (c->qual < conf->filt.min_mapq) continue;
+            if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->filt.min_read_len) continue;
             if (c->flag > 0) { // only when any flag is set
-                if (conf->filter_secondary && c->flag & BAM_FSECONDARY) continue;
-                if (conf->filter_duplicate && c->flag & BAM_FDUP) continue;
-                if (conf->filter_ppair && c->flag & BAM_FPAIRED && !(c->flag & BAM_FPROPER_PAIR)) continue;
-                if (conf->filter_qcfail && c->flag & BAM_FQCFAIL) continue;
+                if (conf->filt.filter_secondary && c->flag & BAM_FSECONDARY) continue;
+                if (conf->filt.filter_duplicate && c->flag & BAM_FDUP) continue;
+                if (conf->filt.filter_ppair && c->flag & BAM_FPAIRED && !(c->flag & BAM_FPROPER_PAIR)) continue;
+                if (conf->filt.filter_qcfail && c->flag & BAM_FQCFAIL) continue;
             }
 
             uint8_t *nm = bam_aux_get(b, "NM");
-            if (nm && bam_aux2i(nm) > conf->max_nm) continue;
+            if (nm && bam_aux2i(nm) > conf->filt.max_nm) continue;
 
             uint8_t *as = bam_aux_get(b, "AS");
-            if (as && bam_aux2i(as) < conf->min_score) continue;
+            if (as && bam_aux2i(as) < conf->filt.min_score) continue;
 
-            uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual, 0);
+            uint8_t bsstrand = get_bsstrand(rs, b, conf->filt.min_base_qual, 0);
             uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
-            if (cnt_ret > conf->max_retention) continue;
+            if (cnt_ret > conf->filt.max_retention) continue;
 
             // Pairwise epiread format variables
             int_v  *snp_p = init_int_v(10);  // snp position
             char_v *snp_c = init_char_v(10); // snp character
             int_v  *cg_p=0, *hcg_p=0, *gch_p=0;
             char_v *cg_c=0, *hcg_c=0, *gch_c=0;
-            if (conf->is_nome) {
+            if (conf->comm.is_nome) {
                 hcg_p = init_int_v(10);  // hcg positions
                 hcg_c = init_char_v(10); // hcg characters
                 gch_p = init_int_v(10);  // gch positions
@@ -677,7 +677,7 @@ static void *process_func(void *data) {
 
                             // Base filtering
                             // Low quality bases
-                            if (bam_get_qual(b)[qj] < conf->min_base_qual) {
+                            if (bam_get_qual(b)[qj] < conf->filt.min_base_qual) {
                                 skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, SKIP_EPI, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
                                 add_filtered(rle_arr_cg, rle_arr_vr, rle_arr_gc, qjd);
 
@@ -687,7 +687,7 @@ static void *process_func(void *data) {
                             // Read-position-based filtering
                             // Follows the same form as pileup, so qpos is adjusted to be 1-based/1-indexed and
                             // filtering is done according to that, rather than being 0-based/0-indexed
-                            if (qj+1 <= conf->min_dist_end_5p || c->l_qseq < (int32_t)(qj+1 + conf->min_dist_end_3p)) {
+                            if (qj+1 <= conf->filt.min_dist_end_5p || c->l_qseq < (int32_t)(qj+1 + conf->filt.min_dist_end_3p)) {
                                 skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, SKIP_EPI, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
                                 add_filtered(rle_arr_cg, rle_arr_vr, rle_arr_gc, qjd);
 
@@ -704,7 +704,7 @@ static void *process_func(void *data) {
                              * The filtering removes bases from read 2 (usually the read on the complement strand)
                              * that fall into the overlapped region.
                              */
-                            if ((conf->filter_doublecnt) && (c->flag & BAM_FREAD2) &&
+                            if ((conf->filt.filter_doublecnt) && (c->flag & BAM_FREAD2) &&
                                 (rpos+j >= max(rpos, rmpos)) && (rpos+j <= min(rend, rmend))) {
                                 skipped_base_old(rs, rb, bsstrand, rpos+j, qj, conf, SKIP_EPI, hcg_p, gch_p, cg_p, hcg_c, gch_c, cg_c);
                                 add_filtered(rle_arr_cg, rle_arr_vr, rle_arr_gc, qjd);
@@ -715,7 +715,7 @@ static void *process_func(void *data) {
                             // reference is a G
                             if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
                                 char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
-                                if (conf->is_nome) { // nome-seq
+                                if (conf->comm.is_nome) { // nome-seq
                                     if (rpos+j+1 <= rs->end) { // prevent overflow
                                         char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
                                         if (rb0 == 'C' && rb1 != 'C') { // HCG context
@@ -774,7 +774,7 @@ static void *process_func(void *data) {
                             // reference is a C
                             if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
                                 char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
-                                if (conf->is_nome) { // nome-seq
+                                if (conf->comm.is_nome) { // nome-seq
                                     if (rpos+j-1 >= rs->beg) { // to prevent underflow
                                         char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
                                         if (rb0 != 'G' && rb1 == 'G') { // HCG context
@@ -943,7 +943,7 @@ static void *process_func(void *data) {
             free(rle_arr_vr);
             free(rle_arr_cg);
             free_int_v(snp_p); free_char_v(snp_c);
-            if (conf->is_nome) {
+            if (conf->comm.is_nome) {
                 free_int_v(hcg_p); free_char_v(hcg_c);
                 free_int_v(gch_p); free_char_v(gch_c);
             } else {
@@ -1069,8 +1069,8 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    -B STR    Bed input for SNP display in epiread output\n");
     fprintf(stderr, "    -g STR    Region (optional, will process the whole bam if not specified)\n");
-    fprintf(stderr, "    -s STR    Step of window dispatching [%d]\n", conf->step);
-    fprintf(stderr, "    -@ INT    Number of threads [%d]\n", conf->n_threads);
+    fprintf(stderr, "    -s STR    Step of window dispatching [%d]\n", conf->bt.step);
+    fprintf(stderr, "    -@ INT    Number of threads [%d]\n", conf->bt.n_threads);
     fprintf(stderr, "\n");
     fprintf(stderr, "Output options:\n");
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
@@ -1082,20 +1082,20 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -v        Verbose (print additional info for diagnostics) [off]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Filter options:\n");
-    fprintf(stderr, "    -b INT    Minimum base quality [%u]\n", conf->min_base_qual);
-    fprintf(stderr, "    -m INT    Minimum mapping quality [%u]\n", conf->min_mapq);
-    fprintf(stderr, "    -a INT    Minimum alignment score (from AS-tag) [%u]\n", conf->min_score);
-    fprintf(stderr, "    -t INT    Max cytosine retention in a read [%u]\n", conf->max_retention);
-    fprintf(stderr, "    -l INT    Minimum read length [%u]\n", conf->min_read_len);
-    fprintf(stderr, "    -5 INT    Minimum distance to 5' end of a read [%u]\n", conf->min_dist_end_5p);
-    fprintf(stderr, "    -3 INT    Minimum distance to 3' end of a read [%u]\n", conf->min_dist_end_3p);
+    fprintf(stderr, "    -b INT    Minimum base quality [%u]\n", conf->filt.min_base_qual);
+    fprintf(stderr, "    -m INT    Minimum mapping quality [%u]\n", conf->filt.min_mapq);
+    fprintf(stderr, "    -a INT    Minimum alignment score (from AS-tag) [%u]\n", conf->filt.min_score);
+    fprintf(stderr, "    -t INT    Max cytosine retention in a read [%u]\n", conf->filt.max_retention);
+    fprintf(stderr, "    -l INT    Minimum read length [%u]\n", conf->filt.min_read_len);
+    fprintf(stderr, "    -5 INT    Minimum distance to 5' end of a read [%u]\n", conf->filt.min_dist_end_5p);
+    fprintf(stderr, "    -3 INT    Minimum distance to 3' end of a read [%u]\n", conf->filt.min_dist_end_3p);
     fprintf(stderr, "    -E        NO filtering of empty epireads\n");
     //fprintf(stderr, "    -c        NO filtering secondary mapping\n");
     fprintf(stderr, "    -d        Double count cytosines in overlapping mate reads (avoided\n");
     fprintf(stderr, "                  by default)\n");
     fprintf(stderr, "    -u        NO filtering of duplicate\n");
     fprintf(stderr, "    -p        NO filtering of improper pair\n");
-    fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf->max_nm);
+    fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf->filt.max_nm);
     fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Note, the -O (old epiread format) and -P (pairwise format for biscuit asm) are not guaranteed\n");
@@ -1117,26 +1117,13 @@ int main_epiread(int argc, char *argv[]) {
     // TODO: Make this a init function
     conf_t conf;
     memset(&conf, 0, sizeof(conf_t));
-    conf.step = 100000;
-    conf.n_threads = 3;
-    conf.min_base_qual = 20;
-    conf.min_mapq = 40;
-    conf.min_score = 40;
-    conf.max_retention = 999999;
-    conf.min_read_len = 10;
-    conf.min_dist_end_5p = 3;
-    conf.min_dist_end_3p = 3;
-    conf.filter_qcfail = 1;
-    conf.filter_secondary = 1;
-    conf.filter_doublecnt = 1;
-    conf.filter_duplicate = 1;
-    conf.filter_ppair = 1;
-    conf.max_nm = 999999;
+    conf.comm = bisc_common_init();
+    conf.bt = bisc_threads_init();
+    conf.filt = meth_filter_init();
+
     conf.epiread_old = 0;
     conf.print_all_locations = 0;
-    conf.is_nome = 0;
     conf.is_long_read = 0;
-    conf.verbose = 0;
     conf.epiread_pair = 0;
     conf.epiread_reg_start = 0;
     conf.epiread_reg_end = 0;
@@ -1149,27 +1136,27 @@ int main_epiread(int argc, char *argv[]) {
             case 'B': snp_bed_fn = optarg; break;
             case 'o': outfn = optarg; break;
             case 'g': reg = optarg; break;
-            case '@': conf.n_threads = atoi(optarg); break;
-            case 's': conf.step = atoi(optarg); break;
-            case 't': conf.max_retention = atoi(optarg); break;
-            case 'l': conf.min_read_len = atoi(optarg); break;
-            case '5': conf.min_dist_end_5p = atoi(optarg); break;
-            case '3': conf.min_dist_end_3p = atoi(optarg); break;
-            case 'n': conf.max_nm = atoi(optarg); break;
-            case 'b': conf.min_base_qual = atoi(optarg); break;
-            case 'm': conf.min_mapq = atoi(optarg); break;
-            case 'a': conf.min_score = atoi(optarg); break;
+            case '@': conf.bt.n_threads = atoi(optarg); break;
+            case 's': conf.bt.step = atoi(optarg); break;
+            case 't': conf.filt.max_retention = atoi(optarg); break;
+            case 'l': conf.filt.min_read_len = atoi(optarg); break;
+            case '5': conf.filt.min_dist_end_5p = atoi(optarg); break;
+            case '3': conf.filt.min_dist_end_3p = atoi(optarg); break;
+            case 'n': conf.filt.max_nm = atoi(optarg); break;
+            case 'b': conf.filt.min_base_qual = atoi(optarg); break;
+            case 'm': conf.filt.min_mapq = atoi(optarg); break;
+            case 'a': conf.filt.min_score = atoi(optarg); break;
             case 'O': conf.epiread_old = 1; break;
             case 'A': conf.print_all_locations = 1; break;
-            case 'N': conf.is_nome = 1; break;
+            case 'N': conf.comm.is_nome = 1; break;
             case 'L': conf.is_long_read = 1; break;
             case 'E': conf.filter_empty_epiread = 0; break;
-            case 'c': conf.filter_secondary = 0; break;
-            case 'd': conf.filter_doublecnt = 0; break;
-            case 'u': conf.filter_duplicate = 0; break;
-            case 'p': conf.filter_ppair = 0; break;
+            case 'c': conf.filt.filter_secondary = 0; break;
+            case 'd': conf.filt.filter_doublecnt = 0; break;
+            case 'u': conf.filt.filter_duplicate = 0; break;
+            case 'p': conf.filt.filter_ppair = 0; break;
             case 'P': conf.epiread_pair = 1; break;
-            case 'v': conf.verbose = 1; break;
+            case 'v': conf.comm.verbose = 1; break;
             case 'h': return usage(&conf);
             case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt); break;
             case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt); break;
@@ -1193,8 +1180,8 @@ int main_epiread(int argc, char *argv[]) {
         bed_init_episnp(snp_bed_fn) : NULL;
 
     wqueue_t(window) *wq = wqueue_init(window, 100000);
-    pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
-    result_t *results = calloc(conf.n_threads, sizeof(result_t));
+    pthread_t *processors = calloc(conf.bt.n_threads, sizeof(pthread_t));
+    result_t *results = calloc(conf.bt.n_threads, sizeof(result_t));
     int i; unsigned j;
     htsFile *in = hts_open(infn, "rb");
     if (in == NULL) {
@@ -1226,7 +1213,7 @@ int main_epiread(int argc, char *argv[]) {
         .conf = &conf,
     };
     pthread_create(&writer, NULL, epiread_write_func, &writer_conf);
-    for (i=0; i<conf.n_threads; ++i) {
+    for (i=0; i<conf.bt.n_threads; ++i) {
         results[i].q = wq;
         results[i].rq = writer_conf.q;
         results[i].snp = episnp;
@@ -1255,33 +1242,33 @@ int main_epiread(int argc, char *argv[]) {
         conf.epiread_reg_start = beg;
         conf.epiread_reg_end   = end;
 
-        for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
+        for (wbeg = beg; wbeg < end; wbeg += conf.bt.step, block_id++) {
             w.tid = tid;
             w.block_id = block_id;
             w.beg = wbeg;
-            w.end = wbeg + conf.step;
+            w.end = wbeg + conf.bt.step;
             if (w.end > end) w.end = end;
             wqueue_put(window, wq, &w);
         }
     } else { // entire bam
         for (j=0; j<targets->size; ++j) {
             t = ref_target_v(targets, j);
-            for (wbeg = 1; wbeg < t->len; wbeg += conf.step, block_id++) {
+            for (wbeg = 1; wbeg < t->len; wbeg += conf.bt.step, block_id++) {
                 w.tid = t->tid;
                 w.block_id = block_id;
                 w.beg = wbeg;
-                w.end = wbeg+conf.step;
+                w.end = wbeg+conf.bt.step;
                 if (w.end > t->len) w.end = t->len;
                 wqueue_put(window, wq, &w);
             }
         }
     }
-    for (i=0; i<conf.n_threads; ++i) {
+    for (i=0; i<conf.bt.n_threads; ++i) {
         w.tid = -1;
         wqueue_put(window, wq, &w);
     }
 
-    for (i=0; i<conf.n_threads; ++i) {
+    for (i=0; i<conf.bt.n_threads; ++i) {
         pthread_join(processors[i], NULL);
     }
 

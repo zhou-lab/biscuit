@@ -98,7 +98,7 @@ void put_into_record_v(record_v *records, record_t rec) {
 }
 
 static void print_meth_average_1chrom(FILE *out, char *sample, char *chrom, double *betasum, int64_t *cnt, writer_conf_t *c) {
-    if (c->conf->is_nome) { // nome-seq
+    if (c->conf->comm.is_nome) { // nome-seq
 
         int64_t k_hcg  = cnt[CTXT_HCG];
         double  b_hcg  = betasum[CTXT_HCG];
@@ -237,7 +237,7 @@ void *write_func(void *data) {
         strcat(outfn, "_meth_average.tsv");
         FILE *out = fopen(outfn, "w");
 
-        if (c->conf->is_nome)
+        if (c->conf->comm.is_nome)
             fprintf(out, "sample\tchrm\tHCGn\tHCGb\tHCHGn\tHCHGb\tHCHHn\tHCHHb\tHCHn\tHCHb\tGCn\tGCb\n");
         else
             fprintf(out, "sample\tchrm\tCGn\tCGb\tCHGn\tCHGb\tCHHn\tCHHb\tCHn\tCHb\n");
@@ -524,10 +524,10 @@ static void plp_getcnts(pileup_data_v *dv, conf_t *conf, int *cnts_meth, int *cn
     for (i=0; i<dv->size; ++i) {
         pileup_data_t *d = ref_pileup_data_v(dv, i);
         /* read-position-based filtering */
-        if (d->qual < conf->min_base_qual) continue;
+        if (d->qual < conf->filt.min_base_qual) continue;
         // TODO: On the 3'-end, it should be before the end of mapping instead of
         // end of read since adaptor sequences are soft-clipped.
-        if (d->qpos <= conf->min_dist_end_5p || d->rlen < d->qpos + conf->min_dist_end_3p) continue;
+        if (d->qpos <= conf->filt.min_dist_end_5p || d->rlen < d->qpos + conf->filt.min_dist_end_3p) continue;
         cnts_meth[d->sid * NSTATUS_METH + (d->stat&0xf)]++;
         cnts_base[d->sid * NSTATUS_BASE + (d->stat>>4)]++;
     }
@@ -589,7 +589,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
 
     /* if not SNP but no signal for METH_RETENTION or METH_CONVERSION,
        skip the print when in non-verbose mode */
-    if (cm1 < 0 && !conf->verbose
+    if (cm1 < 0 && !conf->comm.verbose
             && cnts_meth_allsamples[METH_RETENTION] == 0
             && cnts_meth_allsamples[METH_CONVERSION] == 0)
         return;
@@ -691,7 +691,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     if (rb == 'C' || rb == 'G') {
         char fivenuc[5];
         ctt = fivenuc_context(rs, rpos, rb, fivenuc);
-        ksprintf(s, ";CX=%s", conf->is_nome?cytosine_context_nome[ctt]:cytosine_context[ctt]);
+        ksprintf(s, ";CX=%s", conf->comm.is_nome?cytosine_context_nome[ctt]:cytosine_context[ctt]);
         ksprintf(s, ";N5=%.5s", fivenuc);
     }
     if (conf->somatic && cm1>=0) {
@@ -771,7 +771,7 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
            put to FORMAT since they are sample-specific, but in FORMAT is usually 
            harder to parse, so they are appended to INFO these are not intended for
            formal submission, just for diagnostic purposes.  */
-        if (conf->verbose) {
+        if (conf->comm.verbose) {
             kputs("\tDIAGNOSE", s);
             if (methcallable)
                 ksprintf(s, ";RN=%d;CN=%d", cnts_meth1[METH_RETENTION], cnts_meth1[METH_CONVERSION]);
@@ -940,27 +940,27 @@ static void *process_func(void *_result) {
             // loop over reads
             while ((ret = sam_itr_next(in, iter, b))>0) {
 
-                uint8_t bsstrand = get_bsstrand(rs, b, conf->min_base_qual, 0);
+                uint8_t bsstrand = get_bsstrand(rs, b, conf->filt.min_base_qual, 0);
 
                 /* read-based filtering */
                 bam1_core_t *c = &b->core;
-                if (c->qual < conf->min_mapq) continue;
-                if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->min_read_len) continue;
+                if (c->qual < conf->filt.min_mapq) continue;
+                if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->filt.min_read_len) continue;
                 if (c->flag > 0){
-                    if (conf->filter_secondary && (c->flag & BAM_FSECONDARY)) continue;
-                    if (conf->filter_duplicate && (c->flag & BAM_FDUP)) continue;
-                    if (conf->filter_ppair && c->flag & BAM_FPAIRED && !(c->flag & BAM_FPROPER_PAIR)) continue;
-                    if (conf->filter_qcfail && c->flag & BAM_FQCFAIL) continue;
+                    if (conf->filt.filter_secondary && (c->flag & BAM_FSECONDARY)) continue;
+                    if (conf->filt.filter_duplicate && (c->flag & BAM_FDUP)) continue;
+                    if (conf->filt.filter_ppair && c->flag & BAM_FPAIRED && !(c->flag & BAM_FPROPER_PAIR)) continue;
+                    if (conf->filt.filter_qcfail && c->flag & BAM_FQCFAIL) continue;
                 }
 
                 uint8_t *nm = bam_aux_get(b, "NM");
-                if (nm && bam_aux2i(nm) > conf->max_nm) continue;
+                if (nm && bam_aux2i(nm) > conf->filt.max_nm) continue;
 
                 uint8_t *as = bam_aux_get(b, "AS");
-                if (as && bam_aux2i(as) < conf->min_score) continue;
+                if (as && bam_aux2i(as) < conf->filt.min_score) continue;
 
                 uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
-                if (cnt_ret > conf->max_retention) continue;
+                if (cnt_ret > conf->filt.max_retention) continue;
 
                 // read positions and lengths
                 uint32_t rpos = c->pos+1, qpos = 0, rmpos = c->mpos + 1;
@@ -1002,7 +1002,7 @@ static void *process_func(void *_result) {
                                  * The filtering removes bases from read 2 (usually the read on the complement strand)
                                  * that fall into the overlapped region.
                                  */
-                                if ((conf->filter_doublecnt) &&
+                                if ((conf->filt.filter_doublecnt) &&
                                     (c->flag & BAM_FREAD2) &&
                                     (rpos+j >= max(rpos, rmpos)) &&
                                     (rpos+j <= min(rend, rmend))) {
@@ -1123,7 +1123,7 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
     kputs("##FILTER=<ID=PASS,Description=\"All filters passed\">\n", &header);
     kputs("##FILTER=<ID=LowQual,Description=\"Genotype quality smaller than 5\">\n", &header);
     kputs("##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with data\">\n", &header);
-    if (conf->is_nome)
+    if (conf->comm.is_nome)
         kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (HCG, HCHG, HCHH, GCG, GCH)\">\n", &header);
     else
         kputs("##INFO=<ID=CX,Number=1,Type=String,Description=\"Cytosine context (CG, CHH or CHG)\">\n", &header);
@@ -1146,7 +1146,7 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
     kputs("##FORMAT=<ID=GL1,Number=3,Type=Float,Description=\"Genotype likelihoods for the first alternative allele\">\n", &header);
     kputs("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality (phred-scaled)\">\n", &header);
 
-    if (conf->verbose) {
+    if (conf->comm.verbose) {
         kputs("##FORMAT=<ID=RN,Number=1,Type=Integer,Description=\"Retention count (with filtering)\">\n", &header);
         kputs("##FORMAT=<ID=CN,Number=1,Type=Integer,Description=\"Conversion count (with filtering)\">\n", &header);
         char plpbsstrand[4];
@@ -1173,33 +1173,15 @@ char *print_vcf_header(char *reffn, target_v *targets, char **argv, int argc, co
     return header.s;
 }
 
-void conf_init(conf_t *conf) {
+void pileup_conf_init(conf_t *conf) {
+    conf->comm = bisc_common_init();
+    conf->bt = bisc_threads_init();
+    conf->filt = meth_filter_init();
 
-    /* general */
-    conf->n_threads = 3;
-    conf->is_nome = 0;
-    conf->somatic = 0;
-
-    /* output */
-    conf->verbose = 0;
-
-    /* filtering */
-    conf->min_base_qual = 20;
-    conf->min_mapq = 40;
-    conf->min_score = 40;
-    conf->max_retention = 999999;
-    conf->min_read_len = 10;
-    conf->min_dist_end_5p = 3;
-    conf->min_dist_end_3p = 3;
-    conf->filter_secondary = 1;
-    conf->filter_doublecnt = 1;
-    conf->filter_duplicate = 1;
-    conf->filter_ppair = 1;
-    conf->max_nm = 999999;
-    conf->filter_qcfail = 1; // qc failed reads (BAM_FQCFAIL) always filtered
     conf->ambi_redist = 1; // by default ambiguous redistribution is on
 
     /* genotyping */
+    conf->somatic = 0;
     conf->error = 0.001;
     conf->mu = 0.001;
     conf->mu_somatic = 0.001;
@@ -1210,8 +1192,6 @@ void conf_init(conf_t *conf) {
     if (conf->prior0 < 0) { fprintf(stderr, "[Error] genotype prior0 (%1.3f) must be from 0 to 1. \n", conf->prior0); exit(1); }
     if (conf->prior1 < 0) { fprintf(stderr, "[Error] genotype prior1 (%1.3f) must be from 0 to 1. \n", conf->prior1); exit(1); }
     if (conf->prior2 < 0) { fprintf(stderr, "[Error] genotype prior2 (%1.3f) must be from 0 to 1. \n", conf->prior2); exit(1); }
-
-    conf->step = 100000; /* step of window dispatching */
 }
 
 static int usage(conf_t *conf) {
@@ -1221,8 +1201,8 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    -g STR      Region (optional, will process the whole bam if not specified)\n");
-    fprintf(stderr, "    -@ INT      Number of threads [%d]\n", conf->n_threads);
-    fprintf(stderr, "    -s INT      Step of window dispatching [%d]\n", conf->step);
+    fprintf(stderr, "    -@ INT      Number of threads [%d]\n", conf->bt.n_threads);
+    fprintf(stderr, "    -s INT      Step of window dispatching [%d]\n", conf->bt.step);
     fprintf(stderr, "    -N          NOMe-seq mode [off]\n");
     fprintf(stderr, "    -S          Somatic mode, must provide -T and -I arguments [off]\n");
     fprintf(stderr, "    -T STR      Somatic mode, tumor BAM\n");
@@ -1235,20 +1215,20 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "                    diagnostic info, INT>5: print diagnostic and debug info) [0]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Filter options:\n");
-    fprintf(stderr, "    -b INT      Minimum base quality [%u]\n", conf->min_base_qual);
-    fprintf(stderr, "    -m INT      Minimum mapping quality [%u]\n", conf->min_mapq);
-    fprintf(stderr, "    -a INT      Minimum alignment score (from AS-tag) [%u]\n", conf->min_score);
-    fprintf(stderr, "    -t INT      Maximum cytosine retention in a read [%u]\n", conf->max_retention);
-    fprintf(stderr, "    -l INT      Minimum read length [%u]\n", conf->min_read_len);
-    fprintf(stderr, "    -5 INT      Minimum distance to 5' end of a read [%u]\n", conf->min_dist_end_5p);
-    fprintf(stderr, "    -3 INT      Minimum distance to 3' end of a read [%u]\n", conf->min_dist_end_3p);
+    fprintf(stderr, "    -b INT      Minimum base quality [%u]\n", conf->filt.min_base_qual);
+    fprintf(stderr, "    -m INT      Minimum mapping quality [%u]\n", conf->filt.min_mapq);
+    fprintf(stderr, "    -a INT      Minimum alignment score (from AS-tag) [%u]\n", conf->filt.min_score);
+    fprintf(stderr, "    -t INT      Maximum cytosine retention in a read [%u]\n", conf->filt.max_retention);
+    fprintf(stderr, "    -l INT      Minimum read length [%u]\n", conf->filt.min_read_len);
+    fprintf(stderr, "    -5 INT      Minimum distance to 5' end of a read [%u]\n", conf->filt.min_dist_end_5p);
+    fprintf(stderr, "    -3 INT      Minimum distance to 3' end of a read [%u]\n", conf->filt.min_dist_end_3p);
     fprintf(stderr, "    -r          NO redistribution of ambiguous (Y/R) calls in SNP genotyping\n");
     fprintf(stderr, "    -c          NO filtering secondary mapping\n");
     fprintf(stderr, "    -d          Double count cytosines in overlapping mate reads (avoided\n");
     fprintf(stderr, "                    by default)\n");
     fprintf(stderr, "    -u          NO filtering of duplicate flagged reads\n");
     fprintf(stderr, "    -p          NO filtering of improper pair flagged reads\n");
-    fprintf(stderr, "    -n INT      Maximum NM tag [%d]\n", conf->max_nm);
+    fprintf(stderr, "    -n INT      Maximum NM tag [%d]\n", conf->filt.max_nm);
     fprintf(stderr, "\n");
     fprintf(stderr, "Genotyping options:\n");
     fprintf(stderr, "    -E FLOAT    Error rate [%1.3f]\n", conf->error);
@@ -1272,36 +1252,36 @@ int main_pileup(int argc, char *argv[]) {
     char *outfn = 0;
     char *statsfn = 0;
     conf_t conf;
-    conf_init(&conf);
+    pileup_conf_init(&conf);
 
     if (argc<2) return usage(&conf);
     while ((c=getopt(argc, argv, ":o:w:g:@:5:3:b:s:E:M:x:C:P:Q:t:n:m:a:l:T:I:SNrcdupv:h"))>=0) {
         switch (c) {
             case 'g': reg = optarg; break;
-            case '@': conf.n_threads = atoi(optarg); break;
-            case 's': conf.step = atoi(optarg); break;
-            case 'N': conf.is_nome = 1; break;
+            case '@': conf.bt.n_threads = atoi(optarg); break;
+            case 's': conf.bt.step = atoi(optarg); break;
+            case 'N': conf.comm.is_nome = 1; break;
             case 'S': conf.somatic = 1; break;
             case 'T': tum = optarg; break;
             case 'I': nor = optarg; break;
 
             case 'o': outfn = optarg; break;
             case 'w': statsfn = strdup(optarg); break;
-            case 'v': conf.verbose = atoi(optarg); break;
+            case 'v': conf.comm.verbose = atoi(optarg); break;
 
-            case 'b': conf.min_base_qual = atoi(optarg); break;
-            case 'm': conf.min_mapq = atoi(optarg); break;
-            case 'a': conf.min_score = atoi(optarg); break;
-            case 't': conf.max_retention = atoi(optarg); break;
-            case 'l': conf.min_read_len = atoi(optarg); break;
-            case '5': conf.min_dist_end_5p = atoi(optarg); break;
-            case '3': conf.min_dist_end_3p = atoi(optarg); break;
+            case 'b': conf.filt.min_base_qual = atoi(optarg); break;
+            case 'm': conf.filt.min_mapq = atoi(optarg); break;
+            case 'a': conf.filt.min_score = atoi(optarg); break;
+            case 't': conf.filt.max_retention = atoi(optarg); break;
+            case 'l': conf.filt.min_read_len = atoi(optarg); break;
+            case '5': conf.filt.min_dist_end_5p = atoi(optarg); break;
+            case '3': conf.filt.min_dist_end_3p = atoi(optarg); break;
             case 'r': conf.ambi_redist = 0; break;
-            case 'c': conf.filter_secondary = 0; break;
-            case 'd': conf.filter_doublecnt = 0; break;
-            case 'u': conf.filter_duplicate = 0; break;
-            case 'p': conf.filter_ppair = 0; break;
-            case 'n': conf.max_nm = atoi(optarg); break;
+            case 'c': conf.filt.filter_secondary = 0; break;
+            case 'd': conf.filt.filter_doublecnt = 0; break;
+            case 'u': conf.filt.filter_duplicate = 0; break;
+            case 'p': conf.filt.filter_ppair = 0; break;
+            case 'n': conf.filt.max_nm = atoi(optarg); break;
 
             case 'E': conf.error = atof(optarg); break;
             case 'M': conf.mu = atof(optarg); break;
@@ -1360,7 +1340,7 @@ int main_pileup(int argc, char *argv[]) {
         }
     }
 
-    if (conf.verbose > 5) {
+    if (conf.comm.verbose > 5) {
         for (i=0; i<n_fns; ++i)
             fprintf(stderr, "[%s:%d] in bams: %s\n", __func__, __LINE__, in_fns[i]);
         fflush(stderr);
@@ -1404,9 +1384,9 @@ int main_pileup(int argc, char *argv[]) {
 
     // send out work
     wqueue_t(window) *wq = wqueue_init(window, 100000);
-    pthread_t *processors = calloc(conf.n_threads, sizeof(pthread_t));
-    result_t *results = calloc(conf.n_threads, sizeof(result_t));
-    for (i=0; i<conf.n_threads; ++i) {
+    pthread_t *processors = calloc(conf.bt.n_threads, sizeof(pthread_t));
+    result_t *results = calloc(conf.bt.n_threads, sizeof(result_t));
+    for (i=0; i<conf.bt.n_threads; ++i) {
         results[i].q = wq;
         results[i].rq = writer_conf.q;
         results[i].ref_fn = reffn;
@@ -1429,33 +1409,33 @@ int main_pileup(int argc, char *argv[]) {
         beg++; // shift beg from 0-based to 1-based
         if (beg<=0) beg = 1;
         if (end>hdr->target_len[tid]) end = hdr->target_len[tid];
-        for (wbeg = beg; wbeg < end; wbeg += conf.step, block_id++) {
+        for (wbeg = beg; wbeg < end; wbeg += conf.bt.step, block_id++) {
             w.tid = tid;
             w.block_id = block_id;
             w.beg = wbeg;
-            w.end = wbeg + conf.step;
+            w.end = wbeg + conf.bt.step;
             if (w.end > end) w.end = end;
             wqueue_put(window, wq, &w);
         }
     } else {                      /* entire bam */
         for (j=0; j<targets->size; ++j) {
             t = ref_target_v(targets, j);
-            for (wbeg = 1; wbeg < t->len; wbeg += conf.step, block_id++) {
+            for (wbeg = 1; wbeg < t->len; wbeg += conf.bt.step, block_id++) {
                 w.tid = t->tid;
                 w.block_id = block_id;
                 w.beg = wbeg;
-                w.end = wbeg+conf.step;
+                w.end = wbeg+conf.bt.step;
                 if (w.end > t->len) w.end = t->len;
                 wqueue_put(window, wq, &w);
             }
         }
     }
-    for (i=0; i<conf.n_threads; ++i) {
+    for (i=0; i<conf.bt.n_threads; ++i) {
         w.tid = -1;
         wqueue_put(window, wq, &w);
     }
 
-    for (i=0; i<conf.n_threads; ++i) {
+    for (i=0; i<conf.bt.n_threads; ++i) {
         pthread_join(processors[i], NULL);
     }
 
