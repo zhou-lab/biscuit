@@ -61,14 +61,6 @@ typedef struct {
 
 void pileup_conf_init(pileup_conf_t *conf);
 
-typedef struct {
-    int64_t block_id;
-    int32_t tid;
-    uint32_t beg, end;
-} window_t;
-
-DEFINE_WQUEUE(window, window_t)
-
 /* mutation-methylation code */
 extern const char nt256int8_to_methcode[3];
 extern const char nt256int8_to_basecode[7];

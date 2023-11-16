@@ -27,6 +27,8 @@
 
 #include <inttypes.h>
 
+#include "wqueue.h"
+
 // Common parameters used in biscuit subcommands
 typedef struct {
     uint8_t is_nome:1; /* input data is NOMe-seq */
@@ -99,5 +101,15 @@ static inline meth_filter_t meth_filter_init() {
 
     return out;
 }
+
+// Window blocks for processing regions
+typedef struct {
+    int64_t  block_id; /* ID number for window */
+    int32_t  tid;      /* contig ID number of region */
+    uint32_t beg;      /* beginning of region for window */
+    uint32_t end;      /* end of region for window */
+} window_t;
+
+DEFINE_WQUEUE(window, window_t)
 
 #endif /* _BISC_UTILS_H_ */
