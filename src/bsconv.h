@@ -34,7 +34,7 @@
 #include "refcache.h"
 #include "sam.h"
 #include "bamfilter.h"
-#include "pileup.h"
+#include "bisc_utils.h"
 #include "encode.h"
 
 typedef struct {
