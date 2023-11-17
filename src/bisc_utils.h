@@ -1,4 +1,5 @@
-/*
+/* utility functions for biscuit
+ *
  * The MIT License (MIT)
  *
  * Copyright (c) 2023 Jacob.Morrison@vai.org
@@ -26,9 +27,17 @@
 #define _BISC_UTILS_H_
 
 #include <inttypes.h>
+#include <ctype.h>
 
 #include "wqueue.h"
 #include "wvec.h"
+#include "wzmisc.h"
+#include "encode.h"
+
+#include "hts.h"
+#include "sam.h"
+
+#include "refcache.h"
 
 // Common parameters used in biscuit subcommands
 typedef struct {
@@ -125,5 +134,64 @@ DEFINE_VECTOR(target_v, target_t);
 static inline int compare_targets(const void *a, const void *b) {
     return strcmp(((target_t*)a)->name, ((target_t*)b)->name);
 }
+
+// Macro function definitions
+#define max(a,b)                \
+    ({ __typeof__ (a) _a = (a); \
+     __typeof__ (b) _b = (b);   \
+     _a > _b ? _a : _b; })
+
+#define min(a,b)                \
+    ({ __typeof__ (a) _a = (a); \
+     __typeof__ (b) _b = (b);   \
+     _a > _b ? _b : _a; })
+
+#ifndef kroundup32
+/*! @function
+  @abstract  Round an integer to the next closest power-2 integer.
+  @param  x  integer to be rounded (in place)
+  @discussion x will be modified.
+ */
+#define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
+#endif
+
+// Functions related to bisulfite reads
+uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand);
+uint32_t get_mate_length(char *m_cigar);
+uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual);
+uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allow_u);
+
+// Parse region string
+static inline void biscuit_parse_region(const char *reg, void *hdr, int *tid, int *beg, int *end) {
+    const char *q = hts_parse_reg(reg, beg, end);
+    if (q) {
+        char *tmp = (char*)malloc(q - reg + 1);
+        strncpy(tmp, reg, q - reg);
+        tmp[q - reg] = 0;
+        *tid = bam_name2id(hdr, tmp);
+        free(tmp);
+    }
+    else {
+        // not parsable as a region, but possibly a sequence named "foo:a"
+        *tid = bam_name2id(hdr, reg);
+        *beg = 0; *end = INT_MAX;
+    }
+}
+
+// Mutation and methylation codes
+#define NSTATUS_METH 3
+#define NSTATUS_BASE 7
+extern const char nt256int8_to_methcode[NSTATUS_METH];
+extern const char nt256int8_to_basecode[NSTATUS_BASE];
+typedef enum {METH_RETENTION, METH_CONVERSION, METH_NA} status_meth_t;
+typedef enum {BASE_A, BASE_C, BASE_G, BASE_T, BASE_N, BASE_Y, BASE_R} status_base_t;
+
+// Cytosine context code (different representation of context when nome-seq)
+#define NCONTXTS 6 /* not including NA */
+typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH, CTXT_GCG, CTXT_GCHG, CTXT_GCHH, CTXT_NA} cytosine_context_t;
+extern const char *cytosine_context[NCONTXTS+1];
+extern const char *cytosine_context_nome[NCONTXTS+1];
+
+cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc);
 
 #endif /* _BISC_UTILS_H_ */

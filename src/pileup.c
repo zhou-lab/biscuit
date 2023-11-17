@@ -27,13 +27,6 @@
 #include <errno.h>
 #include "pileup.h"
 
-const char nt256int8_to_methcode[3] = "RCN";     // R: retention, C: conversion, N: NA
-const char nt256int8_to_basecode[7] = "ACGTNYR"; // Y is [CT] and R is [GA]
-
-/* different representation of context when nome */
-const char *cytosine_context[]      = {"CG" ,"CHG" ,"CHH" ,"CG" ,"CHG","CHH","CN"};
-const char *cytosine_context_nome[] = {"HCG","HCHG","HCHH","GCG","GCH","GCH","CN"};
-
 typedef struct {
     int n; /* number of sites */
     pileup_data_v **data;
@@ -273,83 +266,6 @@ void *write_func(void *data) {
     return 0;
 }
 
-uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
-
-    /* infer bsstrand from nC2T and nG2A on high quality bases */
-
-    bam1_core_t *c = &b->core;
-    uint32_t i, rpos = c->pos+1, qpos = 0;
-    uint32_t op, oplen;
-    char rb, qb;
-    int nC2T=0, nG2A=0; unsigned j;
-    for (i=0; i<c->n_cigar; ++i) {
-        op = bam_cigar_op(bam_get_cigar(b)[i]);
-        oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
-        switch(op) {
-            case BAM_CMATCH:
-                for (j=0; j<oplen; ++j) {
-                    rb = refcache_getbase_upcase(rs, rpos+j);
-                    qb = bscall(b, qpos+j);
-                    if (bam_get_qual(b)[qpos+j] < min_base_qual) continue;
-                    if (rb == 'C' && qb == 'T') nC2T++;
-                    if (rb == 'G' && qb == 'A') nG2A++;
-                }
-                rpos += oplen;
-                qpos += oplen;
-                break;
-            case BAM_CINS:
-                qpos += oplen;
-                break;
-            case BAM_CDEL:
-                rpos += oplen;
-                break;
-            case BAM_CSOFT_CLIP:
-                qpos += oplen;
-                break;
-            case BAM_CHARD_CLIP:
-                qpos += oplen;
-                break;
-            default:
-                fprintf(stderr, "Unknown cigar, %u\n", op);
-                abort();
-        }
-    }
-    if (nC2T >= nG2A) return 0;
-    else return 1;
-}
-
-uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allow_u) {
-    uint8_t *s;
-
-    /* bwa-meth flag has highest priority */
-    s = bam_aux_get(b, "YD");
-    if (s) {
-        s++;
-        if (*s == 'f') return 0;
-        else if (*s == 'r') return 1;
-        else if (*s == 'u' && allow_u) return 2;
-    }
-
-    /* bsmap flag */
-    s = bam_aux_get(b, "ZS");
-    if (s) {
-        s++;
-        if (*s == '+') return 0;
-        else if (*s == '-') return 1;
-    }
-
-    /* bismark flag */
-    s = bam_aux_get(b, "XG");
-    if (s) {
-        s++;
-        if (strcmp((char*)s, "CT")==0) return 0;
-        else if (strcmp((char*)s, "GA")==0) return 1;
-    }
-
-    /* otherwise, guess the bsstrand from nCT and nGA */
-    return infer_bsstrand(rs, b, min_base_qual);
-}
-
 static void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s, int sid) {
 
     uint32_t i, nf;
@@ -423,47 +339,6 @@ static void verbose_format(uint8_t bsstrand, pileup_data_v *dv, kstring_t *s, in
             else nf = 1;
             kputuw(d->cnt_ret, s);
         }
-    }
-}
-
-cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc) {
-    /* get five nucleotide context sequence */
-    if (rpos == 1) { /* marginal cases, beginning of chromosome */
-        subseq_refcache2(rs, 1, fivenuc+2, 3);
-        fivenuc[0] = fivenuc[1] = 'N';
-    } else if (rpos == 2) {
-        subseq_refcache2(rs, 1, fivenuc+1, 4);
-        fivenuc[0] = 'N';
-    } else if (rpos == (unsigned) rs->seqlen) {  /* end of chromosome */
-        subseq_refcache2(rs, rpos-2, fivenuc, 3);
-        fivenuc[3] = fivenuc[4] = 'N';
-    } else if (rpos == (unsigned) rs->seqlen-1) {
-        subseq_refcache2(rs, rpos-2, fivenuc, 4);
-        fivenuc[4] = 'N';
-    } else {
-        subseq_refcache2(rs, rpos-2, fivenuc, 5);
-    }
-
-    // reverse complement on 'G'
-    if (rb == 'G') nt256char_rev_ip(fivenuc, 5);
-
-    int i;
-    for (i=0; i<5; ++i)
-        if (fivenuc[i] == 'N')
-            return CTXT_NA;
-
-    if (rb != 'C' && rb != 'G') return CTXT_NA;
-
-    /* classify into cytosine context classes */
-    if (fivenuc[3] == 'G') {
-        if (fivenuc[1]=='G') return CTXT_GCG;
-        else return CTXT_HCG;
-    } else if (fivenuc[4] == 'G') {
-        if (fivenuc[1]=='G') return CTXT_GCHG;
-        else return CTXT_HCHG;
-    } else {
-        if (fivenuc[1]=='G') return CTXT_GCHH;
-        else return CTXT_HCHH;
     }
 }
 
@@ -795,93 +670,6 @@ static void plp_format(refcache_t *rs, char *chrm, uint32_t rpos, pileup_data_v 
     for (sid=0; sid<n_bams; ++sid) free(gt[sid]);
     free(gt); free(gl0); free(gl1); free(gl2); free(gq);
     free(methcallable);
-}
-
-/* return -1 if abnormal (missing bsstrand) */
-/* TODO: stratify by sequence context */
-uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand) {
-    uint32_t cnt = 0;
-
-    bam1_core_t *c = &b->core;
-    uint32_t i, rpos = c->pos+1, qpos = 0;
-    uint32_t op, oplen;
-    char rb, qb;
-    unsigned j;
-    for (i=0; i<c->n_cigar; ++i) {
-        op = bam_cigar_op(bam_get_cigar(b)[i]);
-        oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
-        switch(op) {
-            case BAM_CMATCH:
-                for (j=0; j<oplen; ++j) {
-                    rb = refcache_getbase_upcase(rs, rpos+j);
-                    qb = bscall(b, qpos+j);
-                    if (bsstrand) {
-                        if (rb == 'C' && qb == 'C') cnt++;
-                    } else {
-                        if (rb == 'G' && qb == 'G') cnt++;
-                    }
-                }
-                rpos += oplen;
-                qpos += oplen;
-                break;
-            case BAM_CINS:
-                qpos += oplen;
-                break;
-            case BAM_CDEL:
-                rpos += oplen;
-                break;
-            case BAM_CSOFT_CLIP:
-                qpos += oplen;
-                break;
-            case BAM_CHARD_CLIP:
-                qpos += oplen;
-                break;
-            default:
-                fprintf(stderr, "Unknown cigar, %u\n", op);
-                abort();
-        }
-    }
-
-    return cnt;
-}
-
-uint32_t get_mate_length(char *m_cigar) {
-    // reference length of mate read (excludes clipping and insertions)
-    uint32_t length = 0;
-
-    // An unmapped read will have a '*' as its CIGAR string
-    // Treat these reads as having length 0 (this is why the initialization value is 0)
-    if (*m_cigar != '*') {
-        char *query;
-        size_t n_cigar = 0;
-
-        // Count number of CIGAR operations
-        for (query = m_cigar; *m_cigar && *m_cigar != '\0'; ++m_cigar) {
-            if (!isdigit((unsigned char) *m_cigar)) { ++n_cigar; }
-        }
-
-        if (*m_cigar++ != '\0') { wzfatal("Malformed MC tag CIGAR string\n"); }
-        if (n_cigar == 0)       { wzfatal("No CIGAR operations found in MC tag\n"); }
-        if (n_cigar >= 65536)   { wzfatal("Too many CIGAR operations found in MC tag\n"); }
-
-        uint32_t i;
-        int op;
-        uint32_t *cigar = malloc(n_cigar * sizeof(uint32_t));
-        for (i = 0; i < n_cigar; ++i, ++query) {
-            cigar[i] = strtol(query, &query, 10) << BAM_CIGAR_SHIFT;
-
-            op = (uint8_t)*query >= 128? -1 : bam_cigar_table[(int)*query];
-            if (op < 0) { wzfatal("Unrecognized CIGAR operator\n"); }
-
-            cigar[i] |= op;
-        }
-
-        length = bam_cigar2rlen(n_cigar, cigar);
-
-        free(cigar);
-    }
-
-    return length;
 }
 
 static void *process_func(void *_result) {
@@ -1415,7 +1203,7 @@ int main_pileup(int argc, char *argv[]) {
     if (reg) {                    /* regional */
         int tid;
         uint32_t beg, end;
-        pileup_parse_region(reg, hdr, &tid, (int*) &beg, (int*) &end);
+        biscuit_parse_region(reg, hdr, &tid, (int*) &beg, (int*) &end);
         /* chromosome are assumed to be less than 2**29 */
         beg++; // shift beg from 0-based to 1-based
         if (beg<=0) beg = 1;

@@ -1240,7 +1240,7 @@ int main_epiread(int argc, char *argv[]) {
     if (reg) { // regional
         int tid;
         uint32_t beg, end;
-        pileup_parse_region(reg, header, &tid, (int*) &beg, (int*) &end);
+        biscuit_parse_region(reg, header, &tid, (int*) &beg, (int*) &end);
         // chromosome are assumed to be less than 2**29
         beg++; // shift beg from 0-based to 1-based
         if (beg<=0) beg = 1;

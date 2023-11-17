@@ -64,19 +64,6 @@ typedef struct {
 
 void pileup_conf_init(pileup_conf_t *conf);
 
-/* mutation-methylation code */
-extern const char nt256int8_to_methcode[3];
-extern const char nt256int8_to_basecode[7];
-#define NSTATUS_METH 3
-#define NSTATUS_BASE 7
-typedef enum {METH_RETENTION, METH_CONVERSION, METH_NA} status_meth_t;
-typedef enum {BASE_A, BASE_C, BASE_G, BASE_T, BASE_N, BASE_Y, BASE_R} status_base_t;
-
-/* cytosine context code */
-#define NCONTXTS 6 /* not including NA */
-typedef enum {CTXT_HCG, CTXT_HCHG, CTXT_HCHH, CTXT_GCG, CTXT_GCHG, CTXT_GCHH, CTXT_NA} cytosine_context_t;
-extern const char *cytosine_context[];
-
 typedef struct {
     uint8_t sid;        /* which sample */
     uint8_t bsstrand:1; /* bisulfite strand */
@@ -90,6 +77,14 @@ typedef struct {
 } __attribute__((__packed__)) pileup_data_t;
 
 DEFINE_VECTOR(pileup_data_v, pileup_data_t)
+
+void pileup_genotype(int cref, int altsupp, pileup_conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq);
+
+static inline int compare_supp(const void *a, const void *b) {
+    return ((*(uint32_t*)b)>>4) - ((*(uint32_t*)a)>>4);
+}
+
+void *write_func(void *data);
 
 #define RECORD_QUEUE_END -2
 #define RECORD_SLOT_OBSOLETE -1
@@ -111,59 +106,5 @@ DEFINE_WQUEUE(record, record_t)
 
 void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record);
 void put_into_record_v(record_v *records, record_t rec);
-
-uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand);
-
-uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual);
-
-uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allow_u);
-
-uint32_t get_mate_length(char *m_cigar);
-
-cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc);
-
-#define max(a,b)                \
-    ({ __typeof__ (a) _a = (a); \
-     __typeof__ (b) _b = (b);   \
-     _a > _b ? _a : _b; })
-
-#define min(a,b)                \
-    ({ __typeof__ (a) _a = (a); \
-     __typeof__ (b) _b = (b);   \
-     _a > _b ? _b : _a; })
-
-void pileup_genotype(int cref, int altsupp, pileup_conf_t *conf, char gt[4], double *_gl0, double *_gl1, double *_gl2, double *_gq);
-int reference_supp(int cnts[9]);
-
-static inline int compare_supp(const void *a, const void *b) {
-    return ((*(uint32_t*)b)>>4) - ((*(uint32_t*)a)>>4);
-}
-
-void *write_func(void *data);
-
-static inline void pileup_parse_region(const char *reg, void *hdr, int *tid, int *beg, int *end) {
-    const char *q = hts_parse_reg(reg, beg, end);
-    if (q) {
-        char *tmp = (char*)malloc(q - reg + 1);
-        strncpy(tmp, reg, q - reg);
-        tmp[q - reg] = 0;
-        *tid = bam_name2id(hdr, tmp);
-        free(tmp);
-    }
-    else {
-        // not parsable as a region, but possibly a sequence named "foo:a"
-        *tid = bam_name2id(hdr, reg);
-        *beg = 0; *end = INT_MAX;
-    }
-}
-
-#ifndef kroundup32
-/*! @function
-  @abstract  Round an integer to the next closest power-2 integer.
-  @param  x  integer to be rounded (in place)
-  @discussion x will be modified.
- */
-#define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
-#endif
 
 #endif /* _PILEUP_H_ */
