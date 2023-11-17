@@ -31,15 +31,18 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <libgen.h>
+
 #include "wqueue.h"
 #include "wzmisc.h"
 #include "encode.h"
-#include "sam.h"
-#include "hts.h"
-#include "refcache.h"
-#include "kstring.h"
 #include "wvec.h"
 #include "stats.h"
+
+#include "sam.h"
+#include "hts.h"
+#include "kstring.h"
+
+#include "refcache.h"
 #include "biscuit.h"
 #include "bisc_utils.h"
 

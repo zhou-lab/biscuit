@@ -25,9 +25,13 @@
  *
  */
 #include <zlib.h>
+
+#include "wqueue.h"
+#include "wvec.h"
+#include "wzmisc.h"
+
 #include "bisc_utils.h"
 #include "pileup.h"
-#include "wzmisc.h"
 
 typedef struct {
     bisc_common_t comm; /* common parameters across subcommands */
