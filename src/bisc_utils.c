@@ -235,3 +235,36 @@ uint8_t get_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual, int allo
     return infer_bsstrand(rs, b, min_base_qual);
 }
 
+void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record) {
+    uint64_t i;
+    record_t *r;
+    for (i=0; i<records->size; ++i) {
+        r = ref_record_v(records, i);
+        if (r->block_id == block_id) {
+            *record = *r;             /* copy the record and set slot on shelf to OBSOLETE */
+            r->block_id = RECORD_SLOT_OBSOLETE;
+            return;
+        }
+    }
+    record->block_id = RECORD_SLOT_OBSOLETE;
+}
+
+void put_into_record_v(record_v *records, record_t rec) {
+    uint64_t i;
+    record_t *r;
+
+    /* fill blanks */
+    for (i=0; i<records->size; ++i) {
+        r = ref_record_v(records, i);
+        if (r->block_id == RECORD_SLOT_OBSOLETE) {
+            *r = rec;
+            return;
+        }
+    }
+
+    /* get a new slot */
+    r = next_ref_record_v(records);
+    *r = rec;
+    return;
+}
+

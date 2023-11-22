@@ -68,39 +68,6 @@ typedef struct {
     pileup_conf_t *conf;
 } writer_conf_t;
 
-void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record) {
-    uint64_t i;
-    record_t *r;
-    for (i=0; i<records->size; ++i) {
-        r = ref_record_v(records, i);
-        if (r->block_id == block_id) {
-            *record = *r;             /* copy the record and set slot on shelf to OBSOLETE */
-            r->block_id = RECORD_SLOT_OBSOLETE;
-            return;
-        }
-    }
-    record->block_id = RECORD_SLOT_OBSOLETE;
-}
-
-void put_into_record_v(record_v *records, record_t rec) {
-    uint64_t i;
-    record_t *r;
-
-    /* fill blanks */
-    for (i=0; i<records->size; ++i) {
-        r = ref_record_v(records, i);
-        if (r->block_id == RECORD_SLOT_OBSOLETE) {
-            *r = rec;
-            return;
-        }
-    }
-
-    /* get a new slot */
-    r = next_ref_record_v(records);
-    *r = rec;
-    return;
-}
-
 static void print_meth_average_1chrom(FILE *out, char *sample, char *chrom, double *betasum, int64_t *cnt, writer_conf_t *c) {
     if (c->conf->comm.is_nome) { // nome-seq
 

@@ -194,4 +194,26 @@ extern const char *cytosine_context_nome[NCONTXTS+1];
 
 cytosine_context_t fivenuc_context(refcache_t *rs, uint32_t rpos, char rb, char *fivenuc);
 
+// Record related structs and functions
+#define RECORD_QUEUE_END -2
+#define RECORD_SLOT_OBSOLETE -1
+
+// TODO: figure out if there's a way to pull the pileup-only portions out
+typedef struct {
+    /* these parameters are used in pileup and epiread */
+    int64_t   block_id; /* ID of block processed by thread */
+    kstring_t s;        /* stores entries to print */
+    int       tid;      /* contig ID number */
+
+    /* these parameters are only used in pileup */
+    double  *betasum_context; /* CG, CHG, CHH */
+    int64_t *cnt_context;     /* number of Cs in each context */
+} record_t;
+
+DEFINE_VECTOR(record_v, record_t)
+DEFINE_WQUEUE(record, record_t)
+
+void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record);
+void put_into_record_v(record_v *records, record_t rec);
+
 #endif /* _BISC_UTILS_H_ */

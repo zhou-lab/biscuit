@@ -86,25 +86,4 @@ static inline int compare_supp(const void *a, const void *b) {
 
 void *write_func(void *data);
 
-#define RECORD_QUEUE_END -2
-#define RECORD_SLOT_OBSOLETE -1
-
-typedef struct {
-    int64_t block_id;
-    kstring_t s; /* vcf record */
-
-    /* coverage */
-    int tid;
-
-    double *betasum_context; /* CG, CHG, CHH */
-    int64_t *cnt_context;    /* number of C's in each context */
-} record_t;
-
-DEFINE_VECTOR(record_v, record_t)
-
-DEFINE_WQUEUE(record, record_t)
-
-void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record);
-void put_into_record_v(record_v *records, record_t rec);
-
 #endif /* _PILEUP_H_ */
