@@ -38,7 +38,7 @@ jobs:
       run: mkdir build && cd build && cmake ../ -DCMAKE_INSTALL_PREFIX=../ && make && make install
 
     - name: Install Check
-      run: ls . && ./bin/biscuit version
+      run: ./bin/biscuit version
 
     # These haven't been generated yet, so uncomment when ready
     # - name: Run tests
