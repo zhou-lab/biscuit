@@ -14,10 +14,10 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Install system dependencies
-      run: sudo apt install libcurl4-openssl-dev zlib
+      run: sudo apt install libcurl4-openssl-dev zlib1g-dev
 
     - name: Check build
-      run: mkdir build && cd build && cmake ../ -DCMAKE_INSTALL_PREFIX=../ && make
+      run: mkdir build && cd build && cmake ../ -DCMAKE_INSTALL_PREFIX=../ && make && make install
 
     - name: Install Check
       run: cd ../ && ./bin/biscuit version
@@ -35,7 +35,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Check build
-      run: mkdir build && cd build && cmake ../ -DCMAKE_INSTALL_PREFIX=../ && make
+      run: mkdir build && cd build && cmake ../ -DCMAKE_INSTALL_PREFIX=../ && make && make install
 
     - name: Install Check
       run: cd ../ && ./bin/biscuit version
