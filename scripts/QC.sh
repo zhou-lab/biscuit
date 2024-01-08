@@ -490,7 +490,7 @@ run_cov_qc=true
 # Process command line arguments
 OPTS=$(getopt \
     --options hsv:o:kn \
-    --long help,single-end,vcf:,outdir:,keep-bed-files,no-cov-qc \
+    --long help,single-end,vcf:,outdir:,keep-tmp-files,no-cov-qc \
     --name "$(basename "$0")" \
     -- "$@"
 )
