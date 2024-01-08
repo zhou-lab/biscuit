@@ -12,14 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-      with:
-        submodules: true
 
     - name: Install system dependencies
       run: sudo apt install libcurl4-openssl-dev
 
     - name: Check build
-      run: make
+      run: mkdir build && cd build && cmake ../ && make
 
     # These haven't been generated yet, so uncomment when ready
     # - name: Run tests
@@ -32,11 +30,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        submodules: true
 
     - name: Check build
-      run: make
+      run: mkdir build && cd build && cmake ../ && make
 
     # These haven't been generated yet, so uncomment when ready
     # - name: Run tests
