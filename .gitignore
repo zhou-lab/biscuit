@@ -42,6 +42,7 @@ lib/htslib
 lib/sgsl
 lib/utils
 build
+bin
 
 # BISCUIT release files
 biscuit-release
