@@ -22,7 +22,7 @@ the user's `PATH` environment variable:
   - [bedtools](https://bedtools.readthedocs.io/en/latest/index.html)
   - [GNU awk](https://www.gnu.org/software/gawk/manual/gawk.html)
 
-It is also useful to have [samblaster](https://github.com/GregoryFaust/samblaster)
+It is also useful to have [dupsifter](https://github.com/huishenlab/dupsifter)
 installed for marking duplicate reads during the alignment phase.
 
 # Usage and Documentation
