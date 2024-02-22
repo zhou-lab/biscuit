@@ -675,6 +675,8 @@ static void *process_func(void *data) {
                 uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
                 switch(op) {
                     case BAM_CMATCH:
+                    case BAM_CEQUAL:
+                    case BAM_CDIFF:
                         for (j=0; j<oplen; ++j) {
                             // Query positions
                             qj = qpos + j;

@@ -86,6 +86,8 @@ uint32_t cnt_retention(refcache_t *rs, bam1_t *b, uint8_t bsstrand) {
         oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
         switch(op) {
             case BAM_CMATCH:
+            case BAM_CEQUAL:
+            case BAM_CDIFF:
                 for (j=0; j<oplen; ++j) {
                     rb = refcache_getbase_upcase(rs, rpos+j);
                     qb = bscall(b, qpos+j);
@@ -159,9 +161,7 @@ uint32_t get_mate_length(char *m_cigar) {
 }
 
 uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
-
     /* infer bsstrand from nC2T and nG2A on high quality bases */
-
     bam1_core_t *c = &b->core;
     uint32_t i, rpos = c->pos+1, qpos = 0;
     uint32_t op, oplen;
@@ -172,6 +172,8 @@ uint8_t infer_bsstrand(refcache_t *rs, bam1_t *b, uint32_t min_base_qual) {
         oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
         switch(op) {
             case BAM_CMATCH:
+            case BAM_CEQUAL:
+            case BAM_CDIFF:
                 for (j=0; j<oplen; ++j) {
                     rb = refcache_getbase_upcase(rs, rpos+j);
                     qb = bscall(b, qpos+j);

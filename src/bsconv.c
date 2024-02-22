@@ -65,6 +65,8 @@ int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
         uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
         switch(op) {
             case BAM_CMATCH:
+            case BAM_CEQUAL:
+            case BAM_CDIFF:
                 for(j=0; j<oplen; ++j) {
                     rb = refcache_getbase_upcase(d->rs, rpos+j);
 

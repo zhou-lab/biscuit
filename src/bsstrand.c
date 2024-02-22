@@ -82,6 +82,8 @@ int bsstrand_func(bam1_t *b, samFile *out, bam_hdr_t *header, void *data) {
         uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
         switch(op) {
             case BAM_CMATCH:
+            case BAM_CEQUAL:
+            case BAM_CDIFF:
                 for(j=0; j<oplen; ++j) {
                     rbase = toupper(refcache_getbase(d->rs, rpos+j));
                     qbase = bscall(b, qpos+j);

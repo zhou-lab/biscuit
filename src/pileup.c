@@ -752,6 +752,8 @@ static void *process_func(void *_result) {
                     char qb, rb;
                     switch(op) {
                         case BAM_CMATCH:
+                        case BAM_CEQUAL:
+                        case BAM_CDIFF:
                             for (j=0; j<oplen; ++j) {
 
                                 if (rpos+j<w.beg || rpos+j>=w.end) continue; /* include begin but not end */

@@ -335,6 +335,8 @@ static void draw_read1(rnode_t *nd, btview_t *tv, int readattr, int bss) {
 
     switch(op) {
     case BAM_CMATCH:
+    case BAM_CEQUAL:
+    case BAM_CDIFF:
       for (j=0; j<oplen; ++j) {
         if (rpos + j < (unsigned) tv->left_pos) continue;
         qb = toupper(bscall(b, qpos + j));
