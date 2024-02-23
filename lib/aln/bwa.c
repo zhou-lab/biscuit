@@ -374,7 +374,7 @@ uint32_t *bis_bwa_gen_cigar2(const int8_t mat[25], int o_del, int e_del, int o_i
                  if (_q == 1) ++n_ret_c;
                  if (_q == 2) ++n_ret_g;
                  ++u;
-              } else if (_q == 3 && _r == 1) {
+              } else if (parent && _q == 3 && _r == 1) {
                  kputw(u, &str);
                  kputc(int2base[_r], &str);
                  ++n_conv_ct; u = 0;
