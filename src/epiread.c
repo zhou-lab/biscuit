@@ -999,12 +999,14 @@ episnp_chrom1_v *bed_init_episnp(char *snp_bed_fn) {
         wzfatal("Could not find SNP BED: %s\n", snp_bed_fn);
     }
 
+    uint8_t first_char = 1;
     while (1) {
         int c = gzgetc(fh);
-        if (c < 0) {
+        if (c < 0 && first_char) {
             free(line.s);
             wzfatal("SNP BED (%s) is empty\n", snp_bed_fn);
         }
+        first_char = 0;
         if (c=='\n' || c==EOF) {
             if (strcount_char(line.s, '\t')==8) {
                 // Get chromosome
