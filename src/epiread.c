@@ -1082,11 +1082,13 @@ void epiread_conf_init(epiread_conf_t *conf) {
 
     conf->epiread_reg_start = 0;
     conf->epiread_reg_end = 0;
+    conf->modbam_prob = 0.9;
     conf->filter_empty_epiread = 1;
     conf->is_long_read = 0;
     conf->epiread_old = 0;
     conf->epiread_pair = 0;
     conf->print_all_locations = 0;
+    conf->use_modbam = 0;
 }
 
 static int usage(epiread_conf_t *conf) {
@@ -1103,6 +1105,7 @@ static int usage(epiread_conf_t *conf) {
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
     fprintf(stderr, "    -N        NOMe-seq mode [off]\n");
     fprintf(stderr, "    -L        Data is from long read sequencing [off]\n");
+    fprintf(stderr, "    -M        BAM file has modBAM tags (MM/ML) [off]\n");
     fprintf(stderr, "    -P        Pairwise mode [off]\n");
     fprintf(stderr, "    -O        Old BISCUIT epiread format, not compatible with -P [off]\n");
     fprintf(stderr, "    -A        Print all CpG and SNP locations in location column, ignored if -O not given [off]\n");
@@ -1123,6 +1126,7 @@ static int usage(epiread_conf_t *conf) {
     fprintf(stderr, "    -u        NO filtering of duplicate\n");
     fprintf(stderr, "    -p        NO filtering of improper pair\n");
     fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf->filt.max_nm);
+    fprintf(stderr, "    -y FLT    Minimum probability a modification is methylated (0.0 - 1.0) [%f]\n", conf->modbam_prob);
     fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Note, the -O (old epiread format) and -P (pairwise format for biscuit asm) are not guaranteed\n");
@@ -1144,7 +1148,7 @@ int main_epiread(int argc, char *argv[]) {
     epiread_conf_init(&conf);
 
     if (argc<2) return usage(&conf);
-    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:ANLEcduOPpvh"))>=0) {
+    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:y:AMNLEcduOPpvh"))>=0) {
         switch (c) {
             case 'B': snp_bed_fn = optarg; break;
             case 'o': outfn = optarg; break;
@@ -1163,6 +1167,8 @@ int main_epiread(int argc, char *argv[]) {
             case 'A': conf.print_all_locations = 1; break;
             case 'N': conf.comm.is_nome = 1; break;
             case 'L': conf.is_long_read = 1; break;
+            case 'M': conf.use_modbam = 1; break;
+            case 'y': conf.modbam_prob = atof(optarg); break;
             case 'E': conf.filter_empty_epiread = 0; break;
             case 'c': conf.filt.filter_secondary = 0; break;
             case 'd': conf.filt.filter_doublecnt = 0; break;
