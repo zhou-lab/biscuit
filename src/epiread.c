@@ -587,11 +587,21 @@ static void *process_func(void *data) {
         refcache_fetch(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
         hts_itr_t *iter = sam_itr_queryi(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
         bam1_t *b = bam_init1();
+        hts_base_mod_state *mod_state = NULL;
+        hts_base_mod mod[5] = {0};
+        if (conf->use_modbam) {
+            mod_state = hts_base_mod_state_alloc();
+        }
         int ret;
 
         while ((ret = sam_itr_next(in, iter, b))>0) {
             // Read-based filtering
             bam1_core_t *c = &b->core;
+            if (conf->use_modbam) {
+                if (bam_parse_basemod2(b, mod_state, HTS_MOD_REPORT_UNCHECKED) < 0) {
+                    wzfatal("ERROR: Failed to parse base modifications\n");
+                }
+            }
             if (c->qual < conf->filt.min_mapq) continue;
             if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->filt.min_read_len) continue;
             if (c->flag > 0) { // only when any flag is set
@@ -607,8 +617,10 @@ static void *process_func(void *data) {
             uint8_t *as = bam_aux_get(b, "AS");
             if (as && bam_aux2i(as) < conf->filt.min_score) continue;
 
-            uint8_t bsstrand = get_bsstrand(rs, b, conf->filt.min_base_qual, 0);
-            uint32_t cnt_ret = cnt_retention(rs, b, bsstrand);
+            // For now, assume if using modBAM tags that you're running ONT data that has no concept
+            // of a bisulfite strand or retained cytosines
+            uint8_t bsstrand = conf->use_modbam ? 0 : get_bsstrand(rs, b, conf->filt.min_base_qual, 0);
+            uint32_t cnt_ret = conf->use_modbam ? 0 : cnt_retention(rs, b, bsstrand);
             if (cnt_ret > conf->filt.max_retention) continue;
 
             // Pairwise epiread format variables
@@ -681,6 +693,11 @@ static void *process_func(void *data) {
                             // Query positions
                             qj = qpos + j;
                             qjd = qj + n_deletions;
+
+                            int has_mods = bam_mods_at_qpos(b, (int)qj, mod_state, mod, sizeof(mod)/sizeof(mod[0]));
+                            if (has_mods > 1) {
+                                wzfatal("ERROR: Too many base modifications found\n");
+                            }
 
                             // Reference and query bases
                             rb = refcache_getbase_upcase(rs, rpos+j);
@@ -825,16 +842,33 @@ static void *process_func(void *data) {
                                     rle_arr_gc[qjd] = IGNORED;
                                     if (rb1 == 'G') { // CpG context
                                         push_int_v(cg_p, (int) rpos+j);
-                                        if (qb == 'T') {
-                                            push_char_v(cg_c, 'T');
-                                            rle_arr_cg[qjd] = UNMETHYL;
-                                            rle_set = 1;
-                                        } else if (qb == 'C') {
-                                            push_char_v(cg_c, 'C');
-                                            rle_arr_cg[qjd] = METHYLAT;
-                                            rle_set = 1;
+                                        if (!conf->use_modbam) {
+                                            if (qb == 'T') {
+                                                push_char_v(cg_c, 'T');
+                                                rle_arr_cg[qjd] = UNMETHYL;
+                                                rle_set = 1;
+                                            } else if (qb == 'C') {
+                                                push_char_v(cg_c, 'C');
+                                                rle_arr_cg[qjd] = METHYLAT;
+                                                rle_set = 1;
+                                            } else {
+                                                push_char_v(cg_c, 'N');
+                                            }
                                         } else {
-                                            push_char_v(cg_c, 'N');
+                                            // modBAMs are only "bs-seq" and only occur at the C position of a CpG
+                                            if (qb == 'C') {
+                                                if (is_mod_unmethylated(has_mods, mod, conf->modbam_prob)) { // unmethylated
+                                                    push_char_v(cg_c, 'T');
+                                                    rle_arr_cg[qjd] = UNMETHYL;
+                                                    rle_set = 1;
+                                                } else { // methylated
+                                                    push_char_v(cg_c, 'C');
+                                                    rle_arr_cg[qjd] = METHYLAT;
+                                                    rle_set = 1;
+                                                }
+                                            } else {
+                                                push_char_v(cg_c, 'N');
+                                            }
                                         }
                                     }
                                 }
@@ -967,6 +1001,7 @@ static void *process_func(void *data) {
         // put output string to output queue
         wqueue_put2(record, res->rq, rec);
 
+        if (mod_state) { hts_base_mod_state_free(mod_state); }
         bam_destroy1(b);
         hts_itr_destroy(iter);
         free(meth);
@@ -1129,7 +1164,7 @@ static int usage() {
     fprintf(stderr, "    -u        NO filtering of duplicate\n");
     fprintf(stderr, "    -p        NO filtering of improper pair\n");
     fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf.filt.max_nm);
-    fprintf(stderr, "    -y FLT    Minimum probability a modification is methylated (0.0 - 1.0) [%f]\n", conf.modbam_prob);
+    fprintf(stderr, "    -y FLT    Minimum probability a modification is correct (0.0 - 1.0) [%f]\n", conf.modbam_prob);
     fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Note, the -O (old epiread format) and -P (pairwise format for biscuit asm) are not guaranteed\n");
@@ -1189,6 +1224,11 @@ int main_epiread(int argc, char *argv[]) {
     if (conf.epiread_old && conf.epiread_pair) {
         usage();
         wzfatal("Cannot run with both pairwise and old epiread format set.\n");
+    }
+
+    if (conf.modbam_prob < 0.0 || conf.modbam_prob > 1.0) {
+        usage();
+        wzfatal("Minimum modification probability must be between 0.0 and 1.0\n");
     }
 
     if (optind + 2 > argc) {
