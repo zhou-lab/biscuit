@@ -1091,15 +1091,18 @@ void epiread_conf_init(epiread_conf_t *conf) {
     conf->use_modbam = 0;
 }
 
-static int usage(epiread_conf_t *conf) {
+static int usage() {
+    epiread_conf_t conf;
+    epiread_conf_init(&conf);
+
     fprintf(stderr, "\n");
     fprintf(stderr, "Usage: biscuit epiread [options] <ref.fa> <in.bam>\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    -B STR    Bed input for SNP display in epiread output\n");
     fprintf(stderr, "    -g STR    Region (optional, will process the whole bam if not specified)\n");
-    fprintf(stderr, "    -s STR    Step of window dispatching [%d]\n", conf->bt.step);
-    fprintf(stderr, "    -@ INT    Number of threads [%d]\n", conf->bt.n_threads);
+    fprintf(stderr, "    -s STR    Step of window dispatching [%d]\n", conf.bt.step);
+    fprintf(stderr, "    -@ INT    Number of threads [%d]\n", conf.bt.n_threads);
     fprintf(stderr, "\n");
     fprintf(stderr, "Output options:\n");
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
@@ -1112,21 +1115,21 @@ static int usage(epiread_conf_t *conf) {
     fprintf(stderr, "    -v        Verbose (print additional info for diagnostics) [off]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Filter options:\n");
-    fprintf(stderr, "    -b INT    Minimum base quality [%u]\n", conf->filt.min_base_qual);
-    fprintf(stderr, "    -m INT    Minimum mapping quality [%u]\n", conf->filt.min_mapq);
-    fprintf(stderr, "    -a INT    Minimum alignment score (from AS-tag) [%u]\n", conf->filt.min_score);
-    fprintf(stderr, "    -t INT    Max cytosine retention in a read [%u]\n", conf->filt.max_retention);
-    fprintf(stderr, "    -l INT    Minimum read length [%u]\n", conf->filt.min_read_len);
-    fprintf(stderr, "    -5 INT    Minimum distance to 5' end of a read [%u]\n", conf->filt.min_dist_end_5p);
-    fprintf(stderr, "    -3 INT    Minimum distance to 3' end of a read [%u]\n", conf->filt.min_dist_end_3p);
+    fprintf(stderr, "    -b INT    Minimum base quality [%u]\n", conf.filt.min_base_qual);
+    fprintf(stderr, "    -m INT    Minimum mapping quality [%u]\n", conf.filt.min_mapq);
+    fprintf(stderr, "    -a INT    Minimum alignment score (from AS-tag) [%u]\n", conf.filt.min_score);
+    fprintf(stderr, "    -t INT    Max cytosine retention in a read [%u]\n", conf.filt.max_retention);
+    fprintf(stderr, "    -l INT    Minimum read length [%u]\n", conf.filt.min_read_len);
+    fprintf(stderr, "    -5 INT    Minimum distance to 5' end of a read [%u]\n", conf.filt.min_dist_end_5p);
+    fprintf(stderr, "    -3 INT    Minimum distance to 3' end of a read [%u]\n", conf.filt.min_dist_end_3p);
     fprintf(stderr, "    -E        NO filtering of empty epireads\n");
     //fprintf(stderr, "    -c        NO filtering secondary mapping\n");
     fprintf(stderr, "    -d        Double count cytosines in overlapping mate reads (avoided\n");
     fprintf(stderr, "                  by default)\n");
     fprintf(stderr, "    -u        NO filtering of duplicate\n");
     fprintf(stderr, "    -p        NO filtering of improper pair\n");
-    fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf->filt.max_nm);
-    fprintf(stderr, "    -y FLT    Minimum probability a modification is methylated (0.0 - 1.0) [%f]\n", conf->modbam_prob);
+    fprintf(stderr, "    -n INT    Maximum NM tag [%d]\n", conf.filt.max_nm);
+    fprintf(stderr, "    -y FLT    Minimum probability a modification is methylated (0.0 - 1.0) [%f]\n", conf.modbam_prob);
     fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Note, the -O (old epiread format) and -P (pairwise format for biscuit asm) are not guaranteed\n");
@@ -1147,7 +1150,7 @@ int main_epiread(int argc, char *argv[]) {
     epiread_conf_t conf;
     epiread_conf_init(&conf);
 
-    if (argc<2) return usage(&conf);
+    if (argc<2) return usage();
     while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:y:AMNLEcduOPpvh"))>=0) {
         switch (c) {
             case 'B': snp_bed_fn = optarg; break;
@@ -1176,20 +1179,20 @@ int main_epiread(int argc, char *argv[]) {
             case 'p': conf.filt.filter_ppair = 0; break;
             case 'P': conf.epiread_pair = 1; break;
             case 'v': conf.comm.verbose = 1; break;
-            case 'h': return usage(&conf);
-            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt); break;
-            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt); break;
-            default: return usage(&conf);
+            case 'h': return usage();
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
+            default: return usage();
         }
     }
 
     if (conf.epiread_old && conf.epiread_pair) {
-        usage(&conf);
+        usage();
         wzfatal("Cannot run with both pairwise and old epiread format set.\n");
     }
 
     if (optind + 2 > argc) {
-        usage(&conf);
+        usage();
         wzfatal("Reference or bam input is missing\n");
     }
     char *reffn = argv[optind++];
