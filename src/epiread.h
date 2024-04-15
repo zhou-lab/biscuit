@@ -50,15 +50,3 @@ typedef struct {
 } epiread_conf_t;
 
 void epiread_conf_init(epiread_conf_t *conf);
-
-// check if modBAM position has a methylation modification (assumes only one modification at a base)
-// factors in the probability of a modification occurring
-// returns 1 if yes, 0 otherwise
-static inline uint8_t is_mod_unmethylated(int has_mods, hts_base_mod *mod, float min_probability) {
-    if (has_mods < 1) { return 0; }
-    if (mod[0].canonical_base != 'C') { return 0; }
-    if (mod[0].modified_base != 'm') { return 0; }
-    if ((float)mod[0].qual / 255.0 < min_probability) { return 0; }
-
-    return 1;
-}
