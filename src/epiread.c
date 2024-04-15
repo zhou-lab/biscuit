@@ -589,6 +589,8 @@ static void *process_func(void *data) {
         bam1_t *b = bam_init1();
         hts_base_mod_state *mod_state = NULL;
         hts_base_mod mod[5] = {0};
+        int cutoff_score = (int)(conf->modbam_prob * 255);
+        int mod_pos, n_mods;
         if (conf->use_modbam) {
             mod_state = hts_base_mod_state_alloc();
         }
@@ -600,6 +602,30 @@ static void *process_func(void *data) {
             if (conf->use_modbam) {
                 if (bam_parse_basemod2(b, mod_state, HTS_MOD_REPORT_UNCHECKED) < 0) {
                     wzfatal("ERROR: Failed to parse base modifications\n");
+                }
+
+                // Check for correct number of modifications
+                int n_all_mods = 0;
+                int *all_mods = bam_mods_recorded(mod_state, &n_all_mods);
+                if (n_all_mods > 1) {
+                    wzfatal("ERROR: too many modifications found. Only one modification allowed per read.\n");
+                }
+
+                // Already ensured we only have one modification (index = 0), check for correct mod type now
+                int m_strand, m_implicit;
+                char m_canonical;
+                bam_mods_queryi(mod_state, 0, &m_strand, &m_implicit, &m_canonical);
+                if (all_mods[0] != 'm') {
+                    wzfatal("ERROR: must be a methylation modification ('m')\n");
+                }
+                if (m_canonical != 'C' && m_canonical != 'G') {
+                    wzfatal("ERROR: modification must fall on a C or G\n");
+                }
+
+                // Get first base modification position
+                n_mods = bam_next_basemod(b, mod_state, mod, 5, &mod_pos);
+                if (n_mods < 0) {
+                    wzfatal("ERROR: problem encountered retrieving next base modification\n");
                 }
             }
             if (c->qual < conf->filt.min_mapq) continue;
@@ -694,11 +720,6 @@ static void *process_func(void *data) {
                             qj = qpos + j;
                             qjd = qj + n_deletions;
 
-                            int has_mods = bam_mods_at_qpos(b, (int)qj, mod_state, mod, sizeof(mod)/sizeof(mod[0]));
-                            if (has_mods > 1) {
-                                wzfatal("ERROR: Too many base modifications found\n");
-                            }
-
                             // Reference and query bases
                             rb = refcache_getbase_upcase(rs, rpos+j);
                             qb = bscall(b, qj);
@@ -740,109 +761,131 @@ static void *process_func(void *data) {
                                 continue;
                             }
 
-                            // reference is a G
-                            if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
-                                char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
-                                if (conf->comm.is_nome) { // nome-seq
-                                    if (rpos+j+1 <= rs->end) { // prevent overflow
-                                        char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
-                                        if (rb0 == 'C' && rb1 != 'C') { // HCG context
-                                            // Note: measure G in CpG context, record location of C
-                                            if (qj > 0) { push_int_v(hcg_p, (int) rpos+j-1); }
-                                            if (qb == 'A') {
-                                                push_char_v(hcg_c, 'T');
-                                                rle_arr_cg[qjd] = UNMETHYL;
-                                                rle_arr_gc[qjd] = IGNORED;
-                                                rle_set = 1;
-                                            } else if (qb == 'G') {
-                                                push_char_v(hcg_c, 'C');
-                                                rle_arr_cg[qjd] = METHYLAT;
-                                                rle_arr_gc[qjd] = IGNORED;
-                                                rle_set = 1;
-                                            } else {
-                                                push_char_v(hcg_c, 'N');
-                                            }
-                                        } else if (rb0 != 'C' && rb1 == 'C') { // GCH context
-                                            push_int_v(gch_p, (int) rpos+j);
-                                            if (qb == 'A') {
-                                                push_char_v(gch_c, 'T');
-                                                rle_arr_cg[qjd] = IGNORED;
-                                                rle_arr_gc[qjd] = SHUT_ACC;
-                                                rle_set = 1;
-                                            } else if (qb == 'G') {
-                                                push_char_v(gch_c, 'C');
-                                                rle_arr_cg[qjd] = IGNORED;
-                                                rle_arr_gc[qjd] = OPEN_ACC;
-                                                rle_set = 1;
-                                            } else {
-                                                push_char_v(gch_c, 'N');
+                            // Methylation is handled differently for modBAMs and regular BAMs
+                            if (conf->use_modbam) {
+                                if (conf->use_modbam && n_mods > 0 && qj == mod_pos) {
+                                    push_int_v(cg_p, (int) rpos+j);
+                                    if (mod[0].qual > cutoff_score) {
+                                        push_char_v(cg_c, 'C');
+                                        rle_arr_cg[qjd] = METHYLAT;
+                                        rle_set = 1;
+                                    } else if (mod[0].qual < 256-cutoff_score) {
+                                        push_char_v(cg_c, 'T');
+                                        rle_arr_cg[qjd] = UNMETHYL;
+                                        rle_set = 1;
+                                    } else {
+                                        push_char_v(cg_c, 'N');
+                                    }
+
+                                    // Retrieve next base modification
+                                    n_mods = bam_next_basemod(b, mod_state, mod, 5, &mod_pos);
+                                    if (n_mods < 0) {
+                                        wzfatal("ERROR: problem encountered retrieving next base modification\n");
+                                    }
+                                }
+                            } else {
+                                // reference is a G
+                                if (bsstrand && rb == 'G' && rpos+j-1 >= rs->beg) {
+                                    char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
+                                    if (conf->comm.is_nome) { // nome-seq
+                                        if (rpos+j+1 <= rs->end) { // prevent overflow
+                                            char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
+                                            if (rb0 == 'C' && rb1 != 'C') { // HCG context
+                                                // Note: measure G in CpG context, record location of C
+                                                if (qj > 0) { push_int_v(hcg_p, (int) rpos+j-1); }
+                                                if (qb == 'A') {
+                                                    push_char_v(hcg_c, 'T');
+                                                    rle_arr_cg[qjd] = UNMETHYL;
+                                                    rle_arr_gc[qjd] = IGNORED;
+                                                    rle_set = 1;
+                                                } else if (qb == 'G') {
+                                                    push_char_v(hcg_c, 'C');
+                                                    rle_arr_cg[qjd] = METHYLAT;
+                                                    rle_arr_gc[qjd] = IGNORED;
+                                                    rle_set = 1;
+                                                } else {
+                                                    push_char_v(hcg_c, 'N');
+                                                }
+                                            } else if (rb0 != 'C' && rb1 == 'C') { // GCH context
+                                                push_int_v(gch_p, (int) rpos+j);
+                                                if (qb == 'A') {
+                                                    push_char_v(gch_c, 'T');
+                                                    rle_arr_cg[qjd] = IGNORED;
+                                                    rle_arr_gc[qjd] = SHUT_ACC;
+                                                    rle_set = 1;
+                                                } else if (qb == 'G') {
+                                                    push_char_v(gch_c, 'C');
+                                                    rle_arr_cg[qjd] = IGNORED;
+                                                    rle_arr_gc[qjd] = OPEN_ACC;
+                                                    rle_set = 1;
+                                                } else {
+                                                    push_char_v(gch_c, 'N');
+                                                }
                                             }
                                         }
-                                    }
-                                } else { // bs-seq
-                                    rle_arr_gc[qjd] = IGNORED;
-                                    if (rb0 == 'C') { // CpG context
-                                        // Note: measure G in CpG context
-                                        push_int_v(cg_p, (int) rpos+j-1);
-                                        if (qb == 'A') {
-                                            push_char_v(cg_c, 'T');
-                                            rle_arr_cg[qjd] = UNMETHYL;
-                                            rle_set = 1;
-                                        } else if (qb == 'G') {
-                                            push_char_v(cg_c, 'C');
-                                            rle_arr_cg[qjd] = METHYLAT;
-                                            rle_set = 1;
-                                        } else {
-                                            push_char_v(cg_c, 'N');
+                                    } else { // bs-seq
+                                        rle_arr_gc[qjd] = IGNORED;
+                                        if (rb0 == 'C') { // CpG context
+                                            // Note: measure G in CpG context
+                                            push_int_v(cg_p, (int) rpos+j-1);
+                                            if (qb == 'A') {
+                                                push_char_v(cg_c, 'T');
+                                                rle_arr_cg[qjd] = UNMETHYL;
+                                                rle_set = 1;
+                                            } else if (qb == 'G') {
+                                                push_char_v(cg_c, 'C');
+                                                rle_arr_cg[qjd] = METHYLAT;
+                                                rle_set = 1;
+                                            } else {
+                                                push_char_v(cg_c, 'N');
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            // reference is a C
-                            if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
-                                char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
-                                if (conf->comm.is_nome) { // nome-seq
-                                    if (rpos+j-1 >= rs->beg) { // to prevent underflow
-                                        char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
-                                        if (rb0 != 'G' && rb1 == 'G') { // HCG context
-                                            // measure C in CpG context
-                                            push_int_v(hcg_p, (int) rpos+j);
-                                            if (qb == 'T') {
-                                                push_char_v(hcg_c, 'T');
-                                                rle_arr_cg[qjd] = UNMETHYL;
-                                                rle_arr_gc[qjd] = IGNORED;
-                                                rle_set = 1;
-                                            } else if (qb == 'C') {
-                                                push_char_v(hcg_c, 'C');
-                                                rle_arr_cg[qjd] = METHYLAT;
-                                                rle_arr_gc[qjd] = IGNORED;
-                                                rle_set = 1;
-                                            } else {
-                                                push_char_v(hcg_c, 'N');
-                                            }
-                                        } else if (rb0 == 'G' && rb1 != 'G') { // GCH context
-                                            push_int_v(gch_p, (int) rpos+j);
-                                            if (qb == 'T') {
-                                                push_char_v(gch_c, 'T');
-                                                rle_arr_cg[qjd] = IGNORED;
-                                                rle_arr_gc[qjd] = SHUT_ACC;
-                                                rle_set = 1;
-                                            } else if (qb == 'C') {
-                                                push_char_v(gch_c, 'C');
-                                                rle_arr_cg[qjd] = IGNORED;
-                                                rle_arr_gc[qjd] = OPEN_ACC;
-                                                rle_set = 1;
-                                            } else {
-                                                push_char_v(gch_c, 'N');
+                                // reference is a C
+                                if (!bsstrand && rb == 'C' && rpos+j+1 <= rs->end) {
+                                    char rb1 = refcache_getbase_upcase(rs, rpos+j+1); // next base
+                                    if (conf->comm.is_nome) { // nome-seq
+                                        if (rpos+j-1 >= rs->beg) { // to prevent underflow
+                                            char rb0 = refcache_getbase_upcase(rs, rpos+j-1); // previous base
+                                            if (rb0 != 'G' && rb1 == 'G') { // HCG context
+                                                // measure C in CpG context
+                                                push_int_v(hcg_p, (int) rpos+j);
+                                                if (qb == 'T') {
+                                                    push_char_v(hcg_c, 'T');
+                                                    rle_arr_cg[qjd] = UNMETHYL;
+                                                    rle_arr_gc[qjd] = IGNORED;
+                                                    rle_set = 1;
+                                                } else if (qb == 'C') {
+                                                    push_char_v(hcg_c, 'C');
+                                                    rle_arr_cg[qjd] = METHYLAT;
+                                                    rle_arr_gc[qjd] = IGNORED;
+                                                    rle_set = 1;
+                                                } else {
+                                                    push_char_v(hcg_c, 'N');
+                                                }
+                                            } else if (rb0 == 'G' && rb1 != 'G') { // GCH context
+                                                push_int_v(gch_p, (int) rpos+j);
+                                                if (qb == 'T') {
+                                                    push_char_v(gch_c, 'T');
+                                                    rle_arr_cg[qjd] = IGNORED;
+                                                    rle_arr_gc[qjd] = SHUT_ACC;
+                                                    rle_set = 1;
+                                                } else if (qb == 'C') {
+                                                    push_char_v(gch_c, 'C');
+                                                    rle_arr_cg[qjd] = IGNORED;
+                                                    rle_arr_gc[qjd] = OPEN_ACC;
+                                                    rle_set = 1;
+                                                } else {
+                                                    push_char_v(gch_c, 'N');
+                                                }
                                             }
                                         }
-                                    }
-                                } else { // bs-seq
-                                    rle_arr_gc[qjd] = IGNORED;
-                                    if (rb1 == 'G') { // CpG context
-                                        push_int_v(cg_p, (int) rpos+j);
-                                        if (!conf->use_modbam) {
+                                    } else { // bs-seq
+                                        rle_arr_gc[qjd] = IGNORED;
+                                        if (rb1 == 'G') { // CpG context
+                                            push_int_v(cg_p, (int) rpos+j);
                                             if (qb == 'T') {
                                                 push_char_v(cg_c, 'T');
                                                 rle_arr_cg[qjd] = UNMETHYL;
@@ -851,21 +894,6 @@ static void *process_func(void *data) {
                                                 push_char_v(cg_c, 'C');
                                                 rle_arr_cg[qjd] = METHYLAT;
                                                 rle_set = 1;
-                                            } else {
-                                                push_char_v(cg_c, 'N');
-                                            }
-                                        } else {
-                                            // modBAMs are only "bs-seq" and only occur at the C position of a CpG
-                                            if (qb == 'C') {
-                                                if (is_mod_unmethylated(has_mods, mod, conf->modbam_prob)) { // unmethylated
-                                                    push_char_v(cg_c, 'T');
-                                                    rle_arr_cg[qjd] = UNMETHYL;
-                                                    rle_set = 1;
-                                                } else { // methylated
-                                                    push_char_v(cg_c, 'C');
-                                                    rle_arr_cg[qjd] = METHYLAT;
-                                                    rle_set = 1;
-                                                }
                                             } else {
                                                 push_char_v(cg_c, 'N');
                                             }
