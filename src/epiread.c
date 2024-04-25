@@ -597,8 +597,9 @@ static void *process_func(void *data) {
         int ret;
 
         while ((ret = sam_itr_next(in, iter, b))>0) {
-            // Read-based filtering
             bam1_core_t *c = &b->core;
+
+            // Set up modBAM tags extraction
             if (conf->use_modbam) {
                 if (bam_parse_basemod2(b, mod_state, HTS_MOD_REPORT_UNCHECKED) < 0) {
                     wzfatal("ERROR: Failed to parse base modifications\n");
@@ -621,13 +622,9 @@ static void *process_func(void *data) {
                 if (m_canonical != 'C' && m_canonical != 'G') {
                     wzfatal("ERROR: modification must fall on a C or G\n");
                 }
-
-                // Get first base modification position
-                n_mods = bam_next_basemod(b, mod_state, mod, 5, &mod_pos);
-                if (n_mods < 0) {
-                    wzfatal("ERROR: problem encountered retrieving next base modification\n");
-                }
             }
+
+            // Read-based filtering
             if (c->qual < conf->filt.min_mapq) continue;
             if (c->l_qseq < 0 || (unsigned) c->l_qseq < conf->filt.min_read_len) continue;
             if (c->flag > 0) { // only when any flag is set
@@ -680,9 +677,9 @@ static void *process_func(void *data) {
 
             uint32_t i, j;
             uint8_t rle_set        = 0; // Know when to write info to array generally
-            uint8_t n_deletions    = 0; // Number of deletions, used to shift the RLE string accordingly when deletions are present
-            uint8_t n_insertions   = 0; // Number of insertions, used to shift the end position of the RLE string when insertions are present
-            uint8_t softclip_start = 0; // Number of soft clip bases occurring at start of read - used to adjust starting position
+            uint32_t n_deletions    = 0; // Number of deletions, used to shift the RLE string accordingly when deletions are present
+            uint32_t n_insertions   = 0; // Number of insertions, used to shift the end position of the RLE string when insertions are present
+            uint32_t softclip_start = 0; // Number of soft clip bases occurring at start of read - used to adjust starting position
 
             uint32_t rpos  = c->pos  + 1; // 1-based reference position
             uint32_t rmpos = c->mpos + 1; // 1-based mate reference position
@@ -763,24 +760,27 @@ static void *process_func(void *data) {
 
                             // Methylation is handled differently for modBAMs and regular BAMs
                             if (conf->use_modbam) {
-                                if (conf->use_modbam && n_mods > 0 && qj == mod_pos) {
+                                n_mods = bam_mods_at_next_pos(b, mod_state, mod, 1);
+                                if (n_mods < 0) {
+                                    wzfatal("ERROR: problem encountered retrieving next base modification\n");
+                                }
+
+                                if (conf->use_modbam && n_mods > 0) {
+                                    float mod_probability = calculate_mod_probability(mod[0].qual);
+                                    //fprintf(stderr, "pos: %i, qj: %i, can base: %c, qb: %c, n_mods: %i, qual: %i, prob: %f\n",
+                                    //        c->pos+1 - softclip_start + qjd - n_insertions,
+                                    //        qj, mod[0].canonical_base, qb, n_mods, mod[0].qual, mod_probability);
                                     push_int_v(cg_p, (int) rpos+j);
-                                    if (mod[0].qual > cutoff_score) {
+                                    if (mod[0].qual >= 0 && mod_probability > conf->modbam_prob) {
                                         push_char_v(cg_c, 'C');
                                         rle_arr_cg[qjd] = METHYLAT;
                                         rle_set = 1;
-                                    } else if (mod[0].qual < 256-cutoff_score) {
+                                    } else if (mod[0].qual >= 0 && mod_probability < 1.0-conf->modbam_prob) {
                                         push_char_v(cg_c, 'T');
                                         rle_arr_cg[qjd] = UNMETHYL;
                                         rle_set = 1;
                                     } else {
                                         push_char_v(cg_c, 'N');
-                                    }
-
-                                    // Retrieve next base modification
-                                    n_mods = bam_next_basemod(b, mod_state, mod, 5, &mod_pos);
-                                    if (n_mods < 0) {
-                                        wzfatal("ERROR: problem encountered retrieving next base modification\n");
                                     }
                                 }
                             } else {
@@ -955,6 +955,14 @@ static void *process_func(void *data) {
                             rle_arr_vr[qjd] = tolower(qb);
                             rle_arr_cg[qjd] = SKIP_INS;
                             rle_arr_gc[qjd] = SKIP_INS;
+
+                            if (conf->use_modbam) {
+                                // Retrieve next base modification
+                                n_mods = bam_mods_at_next_pos(b, mod_state, mod, 1);
+                                if (n_mods < 0) {
+                                    wzfatal("ERROR: problem encountered retrieving next base modification\n");
+                                }
+                            }
                         }
                         n_insertions += oplen;
                         qpos += oplen;
@@ -979,6 +987,15 @@ static void *process_func(void *data) {
                             rle_arr_cg[qjd] = SOFTCLIP;
                             rle_arr_gc[qjd] = SOFTCLIP;
                             rle_arr_vr[qjd] = SOFTCLIP;
+
+
+                            if (conf->use_modbam) {
+                                // Retrieve next base modification
+                                n_mods = bam_mods_at_next_pos(b, mod_state, mod, 1);
+                                if (n_mods < 0) {
+                                    wzfatal("ERROR: problem encountered retrieving next base modification\n");
+                                }
+                            }
                         }
                         qpos += oplen;
                         break;

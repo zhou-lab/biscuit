@@ -216,4 +216,12 @@ DEFINE_WQUEUE(record, record_t)
 void pop_record_by_block_id(record_v *records, int64_t block_id, record_t *record);
 void put_into_record_v(record_v *records, record_t rec);
 
+// modBAM related functions
+static inline float calculate_mod_probability(int qual) {
+    if (qual < 0) {
+        return -1.0;
+    }
+    return ((float)(qual) + 0.5) / 256.0;
+}
+
 #endif /* _BISC_UTILS_H_ */
