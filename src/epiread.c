@@ -760,6 +760,12 @@ static void *process_func(void *data) {
 
                             // Methylation is handled differently for modBAMs and regular BAMs
                             if (conf->use_modbam) {
+                                uint8_t is_cpg = 0;
+                                if (rb == 'C' && rpos+j+1 <= rs->end) {
+                                    if (refcache_getbase_upcase(rs, rpos+j+1) == 'G') { is_cpg = 1; }
+                                } else if (rb == 'G' && rpos+j-1 >= rs->beg) {
+                                    if (refcache_getbase_upcase(rs, rpos+j-1) == 'C') { is_cpg = 1; }
+                                }
                                 n_mods = bam_mods_at_next_pos(b, mod_state, mod, 1);
                                 if (n_mods < 0) {
                                     wzfatal("ERROR: problem encountered retrieving next base modification\n");
@@ -771,11 +777,11 @@ static void *process_func(void *data) {
                                     //        c->pos+1 - softclip_start + qjd - n_insertions,
                                     //        qj, mod[0].canonical_base, qb, n_mods, mod[0].qual, mod_probability);
                                     push_int_v(cg_p, (int) rpos+j);
-                                    if (mod[0].qual >= 0 && mod_probability > conf->modbam_prob) {
+                                    if (is_cpg && mod[0].qual >= 0 && mod_probability > conf->modbam_prob) {
                                         push_char_v(cg_c, 'C');
                                         rle_arr_cg[qjd] = METHYLAT;
                                         rle_set = 1;
-                                    } else if (mod[0].qual >= 0 && mod_probability < 1.0-conf->modbam_prob) {
+                                    } else if (is_cpg && mod[0].qual >= 0 && mod_probability < 1.0-conf->modbam_prob) {
                                         push_char_v(cg_c, 'T');
                                         rle_arr_cg[qjd] = UNMETHYL;
                                         rle_set = 1;
