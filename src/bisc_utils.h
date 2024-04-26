@@ -224,4 +224,30 @@ static inline float calculate_mod_probability(int qual) {
     return ((float)(qual) + 0.5) / 256.0;
 }
 
+static inline uint8_t is_modbam_cpg(uint16_t flag, int strand, int can_base, char qb, char rb, refcache_t *rs, uint32_t pos) {
+    if (can_base == 'C' && strand == 0) {
+        if (qb == 'G' && (flag & BAM_FREVERSE)) {
+            if (rb == 'G' && pos-1 >= rs->beg && refcache_getbase_upcase(rs, pos-1) == 'C') {
+                return 1;
+            }
+        } else if (qb == 'C' && !(flag & BAM_FREVERSE)) {
+            if (rb == 'C' && pos+1 <= rs->end && refcache_getbase_upcase(rs, pos+1) == 'G') {
+                return 1;
+            }
+        }
+    } else if (can_base == 'G' && strand == 1) {
+        if (qb == 'C' && (flag & BAM_FREVERSE)) {
+            if (rb == 'C' && pos+1 <= rs->end && refcache_getbase_upcase(rs, pos+1) == 'G') {
+                return 1;
+            }
+        } else if (qb == 'G' && !(flag & BAM_FREVERSE)) {
+            if (rb == 'G' && pos-1 >= rs->beg && refcache_getbase_upcase(rs, pos-1) == 'C') {
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 #endif /* _BISC_UTILS_H_ */

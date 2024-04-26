@@ -721,6 +721,14 @@ static void *process_func(void *data) {
                             rb = refcache_getbase_upcase(rs, rpos+j);
                             qb = bscall(b, qj);
 
+                            // Get mod tags before filtering to make sure we properly count deltas in MM tag
+                            if (conf->use_modbam) {
+                                n_mods = bam_mods_at_next_pos(b, mod_state, mod, 1);
+                                if (n_mods < 0) {
+                                    wzfatal("ERROR: problem encountered retrieving next base modification\n");
+                                }
+                            }
+
                             // Base filtering
                             // Low quality bases
                             if (bam_get_qual(b)[qj] < conf->filt.min_base_qual) {
@@ -760,22 +768,13 @@ static void *process_func(void *data) {
 
                             // Methylation is handled differently for modBAMs and regular BAMs
                             if (conf->use_modbam) {
-                                uint8_t is_cpg = 0;
-                                if (rb == 'C' && rpos+j+1 <= rs->end) {
-                                    if (refcache_getbase_upcase(rs, rpos+j+1) == 'G') { is_cpg = 1; }
-                                } else if (rb == 'G' && rpos+j-1 >= rs->beg) {
-                                    if (refcache_getbase_upcase(rs, rpos+j-1) == 'C') { is_cpg = 1; }
-                                }
-                                n_mods = bam_mods_at_next_pos(b, mod_state, mod, 1);
-                                if (n_mods < 0) {
-                                    wzfatal("ERROR: problem encountered retrieving next base modification\n");
-                                }
+                                uint8_t is_cpg = is_modbam_cpg(c->flag, mod[0].strand, mod[0].canonical_base, qb, rb, rs, rpos+j);
 
                                 if (conf->use_modbam && n_mods > 0) {
                                     float mod_probability = calculate_mod_probability(mod[0].qual);
-                                    //fprintf(stderr, "pos: %i, qj: %i, can base: %c, qb: %c, n_mods: %i, qual: %i, prob: %f\n",
+                                    //fprintf(stderr, "pos: %i, qj: %i, can base: %c, qb: %c, n_mods: %i, qual: %i, prob: %f, is_cpg: %u\n",
                                     //        c->pos+1 - softclip_start + qjd - n_insertions,
-                                    //        qj, mod[0].canonical_base, qb, n_mods, mod[0].qual, mod_probability);
+                                    //        qj, mod[0].canonical_base, qb, n_mods, mod[0].qual, mod_probability, is_cpg);
                                     push_int_v(cg_p, (int) rpos+j);
                                     if (is_cpg && mod[0].qual >= 0 && mod_probability > conf->modbam_prob) {
                                         push_char_v(cg_c, 'C');
