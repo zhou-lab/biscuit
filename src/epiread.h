@@ -41,9 +41,9 @@ typedef struct {
 
     uint32_t epiread_reg_start;      /* first location of region provided to epiread */
     uint32_t epiread_reg_end;        /* final location of region provided to epiread */
+    uint32_t max_read_length;        /* maximum read length */
     float    modbam_prob;            /* probability of a modification being methylated for modBAM */
     uint8_t  filter_empty_epiread:1; /* remove epireads that only have F/x/P */
-    uint8_t  is_long_read:1;         /* data is from long read sequencing */
     uint8_t  epiread_old:1;          /* print old BISCUIT epiread format */
     uint8_t  epiread_pair:1;         /* pairwise output mode in epireads, doesn't mean "paired-end" */
     uint8_t  print_all_locations:1;  /* print all CpG and SNP locations in location column of epiread format */

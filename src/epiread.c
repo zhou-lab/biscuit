@@ -40,16 +40,8 @@ const char SHUT_ACC = 'S';
 const char AMBIG_GA = 'R';
 const char AMBIG_CT = 'Y';
 
-// TODO: Work these variables into two variables in the conf_t type and can be set via CLI options
-// For short reads
-#define MAX_READ_LENGTH 302
+// This value implies we could have 50 digit read lengths which is way more than needed
 #define MAX_RLEN 50
-
-// For long reads, I'm guessing there's a better way to do this, but until I
-// know what that is, this is going to be the way it's done
-// This also probably too long for PacBio and could be too short for ONT, but
-// I'll put in some checks to skip lines that are too long
-#define MAX_READ_LENGTH_LR 50000
 
 DEFINE_VECTOR(int_v, int)
 DEFINE_VECTOR(char_v, char)
@@ -204,16 +196,13 @@ static void format_epi_bed(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, epiread_conf_t *conf,
         char *rle_arr_cg, char *rle_arr_gc, char *rle_arr_vr, uint32_t w_start, uint32_t start, uint32_t end) {
 
-    // Set max read length
-    uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
-
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
-    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - conf->max_read_length : w->beg;
 
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
-    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + conf->max_read_length : w->end;
 
     // Columns: chromosome, start, end, read name, read number, BS strand, encoded CG RLE
     // If running in NOMe-seq mode, then encoded GC RLE is added as a last column
@@ -293,16 +282,13 @@ static void format_epiread_old(
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
-    // Set max read length
-    uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
-
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
-    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - conf->max_read_length : w->beg;
 
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
-    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + conf->max_read_length : w->end;
 
     uint32_t k;
 
@@ -436,16 +422,13 @@ static void format_epiread_pairwise(
         int_v *snp_p, int_v *hcg_p, int_v *gch_p, int_v *cg_p,
         char_v *snp_c, char_v *hcg_c, char_v *gch_c, char_v *cg_c) {
 
-    // Set max read length
-    uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
-
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
-    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - max_read_length : w->beg;
+    uint32_t print_w_beg = conf->epiread_reg_start == w->beg ? w->beg - conf->max_read_length : w->beg;
 
     // Only shift the end of the window if conf->epiread_reg_end == w->end (only occurs for the last window)
     // This catches reads that start at the last location when calling epiread with a region (-g option) provided
-    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + max_read_length : w->end;
+    uint32_t print_w_end = conf->epiread_reg_end == w->end ? w->end + conf->max_read_length : w->end;
 
     uint32_t j, k;
     for (k=0; k<snp_p->size; ++k) {
@@ -663,15 +646,12 @@ static void *process_func(void *data) {
             char *rle_arr_cg; // use qpos+j to determine which index will be written
             char *rle_arr_gc;
             char *rle_arr_vr;
-            if (conf->is_long_read) {
-                rle_arr_cg = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
-                rle_arr_vr = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
-                rle_arr_gc = (char *)calloc(MAX_READ_LENGTH_LR, sizeof(char));
-            } else {
-                rle_arr_cg = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
-                rle_arr_vr = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
-                rle_arr_gc = (char *)calloc(MAX_READ_LENGTH, sizeof(char));
+            if (c->l_qseq > conf->max_read_length) {
+                wzfatal("Read is longer than the max read length (%i). Please rerun with a larger value in -L <INT>\n", conf->max_read_length);
             }
+            rle_arr_cg = (char *)calloc(conf->max_read_length, sizeof(char));
+            rle_arr_vr = (char *)calloc(conf->max_read_length, sizeof(char));
+            rle_arr_gc = (char *)calloc(conf->max_read_length, sizeof(char));
 
             uint32_t i, j;
             uint8_t rle_set        = 0; // Know when to write info to array generally
@@ -1164,7 +1144,7 @@ void epiread_conf_init(epiread_conf_t *conf) {
     conf->epiread_reg_end = 0;
     conf->modbam_prob = 0.9;
     conf->filter_empty_epiread = 1;
-    conf->is_long_read = 0;
+    conf->max_read_length = 302; // maximum length set to longest short read length by default
     conf->epiread_old = 0;
     conf->epiread_pair = 0;
     conf->print_all_locations = 0;
@@ -1187,7 +1167,7 @@ static int usage() {
     fprintf(stderr, "Output options:\n");
     fprintf(stderr, "    -o STR    Output file [stdout]\n");
     fprintf(stderr, "    -N        NOMe-seq mode [off]\n");
-    fprintf(stderr, "    -L        Data is from long read sequencing [off]\n");
+    fprintf(stderr, "    -L INT    maximum read length (will need to be increased for long reads) [%i]\n", conf.max_read_length);
     fprintf(stderr, "    -M        BAM file has modBAM tags (MM/ML) [off]\n");
     fprintf(stderr, "    -P        Pairwise mode [off]\n");
     fprintf(stderr, "    -O        Old BISCUIT epiread format, not compatible with -P [off]\n");
@@ -1231,7 +1211,7 @@ int main_epiread(int argc, char *argv[]) {
     epiread_conf_init(&conf);
 
     if (argc<2) return usage();
-    while ((c=getopt(argc, argv, ":@:B:o:g:s:t:l:5:3:n:b:m:a:y:AMNLEcduOPpvh"))>=0) {
+    while ((c=getopt(argc, argv, ":@:B:L:o:g:s:t:l:5:3:n:b:m:a:y:AMNEcduOPpvh"))>=0) {
         switch (c) {
             case 'B': snp_bed_fn = optarg; break;
             case 'o': outfn = optarg; break;
@@ -1249,7 +1229,7 @@ int main_epiread(int argc, char *argv[]) {
             case 'O': conf.epiread_old = 1; break;
             case 'A': conf.print_all_locations = 1; break;
             case 'N': conf.comm.is_nome = 1; break;
-            case 'L': conf.is_long_read = 1; break;
+            case 'L': conf.max_read_length = atoi(optarg); break;
             case 'M': conf.use_modbam = 1; break;
             case 'y': conf.modbam_prob = atof(optarg); break;
             case 'E': conf.filter_empty_epiread = 0; break;
