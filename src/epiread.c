@@ -204,7 +204,7 @@ void run_length_encode(char *str, char *out, epiread_conf_t *conf) {
 // TODO: This function is getting verbose, refactor/cleanup?
 static void format_epi_bed(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, epiread_conf_t *conf,
-        char *rle_arr_cg, char *rle_arr_gc, char *rle_arr_vr, uint32_t start, uint32_t end) {
+        char *rle_arr_cg, char *rle_arr_gc, char *rle_arr_vr, uint32_t w_start, uint32_t start, uint32_t end) {
 
     // Set max read length
     uint32_t max_read_length = (conf->is_long_read) ? MAX_READ_LENGTH_LR : MAX_READ_LENGTH;
@@ -219,7 +219,7 @@ static void format_epi_bed(
 
     // Columns: chromosome, start, end, read name, read number, BS strand, encoded CG RLE
     // If running in NOMe-seq mode, then encoded GC RLE is added as a last column
-    if (start > 0 && (unsigned) start >= print_w_beg && (unsigned) start < print_w_end) {
+    if (w_start > 0 && w_start >= print_w_beg && w_start < print_w_end) {
         uint8_t write_read_cg = 1;
         uint8_t write_read_gc = 1;
         uint8_t write_read_vr = 1;
@@ -772,9 +772,6 @@ static void *process_func(void *data) {
 
                                 if (conf->use_modbam && n_mods > 0) {
                                     float mod_probability = calculate_mod_probability(mod[0].qual);
-                                    //fprintf(stderr, "pos: %i, qj: %i, can base: %c, qb: %c, n_mods: %i, qual: %i, prob: %f, is_cpg: %u\n",
-                                    //        c->pos+1 - softclip_start + qjd - n_insertions,
-                                    //        qj, mod[0].canonical_base, qb, n_mods, mod[0].qual, mod_probability, is_cpg);
                                     push_int_v(cg_p, (int) rpos+j);
                                     if (is_cpg && mod[0].qual >= 0 && mod_probability > conf->modbam_prob) {
                                         push_char_v(cg_c, 'C');
@@ -1030,7 +1027,7 @@ static void *process_func(void *data) {
                         snp_c, hcg_c, gch_c, cg_c);
             }
             if (!conf->epiread_pair && !conf->epiread_old) {
-                format_epi_bed(&rec.s, b, bsstrand, chrm, &w, conf, rle_arr_cg, rle_arr_gc, rle_arr_vr, start, end);
+                format_epi_bed(&rec.s, b, bsstrand, chrm, &w, conf, rle_arr_cg, rle_arr_gc, rle_arr_vr, c->pos+1, start, end);
             }
 
             // clean up
