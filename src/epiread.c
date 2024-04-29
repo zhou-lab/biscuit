@@ -50,7 +50,6 @@ const char AMBIG_CT = 'Y';
 // This also probably too long for PacBio and could be too short for ONT, but
 // I'll put in some checks to skip lines that are too long
 #define MAX_READ_LENGTH_LR 50000
-#define MAX_RLEN_LR 500
 
 DEFINE_VECTOR(int_v, int)
 DEFINE_VECTOR(char_v, char)
@@ -166,12 +165,7 @@ static void *epiread_write_func(void *data) {
 
 void run_length_encode(char *str, char *out, epiread_conf_t *conf) {
     int run_len;
-    char *count;
-    if (conf->is_long_read) {
-        count = (char *)calloc(MAX_RLEN_LR, sizeof(char));
-    } else {
-        count = (char *)calloc(MAX_RLEN, sizeof(char));
-    }
+    char *count = (char *)calloc(MAX_RLEN, sizeof(char));
     int len = strlen(str);
 
     int i, j=0, k;
@@ -188,6 +182,10 @@ void run_length_encode(char *str, char *out, epiread_conf_t *conf) {
         // Currently, the code is set up to set ABC = ABC. If you want ABC = A1B1C1, then comment out the if-statement,
         // but leave the sprintf and for loop untouched.
         if (run_len > 1) {
+            // Ensure we're not writing past the end of the buffer
+            if (log10(run_len) > (double)MAX_RLEN) {
+                wzfatal("Run length encoded count > %i. Please open an issue.\n", MAX_RLEN);
+            }
             sprintf(count, "%d", run_len);
             for (k=0; *(count+k); k++, j++) {
                 out[j] = count[k];

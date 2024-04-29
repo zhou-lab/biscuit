@@ -24,6 +24,7 @@
  * SOFTWARE.
  *
  */
+#include <math.h>
 #include <zlib.h>
 
 #include "wqueue.h"
