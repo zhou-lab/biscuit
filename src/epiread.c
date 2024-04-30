@@ -647,7 +647,7 @@ static void *process_func(void *data) {
             char *rle_arr_gc;
             char *rle_arr_vr;
             if (c->l_qseq > conf->max_read_length) {
-                wzfatal("Read is longer than the max read length (%i). Please rerun with a larger value in -L <INT>\n", conf->max_read_length);
+                wzfatal("ERROR: Read (length = %i) longer than max read length (%i). Rerun with larger -L value\n", c->l_qseq, conf->max_read_length);
             }
             rle_arr_cg = (char *)calloc(conf->max_read_length, sizeof(char));
             rle_arr_vr = (char *)calloc(conf->max_read_length, sizeof(char));
