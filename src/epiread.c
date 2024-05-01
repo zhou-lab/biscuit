@@ -525,7 +525,8 @@ static void *process_func(void *data) {
     }
     bam_hdr_t *header = sam_hdr_read(in);
 
-    refcache_t *rs = init_refcache(res->ref_fn, 1000, 1000);
+    uint32_t flank = conf->max_read_length > 1000 ? conf->max_read_length : 1000;
+    refcache_t *rs = init_refcache(res->ref_fn, flank, flank);
     uint32_t j;
 
     record_t rec;
