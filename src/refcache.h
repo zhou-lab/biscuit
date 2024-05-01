@@ -72,7 +72,7 @@ static inline void __refcache_fetch(refcache_t *rc) {
       rc->fai, rc->chrm, rc->beg-1, rc->end-1, &l);
    
    if ((unsigned) l != rc->end-rc->beg+1)
-      wzfatal("[%s:%d] Error, cannot retrieve reference: %s:%u-%u.",
+      wzfatal("[%s:%d] Error, cannot retrieve reference: %s:%u-%u.\n",
               __func__, __LINE__, rc->chrm, rc->beg, rc->end);
 }
 
