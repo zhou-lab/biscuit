@@ -566,6 +566,11 @@ static void *process_func(void *data) {
         // The epiread string
         rec.s.l = rec.s.m = 0; rec.s.s = 0;
 
+        // Run length encoding strings (use qpos+j to determine which index will be written)
+        char *rle_arr_cg = (char *)calloc(conf->max_read_length, sizeof(char));
+        char *rle_arr_vr = (char *)calloc(conf->max_read_length, sizeof(char));
+        char *rle_arr_gc = (char *)calloc(conf->max_read_length, sizeof(char));
+
         refcache_fetch(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
         hts_itr_t *iter = sam_itr_queryi(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
         bam1_t *b = bam_init1();
@@ -643,16 +648,10 @@ static void *process_func(void *data) {
                 cg_c = init_char_v(10); // cpg characters
             }
 
-            // Run length encoding strings
-            char *rle_arr_cg; // use qpos+j to determine which index will be written
-            char *rle_arr_gc;
-            char *rle_arr_vr;
-            if (c->l_qseq > conf->max_read_length) {
+            // Verify run length encoded string buffer is long enough
+            if (c->l_qseq >= conf->max_read_length) {
                 wzfatal("ERROR: Read (length = %i) longer than max read length (%i). Rerun with larger -L value\n", c->l_qseq, conf->max_read_length);
             }
-            rle_arr_cg = (char *)calloc(conf->max_read_length, sizeof(char));
-            rle_arr_vr = (char *)calloc(conf->max_read_length, sizeof(char));
-            rle_arr_gc = (char *)calloc(conf->max_read_length, sizeof(char));
 
             uint32_t i, j;
             uint8_t rle_set        = 0; // Know when to write info to array generally
@@ -687,6 +686,10 @@ static void *process_func(void *data) {
             for (i=0; i<c->n_cigar; ++i) {
                 uint32_t op    = bam_cigar_op(bam_get_cigar(b)[i]);
                 uint32_t oplen = bam_cigar_oplen(bam_get_cigar(b)[i]);
+                if (qpos+oplen+n_deletions > conf->max_read_length) {
+                    wzfatal("ERROR: Deletion-adjusted read position (%i) longer than max read length (%i). Rerun with larger -L value\n",
+                            qpos+oplen+n_deletions, conf->max_read_length);
+                }
                 switch(op) {
                     case BAM_CMATCH:
                     case BAM_CEQUAL:
@@ -1010,9 +1013,9 @@ static void *process_func(void *data) {
             }
 
             // clean up
-            free(rle_arr_gc);
-            free(rle_arr_vr);
-            free(rle_arr_cg);
+            memset(rle_arr_gc, '\0', (c->l_qseq + n_deletions)*sizeof(char));
+            memset(rle_arr_vr, '\0', (c->l_qseq + n_deletions)*sizeof(char));
+            memset(rle_arr_cg, '\0', (c->l_qseq + n_deletions)*sizeof(char));
             free_int_v(snp_p); free_char_v(snp_c);
             if (conf->comm.is_nome) {
                 free_int_v(hcg_p); free_char_v(hcg_c);
@@ -1027,11 +1030,14 @@ static void *process_func(void *data) {
         // put output string to output queue
         wqueue_put2(record, res->rq, rec);
 
+        free(rle_arr_gc);
+        free(rle_arr_vr);
+        free(rle_arr_cg);
         if (mod_state) { hts_base_mod_state_free(mod_state); }
         bam_destroy1(b);
         hts_itr_destroy(iter);
-        free(meth);
-        free(snps);
+        if (meth) { free(meth); }
+        if (snps) { free(snps); }
     }
 
     free_refcache(rs);
