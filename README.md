@@ -5,6 +5,20 @@ conversion-based DNA methylation/modification data. It was written to perform
 alignment, DNA methylation and mutation calling, and allele specific methylation
 from bisulfite sequencing data.
 
+## Publication
+
+If you use BISCUIT, kindly [cite](https://doi.org/10.1093/nar/gkae097):
+
+```
+Wanding Zhou, Benjamin K Johnson, Jacob Morrison, Ian Beddows,
+James Eapen, Efrat Katsman, Ayush Semwal, Walid Abi Habib, Lyong Heo,
+Peter W Laird, Benjamin P Berman, Timothy J Triche, Hui Shen,
+BISCUIT: an efficient, standards-compliant tool suite for simultaneous
+    genetic and epigenetic inference in bulk and single-cell studies,
+Nucleic Acids Research, Volume 52, Issue 6, 12 April 2024, Page e32,
+https://doi.org/10.1093/nar/gkae097
+```
+
 # Download and Install
 
 Instructions for downloading and installing BISCUIT can be found in the User
@@ -35,11 +49,6 @@ usage of BISCUIT. The guide can be found at:
 
 Any issues with BISCUIT can be submitted on the Issues page:
 [https://github.com/huishenlab/biscuit/issues](https://github.com/huishenlab/biscuit/issues).
-
-<!-- # Links -->
-
-<!--   - BISCUIT Publication -->
-<!-- > Link to publication -->
 
 # Acknowledgements
 
