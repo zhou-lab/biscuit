@@ -194,7 +194,7 @@ void run_length_encode(char *str, char *out, epiread_conf_t *conf) {
 // TODO: This function is getting verbose, refactor/cleanup?
 static void format_epi_bed(
         kstring_t *epi, bam1_t *b, uint8_t bsstrand, char *chrm, window_t *w, epiread_conf_t *conf,
-        char *rle_arr_cg, char *rle_arr_gc, char *rle_arr_vr, uint32_t w_start, uint32_t start, uint32_t end) {
+        char *rle_arr_cg, char *rle_arr_gc, char *rle_arr_vr, uint32_t w_start, int32_t start, int32_t end) {
 
     // Only shift the beginning of the window if conf->epiread_reg_start == w->beg (only occurs for the first window)
     // This catches reads that start before the first window when calling epiread with a region (-g option) provided
@@ -233,6 +233,11 @@ static void format_epi_bed(
         }
 
         if (write_read_cg || write_read_gc || write_read_vr) {
+            if (start <= 0) {
+                fprintf(stderr, "WARNING: Softclip-adjusted start position < 0 (%i). Skipping read %s\n", start-1, bam_get_qname(b));
+                return;
+            }
+
             ksprintf(epi, "%s\t%d\t%d\t%s\t%c\t%c",
                     chrm,
                     start-1,
@@ -992,8 +997,8 @@ static void *process_func(void *data) {
             // BAM position for reads with softclipping at the beginning is relative the the first Match location
             // in the CIGAR string, so we need to shift backwards the number of softclip positions to get the corresponding
             // start position for the whole read
-            uint32_t start = c->pos+1 - softclip_start;
-            uint32_t end   = start + c->l_qseq + n_deletions - n_insertions - 1; // -1 adjusts end position due to 1-based counting
+            int32_t start = c->pos+1 - softclip_start;
+            int32_t end   = start + c->l_qseq + n_deletions - n_insertions - 1; // -1 adjusts end position due to 1-based counting
 
             // produce epiread output
             if (conf->epiread_pair) {
