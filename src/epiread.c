@@ -571,7 +571,6 @@ static void *process_func(void *data) {
         char *rle_arr_vr = (char *)calloc(conf->max_read_length, sizeof(char));
         char *rle_arr_gc = (char *)calloc(conf->max_read_length, sizeof(char));
 
-        //refcache_fetch(rs, chrm, w.beg>100?w.beg-100:1, w.end+100);
         refcache_fetch(rs, chrm, w.beg>flank ? w.beg-flank : 1, w.end+flank);
         hts_itr_t *iter = sam_itr_queryi(idx, w.tid, w.beg>1?(w.beg-1):1, w.end);
         bam1_t *b = bam_init1();
@@ -990,14 +989,6 @@ static void *process_func(void *data) {
                 }
             }
 
-            // Set end of rle strings to null to avoid having to zero out all written bases
-            //fprintf(stderr, "cg length before: %u ", strlen(rle_arr_cg));
-            //rle_arr_cg[c->l_qseq+n_deletions] = '\0';
-            //rle_arr_gc[c->l_qseq+n_deletions] = '\0';
-            //rle_arr_vr[c->l_qseq+n_deletions] = '\0';
-            //fprintf(stderr, "len: %u, cg length after: %u\n", c->l_qseq+n_deletions, strlen(rle_arr_cg));
-            //fprintf(stderr, "%s\n", rle_arr_cg);
-
             // BAM position for reads with softclipping at the beginning is relative the the first Match location
             // in the CIGAR string, so we need to shift backwards the number of softclip positions to get the corresponding
             // start position for the whole read
@@ -1022,9 +1013,6 @@ static void *process_func(void *data) {
             }
 
             // clean up
-            //rle_arr_gc[0] = '\0';
-            //rle_arr_vr[0] = '\0';
-            //rle_arr_cg[0] = '\0';
             memset(rle_arr_gc, '\0', (c->l_qseq + n_deletions)*sizeof(char));
             memset(rle_arr_vr, '\0', (c->l_qseq + n_deletions)*sizeof(char));
             memset(rle_arr_cg, '\0', (c->l_qseq + n_deletions)*sizeof(char));
