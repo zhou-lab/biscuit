@@ -544,8 +544,8 @@ static void *process_func(void *data) {
         rec.tid = w.tid;
         char *chrm = header->target_name[w.tid];
 
-        uint32_t snp_beg = w.beg>1000 ? w.beg-1000 : 1; // start location of snps
-        uint32_t snp_end = w.end+1000;
+        uint32_t snp_beg = w.beg > flank ? w.beg-flank : 1; // start location of snps
+        uint32_t snp_end = w.end+flank;
 
         // Make snp lookup table (if supplied)
         uint8_t *snps = NULL;
