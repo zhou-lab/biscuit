@@ -44,6 +44,7 @@ typedef struct {
     int max_cpa;
     int max_cpc;
     int max_cpt;
+    int max_cpy;
     int filter_u;
     int show_filtered;
     int print_in_tab;

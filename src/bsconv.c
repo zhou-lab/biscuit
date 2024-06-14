@@ -115,6 +115,9 @@ int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
             retn[nt256char_to_nt256int8_table['A']] +
             retn[nt256char_to_nt256int8_table['C']] +
             retn[nt256char_to_nt256int8_table['T']] > conf->max_cph) tofilter = 1;
+    if (conf->max_cpy >= 0 &&
+            retn[nt256char_to_nt256int8_table['C']] +
+            retn[nt256char_to_nt256int8_table['T']] > conf->max_cph) tofilter = 1;
 
     if (conf->max_cph_frac < 1.0) {
         int cph_retn = retn[nt256char_to_nt256int8_table['A']] +
@@ -199,6 +202,7 @@ static void usage() {
     fprintf(stderr, "    -a INT      Filter: maximum CpA retention [Inf]\n");
     fprintf(stderr, "    -c INT      Filter: maximum CpC retention [Inf]\n");
     fprintf(stderr, "    -t INT      Filter: maximum CpT retention [Inf]\n");
+    fprintf(stderr, "    -x INT      Filter: maximum CpY retention [Inf]\n");
     fprintf(stderr, "    -p          Print in tab-separated format, print order:\n");
     fprintf(stderr, "                    CpA_R, CpA_C, CpC_R, CpC_C, CpG_R, CpG_C, CpT_R, CpT_C\n");
     fprintf(stderr, "    -v          Show filtered reads instead of remaining reads\n");
@@ -210,7 +214,7 @@ int main_bsconv(int argc, char *argv[]) {
     int c;
     char *reg = 0; // target region
     bsconv_conf_t conf = {0};
-    conf.max_cph = conf.max_cpa = conf.max_cpc = conf.max_cpt = -1;
+    conf.max_cph = conf.max_cpa = conf.max_cpc = conf.max_cpt = conf.max_cpy = -1;
     conf.max_cph_frac = 1.0;
     conf.max_cpy_frac = 1.0;
     conf.print_in_tab = 0;
@@ -222,6 +226,7 @@ int main_bsconv(int argc, char *argv[]) {
             case 'g': reg = optarg; break;
             case 'm': conf.max_cph = atoi(optarg); break;
             case 'f': conf.max_cph_frac = atof(optarg); break;
+            case 'x': conf.max_cpy = atoi(optarg); break;
             case 'y': conf.max_cpy_frac = atof(optarg); break;
             case 'a': conf.max_cpa = atoi(optarg); break;
             case 'c': conf.max_cpc = atoi(optarg); break;
