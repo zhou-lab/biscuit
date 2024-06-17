@@ -117,7 +117,7 @@ int bsconv_func(bam1_t *b, samFile *out, bam_hdr_t *hdr, void *data) {
             retn[nt256char_to_nt256int8_table['T']] > conf->max_cph) tofilter = 1;
     if (conf->max_cpy >= 0 &&
             retn[nt256char_to_nt256int8_table['C']] +
-            retn[nt256char_to_nt256int8_table['T']] > conf->max_cph) tofilter = 1;
+            retn[nt256char_to_nt256int8_table['T']] > conf->max_cpy) tofilter = 1;
 
     if (conf->max_cph_frac < 1.0) {
         int cph_retn = retn[nt256char_to_nt256int8_table['A']] +
