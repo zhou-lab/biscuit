@@ -221,7 +221,7 @@ int main_bsconv(int argc, char *argv[]) {
     conf.no_printing = 0; // only needed for qc at this time, so don't provide a command line argument to change this for now
 
     if (argc < 2) { usage(); return 1; }
-    while ((c = getopt(argc, argv, ":g:m:ac:f:y:pt:uvh")) >= 0) {
+    while ((c = getopt(argc, argv, ":g:m:ac:f:y:ptx:uvh")) >= 0) {
         switch (c) {
             case 'g': reg = optarg; break;
             case 'm': conf.max_cph = atoi(optarg); break;
