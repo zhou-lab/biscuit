@@ -296,13 +296,24 @@ END:
     free_vcf_record(rec);
 }
 
-static int usage(conf_t *conf) {
+void vcf2bed_conf_init(conf_t *conf) {
+    conf->mincov = 1;
+    conf->showctxt = 0;
+    conf->showmu = 0;
+
+    strcpy(conf->target, "CG");
+}
+
+static int usage() {
+    conf_t conf;
+    vcf2bed_conf_init(&conf);
+
     fprintf(stderr, "\n");
     fprintf(stderr, "Usage: biscuit vcf2bed [options] <in.vcf>\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "    -t STR    Extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf->target);
-    fprintf(stderr, "    -k INT    Minimum coverage (see Note 1) [%d]\n", conf->mincov);
+    fprintf(stderr, "    -t STR    Extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf.target);
+    fprintf(stderr, "    -k INT    Minimum coverage (see Note 1) [%d]\n", conf.mincov);
     fprintf(stderr, "    -s STR    Sample, (takes \"FIRST\", \"LAST\", \"ALL\", or specific\n");
     fprintf(stderr, "                  sample names separated by \",\") [FIRST]\n");
     fprintf(stderr, "    -e        Show context (reference base, context group {CG,CHG,CHH},\n");
@@ -320,12 +331,12 @@ static int usage(conf_t *conf) {
 }
 
 int main_vcf2bed(int argc, char *argv[]) {
-    conf_t conf = {.mincov=1, .showctxt=0, .showmu=0};
-    strcpy(conf.target, "CG");
+    conf_t conf;
+    vcf2bed_conf_init(&conf);
     char *target_samples = NULL;
 
     int c;
-    if (argc<2) return usage(&conf);
+    if (argc<2) return usage();
     while ((c = getopt(argc, argv, ":t:k:s:ech")) >= 0) {
         switch (c) {
             case 'k': conf.mincov = atoi(optarg); break;
@@ -337,17 +348,17 @@ int main_vcf2bed(int argc, char *argv[]) {
             case 's': target_samples = strdup(optarg); break;
             case 'e': conf.showctxt = 1; break;
         	case 'c': conf.showmu = 1; break;
-            case 'h': return usage(&conf); break;
-            case ':': usage(&conf); wzfatal("Option needs an argument: -%c\n", optopt); break;
-            case '?': usage(&conf); wzfatal("Unrecognized option: -%c\n", optopt); break;
-            default: usage(&conf); wzfatal("Unrecognized option: -%c\n",c); break;
+            case 'h': return usage(); break;
+            case ':': usage(); wzfatal("Option needs an argument: -%c\n", optopt); break;
+            case '?': usage(); wzfatal("Unrecognized option: -%c\n", optopt); break;
+            default: usage(); wzfatal("Unrecognized option: -%c\n",c); break;
         }
     }
 
     // default to only FIRST sample
     if (!target_samples) target_samples = strdup("FIRST");
 
-    if (optind >= argc) { usage(&conf); wzfatal("Please provide input vcf.\n"); }
+    if (optind >= argc) { usage(); wzfatal("Please provide input vcf.\n"); }
     vcf_file_t *vcf = init_vcf_file(argv[optind]);
     index_vcf_samples(vcf, target_samples);
 
