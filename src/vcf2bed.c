@@ -302,7 +302,7 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    -t STR    Extract type {c, cg, ch, hcg, gch, snp} [%s]\n", conf->target);
-    fprintf(stderr, "    -k INT    Minimum coverage [%d]\n", conf->mincov);
+    fprintf(stderr, "    -k INT    Minimum coverage (see Note 1) [%d]\n", conf->mincov);
     fprintf(stderr, "    -s STR    Sample, (takes \"FIRST\", \"LAST\", \"ALL\", or specific\n");
     fprintf(stderr, "                  sample names separated by \",\") [FIRST]\n");
     fprintf(stderr, "    -e        Show context (reference base, context group {CG,CHG,CHH},\n");
@@ -311,12 +311,16 @@ static int usage(conf_t *conf) {
     fprintf(stderr, "    -c        Output Beta-M-U instead of Beta-Cov.\n");
     fprintf(stderr, "    -h        This help\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "Note 1: Starting with version 1.6.0, the default minimum coverage was changed from\n");
+    fprintf(stderr, "        three (3) to one (1) to better match other tools and serve as a better default\n");
+    fprintf(stderr, "        for single-cell experiments.\n");
+    fprintf(stderr, "\n");
 
     return 1;
 }
 
 int main_vcf2bed(int argc, char *argv[]) {
-    conf_t conf = {.mincov=3, .showctxt=0, .showmu=0};
+    conf_t conf = {.mincov=1, .showctxt=0, .showmu=0};
     strcpy(conf.target, "CG");
     char *target_samples = NULL;
 
