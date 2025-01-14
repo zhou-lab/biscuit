@@ -39,11 +39,13 @@
  **********************/
 
 // sort by 1) bss; 2) ref end;
-#define alnreg_slt2(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).re < (b).re)))
+// #define alnreg_slt2(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).re < (b).re)))
+#define alnreg_slt2(a, b) ((a).re < (b).re)
 KSORT_INIT(mem_ars2, mem_alnreg_t, alnreg_slt2)
 
 // sort by 1) bss; 2) score; 3) ref begin; 4) query begin
-#define alnreg_slt(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).score > (b).score || ((a).score == (b).score && ((a).rb < (b).rb || ((a).rb == (b).rb && (a).qb < (b).qb))))))
+// #define alnreg_slt(a, b) ((a).bss < (b).bss || ((a).bss == (b).bss && ((a).score > (b).score || ((a).score == (b).score && ((a).rb < (b).rb || ((a).rb == (b).rb && (a).qb < (b).qb))))))
+#define alnreg_slt(a, b) ((a).score > (b).score || ((a).score == (b).score && ((a).rb < (b).rb || ((a).rb == (b).rb && (a).qb < (b).qb))))
 KSORT_INIT(mem_ars, mem_alnreg_t, alnreg_slt)
 
 #define PATCH_MAX_R_BW 0.05f
@@ -127,7 +129,7 @@ void mem_sort_deduplicate(const mem_opt_t *opt, const bntseq_t *bns, const uint8
     // rid (chromosome) and with opt->max_chain_gap distance from p
     int j;
     for (j = i - 1; j >= 0 &&
-        p->bss == regs->a[j].bss && 
+        // p->bss == regs->a[j].bss && 
         p->rid == regs->a[j].rid && 
         p->rb < regs->a[j].re + opt->max_chain_gap; --j) {
 
